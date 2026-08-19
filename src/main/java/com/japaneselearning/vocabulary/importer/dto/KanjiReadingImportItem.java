@@ -1,6 +1,6 @@
 package com.japaneselearning.vocabulary.importer.dto;
 
-public class KanjiReadingImport {
+public class KanjiReadingImportItem {
 
     public String reading;
 

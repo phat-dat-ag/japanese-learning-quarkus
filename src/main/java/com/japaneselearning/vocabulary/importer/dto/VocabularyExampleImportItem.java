@@ -1,6 +1,6 @@
 package com.japaneselearning.vocabulary.importer.dto;
 
-public class ExampleSentenceImport {
+public class VocabularyExampleImportItem {
 
     public String japaneseText;
 

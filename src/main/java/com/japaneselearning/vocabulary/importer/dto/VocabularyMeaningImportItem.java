@@ -1,6 +1,6 @@
 package com.japaneselearning.vocabulary.importer.dto;
 
-public class VocabularyMeaningImport {
+public class VocabularyMeaningImportItem {
 
     public String language;
 

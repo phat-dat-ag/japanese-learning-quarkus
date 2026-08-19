@@ -10,15 +10,15 @@ public class VocabularyImportItem {
 
     public List<String> levels;
 
-    public List<VocabularyReadingImport> readings;
+    public List<VocabularyReadingImportItem> readings;
 
-    public List<VocabularyMeaningImport> meanings;
+    public List<VocabularyMeaningImportItem> meanings;
 
     public List<String> partsOfSpeech;
 
-    public List<KanjiImport> kanji;
+    public List<VocabularyKanjiImportItem> kanji;
 
-    public List<PitchAccentImport> pitchAccents;
+    public List<VocabularyPitchAccentImportItem> pitchAccents;
 
-    public List<ExampleSentenceImport> examples;
+    public List<VocabularyExampleImportItem> examples;
 }

@@ -1,12 +1,12 @@
 package com.japaneselearning.vocabulary.importer;
 
-import com.japaneselearning.vocabulary.importer.dto.KanjiImport;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyExampleImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
-import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImport;
-import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImport;
-import com.japaneselearning.vocabulary.importer.dto.KanjiReadingImport;
-import com.japaneselearning.vocabulary.importer.dto.PitchAccentImport;
-import com.japaneselearning.vocabulary.importer.dto.ExampleSentenceImport;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyKanjiImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyPitchAccentImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImportItem;
+import com.japaneselearning.vocabulary.importer.dto.KanjiReadingImportItem;
 
 import org.junit.jupiter.api.Test;
 
@@ -30,8 +30,12 @@ class VocabularyImportValidatorTest {
 
         item.levels = List.of("N5");
 
-        VocabularyReadingImport reading =
-                new VocabularyReadingImport();
+        // =========================
+        // Readings
+        // =========================
+
+        VocabularyReadingImportItem reading =
+                new VocabularyReadingImportItem();
 
         reading.reading = "がくせい";
         reading.isPrimary = true;
@@ -39,16 +43,20 @@ class VocabularyImportValidatorTest {
 
         item.readings = List.of(reading);
 
-        VocabularyMeaningImport viMeaning =
-                new VocabularyMeaningImport();
+        // =========================
+        // Meanings
+        // =========================
+
+        VocabularyMeaningImportItem viMeaning =
+                new VocabularyMeaningImportItem();
 
         viMeaning.language = "vi";
         viMeaning.meaning = "học sinh";
         viMeaning.isPrimary = true;
         viMeaning.displayOrder = 1;
 
-        VocabularyMeaningImport enMeaning =
-                new VocabularyMeaningImport();
+        VocabularyMeaningImportItem enMeaning =
+                new VocabularyMeaningImportItem();
 
         enMeaning.language = "en";
         enMeaning.meaning = "student";
@@ -60,17 +68,26 @@ class VocabularyImportValidatorTest {
                 enMeaning
         );
 
+        // =========================
+        // Parts of Speech
+        // =========================
+
         item.partsOfSpeech = List.of("NOUN");
 
-        KanjiImport kanji = new KanjiImport();
+        // =========================
+        // Kanji
+        // =========================
+
+        VocabularyKanjiImportItem kanji =
+                new VocabularyKanjiImportItem();
 
         kanji.character = "学";
         kanji.strokeCount = 8;
         kanji.meaningVi = "học";
         kanji.meaningEn = "study";
 
-        KanjiReadingImport kanjiReading =
-                new KanjiReadingImport();
+        KanjiReadingImportItem kanjiReading =
+                new KanjiReadingImportItem();
 
         kanjiReading.reading = "ガク";
         kanjiReading.readingType = "ON";
@@ -80,16 +97,24 @@ class VocabularyImportValidatorTest {
 
         item.kanji = List.of(kanji);
 
-        PitchAccentImport pitchAccent =
-                new PitchAccentImport();
+        // =========================
+        // Pitch Accent
+        // =========================
+
+        VocabularyPitchAccentImportItem pitchAccent =
+                new VocabularyPitchAccentImportItem();
 
         pitchAccent.reading = "がくせい";
         pitchAccent.accentPattern = 2;
 
         item.pitchAccents = List.of(pitchAccent);
 
-        ExampleSentenceImport example =
-                new ExampleSentenceImport();
+        // =========================
+        // Example
+        // =========================
+
+        VocabularyExampleImportItem example =
+                new VocabularyExampleImportItem();
 
         example.japaneseText = "私は学生です。";
         example.japaneseReading = "わたしはがくせいです。";
@@ -99,6 +124,10 @@ class VocabularyImportValidatorTest {
         example.displayOrder = 1;
 
         item.examples = List.of(example);
+
+        // =========================
+        // Validate
+        // =========================
 
         assertDoesNotThrow(
                 () -> validator.validate(List.of(item))

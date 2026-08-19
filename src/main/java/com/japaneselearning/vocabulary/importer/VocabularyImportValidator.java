@@ -1,11 +1,11 @@
 package com.japaneselearning.vocabulary.importer;
 
-import com.japaneselearning.vocabulary.importer.dto.ExampleSentenceImport;
-import com.japaneselearning.vocabulary.importer.dto.KanjiImport;
-import com.japaneselearning.vocabulary.importer.dto.PitchAccentImport;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyExampleImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
-import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImport;
-import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImport;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyKanjiImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyPitchAccentImportItem;
+import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImportItem;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -40,6 +40,7 @@ public class VocabularyImportValidator {
         Set<String> words = new HashSet<>();
 
         for (VocabularyImportItem item : items) {
+
             validateItem(item);
 
             if (!words.add(item.word)) {
@@ -73,17 +74,11 @@ public class VocabularyImportValidator {
         }
 
         validateLevels(item);
-
         validateReadings(item);
-
         validateMeanings(item);
-
         validatePartsOfSpeech(item);
-
         validateKanji(item);
-
         validatePitchAccents(item);
-
         validateExamples(item);
     }
 
@@ -120,7 +115,7 @@ public class VocabularyImportValidator {
 
         boolean hasPrimaryReading = false;
 
-        for (VocabularyReadingImport reading : item.readings) {
+        for (VocabularyReadingImportItem reading : item.readings) {
 
             if (reading == null || isBlank(reading.reading)) {
                 throw new IllegalArgumentException(
@@ -151,7 +146,7 @@ public class VocabularyImportValidator {
             );
         }
 
-        for (VocabularyMeaningImport meaning : item.meanings) {
+        for (VocabularyMeaningImportItem meaning : item.meanings) {
 
             if (meaning == null) {
                 throw new IllegalArgumentException(
@@ -191,16 +186,26 @@ public class VocabularyImportValidator {
                             + item.word
             );
         }
+
+        for (String code : item.partsOfSpeech) {
+
+            if (isBlank(code)) {
+                throw new IllegalArgumentException(
+                        "Part of speech code must not be blank: "
+                                + item.word
+                );
+            }
+        }
     }
 
     private void validateKanji(
             VocabularyImportItem item) {
 
-        if (item.kanji == null) {
+        if (item.kanji == null || item.kanji.isEmpty()) {
             return;
         }
 
-        for (KanjiImport kanji : item.kanji) {
+        for (VocabularyKanjiImportItem kanji : item.kanji) {
 
             if (kanji == null ||
                     isBlank(kanji.character)) {
@@ -225,11 +230,14 @@ public class VocabularyImportValidator {
     private void validatePitchAccents(
             VocabularyImportItem item) {
 
-        if (item.pitchAccents == null) {
+        if (item.pitchAccents == null ||
+                item.pitchAccents.isEmpty()) {
+
             return;
         }
 
-        for (PitchAccentImport accent : item.pitchAccents) {
+        for (VocabularyPitchAccentImportItem accent :
+                item.pitchAccents) {
 
             if (accent == null ||
                     isBlank(accent.reading)) {
@@ -262,7 +270,8 @@ public class VocabularyImportValidator {
             );
         }
 
-        for (ExampleSentenceImport example : item.examples) {
+        for (VocabularyExampleImportItem example :
+                item.examples) {
 
             if (example == null) {
                 throw new IllegalArgumentException(

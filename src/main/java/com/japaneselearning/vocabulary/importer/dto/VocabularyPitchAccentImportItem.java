@@ -1,6 +1,6 @@
 package com.japaneselearning.vocabulary.importer.dto;
 
-public class PitchAccentImport {
+public class VocabularyPitchAccentImportItem {
 
     public String reading;
 

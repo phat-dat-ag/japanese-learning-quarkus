@@ -2,7 +2,7 @@ package com.japaneselearning.vocabulary.importer.dto;
 
 import java.util.List;
 
-public class KanjiImport {
+public class VocabularyKanjiImportItem {
 
     public String character;
 
@@ -12,5 +12,5 @@ public class KanjiImport {
 
     public String meaningEn;
 
-    public List<KanjiReadingImport> readings;
+    public List<KanjiReadingImportItem> readings;
 }
