@@ -9,18 +9,20 @@ public class VocabularyLevelRepository {
 
     public Uni<Void> insert(
             Long vocabularyId,
-            Long levelId) {
+            Long levelId,
+            Integer displayOrder) {
 
         return Panache.getSession()
                 .flatMap(session ->
                         session.createNativeMutationQuery("""
                                         INSERT INTO vocabulary_levels
-                                            (vocabulary_id, level_id)
+                                            (vocabulary_id, level_id, display_order)
                                         VALUES
-                                            (:vocabularyId, :levelId)
+                                            (:vocabularyId, :levelId, :displayOrder)
                                         """)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .setParameter("levelId", levelId)
+                                .setParameter("displayOrder", displayOrder)
                                 .executeUpdate()
                 )
                 .replaceWithVoid();
