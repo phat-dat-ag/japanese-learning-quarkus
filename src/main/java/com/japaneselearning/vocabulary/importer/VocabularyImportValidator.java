@@ -6,6 +6,7 @@ import com.japaneselearning.vocabulary.importer.dto.VocabularyKanjiImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyPitchAccentImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImportItem;
+import com.japaneselearning.vocabulary.importer.dto.LessonImportItem;
 
 import jakarta.enterprise.context.ApplicationScoped;
 
@@ -74,6 +75,7 @@ public class VocabularyImportValidator {
         }
 
         validateLevels(item);
+        validateLessons(item);
         validateReadings(item);
         validateMeanings(item);
         validatePartsOfSpeech(item);
@@ -97,6 +99,92 @@ public class VocabularyImportValidator {
                 throw new IllegalArgumentException(
                         "Unsupported JLPT level '"
                                 + level
+                                + "' for vocabulary: "
+                                + item.word
+                );
+            }
+        }
+    }
+
+    private void validateLessons(
+            VocabularyImportItem item) {
+
+        if (item.lessons == null ||
+                item.lessons.isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "Vocabulary must have at least one lesson: "
+                            + item.word
+            );
+        }
+
+        Set<String> lessons = new HashSet<>();
+
+        for (LessonImportItem lesson : item.lessons) {
+
+            if (lesson == null) {
+                throw new IllegalArgumentException(
+                        "Lesson must not be null: "
+                                + item.word
+                );
+            }
+
+            if (isBlank(lesson.level)) {
+                throw new IllegalArgumentException(
+                        "Lesson level must not be blank: "
+                                + item.word
+                );
+            }
+
+            if (!SUPPORTED_LEVELS.contains(
+                    lesson.level
+            )) {
+                throw new IllegalArgumentException(
+                        "Unsupported JLPT level '"
+                                + lesson.level
+                                + "' for lesson of vocabulary: "
+                                + item.word
+                );
+            }
+
+            if (item.levels == null ||
+                    !item.levels.contains(lesson.level)) {
+
+                throw new IllegalArgumentException(
+                        "Lesson level '"
+                                + lesson.level
+                                + "' is not assigned to vocabulary: "
+                                + item.word
+                );
+            }
+
+            if (lesson.lessonNumber == null ||
+                    lesson.lessonNumber <= 0) {
+
+                throw new IllegalArgumentException(
+                        "Lesson number must be greater than 0: "
+                                + item.word
+                );
+            }
+
+            if (lesson.displayOrder == null ||
+                    lesson.displayOrder <= 0) {
+
+                throw new IllegalArgumentException(
+                        "Lesson display order must be greater than 0: "
+                                + item.word
+                );
+            }
+
+            String key =
+                    lesson.level
+                            + ":"
+                            + lesson.lessonNumber;
+
+            if (!lessons.add(key)) {
+                throw new IllegalArgumentException(
+                        "Duplicate lesson '"
+                                + key
                                 + "' for vocabulary: "
                                 + item.word
                 );

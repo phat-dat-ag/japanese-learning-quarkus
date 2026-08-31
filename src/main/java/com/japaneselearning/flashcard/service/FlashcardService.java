@@ -1,6 +1,7 @@
 package com.japaneselearning.flashcard.service;
 
 import com.japaneselearning.flashcard.dto.FlashcardDetailResponse;
+import com.japaneselearning.flashcard.dto.FlashcardLessonResponse;
 import com.japaneselearning.flashcard.dto.FlashcardExampleResponse;
 import com.japaneselearning.flashcard.dto.FlashcardKanjiReadingResponse;
 import com.japaneselearning.flashcard.dto.FlashcardKanjiResponse;
@@ -33,27 +34,53 @@ public class FlashcardService {
     @WithSession
     public Uni<FlashcardListResponse> getFlashcards(
             String level,
+            Integer lesson,
             int page,
             int size
     ) {
 
         validatePagination(page, size);
 
+        validateLesson(lesson);
+
         String levelCode = normalizeLevel(level);
 
         int offset = page * size;
 
-        Uni<List<Object[]>> vocabularyUni =
-                flashcardRepository.findVocabularyByLevel(
-                        levelCode,
-                        offset,
-                        size
-                );
+        Uni<List<Object[]>> vocabularyUni;
 
-        Uni<Long> countUni =
-                flashcardRepository.countVocabularyByLevel(
-                        levelCode
-                );
+        Uni<Long> countUni;
+
+        if (lesson == null) {
+
+            vocabularyUni =
+                    flashcardRepository.findVocabularyByLevel(
+                            levelCode,
+                            offset,
+                            size
+                    );
+
+            countUni =
+                    flashcardRepository.countVocabularyByLevel(
+                            levelCode
+                    );
+
+        } else {
+
+            vocabularyUni =
+                    flashcardRepository.findVocabularyByLevelAndLesson(
+                            levelCode,
+                            lesson,
+                            offset,
+                            size
+                    );
+
+            countUni =
+                    flashcardRepository.countVocabularyByLevelAndLesson(
+                            levelCode,
+                            lesson
+                    );
+        }
 
         return Uni.combine()
                 .all()
@@ -115,6 +142,7 @@ public class FlashcardService {
                                     flashcardRepository.findMeanings(id),
                                     flashcardRepository.findPartsOfSpeech(id),
                                     flashcardRepository.findLevels(id),
+                                    flashcardRepository.findLessons(id),
                                     flashcardRepository.findKanji(id),
                                     flashcardRepository.findExamples(id)
                             )
@@ -133,11 +161,14 @@ public class FlashcardService {
                                 List<Object[]> levels =
                                         tuple.getItem4();
 
-                                List<Object[]> kanji =
+                                List<Object[]> lessons =
                                         tuple.getItem5();
 
-                                List<Object[]> examples =
+                                List<Object[]> kanji =
                                         tuple.getItem6();
+
+                                List<Object[]> examples =
+                                        tuple.getItem7();
 
                                 return buildDetailResponse(
                                         id,
@@ -146,6 +177,7 @@ public class FlashcardService {
                                         meanings,
                                         partsOfSpeech,
                                         levels,
+                                        lessons,
                                         kanji,
                                         examples
                                 );
@@ -164,6 +196,7 @@ public class FlashcardService {
             List<Object[]> meanings,
             List<Object[]> partsOfSpeech,
             List<Object[]> levels,
+            List<Object[]> lessons,
             List<Object[]> kanji,
             List<Object[]> examples
     ) {
@@ -352,6 +385,25 @@ public class FlashcardService {
                                     .toList();
 
                     // ====================================================
+                    // LESSONS
+                    // ====================================================
+
+                    List<FlashcardLessonResponse>
+                            lessonResponses =
+                            lessons.stream()
+                                    .map(row ->
+                                            new FlashcardLessonResponse(
+                                                    (String) row[0],
+                                                    (String) row[1],
+                                                    ((Number) row[2]).intValue(),
+                                                    (String) row[3],
+                                                    (String) row[4],
+                                                    ((Number) row[5]).intValue()
+                                            )
+                                    )
+                                    .toList();
+
+                    // ====================================================
                     // KANJI
                     // ====================================================
 
@@ -425,6 +477,7 @@ public class FlashcardService {
                             meaningResponses,
                             posResponses,
                             levelResponses,
+                            lessonResponses,
                             kanjiResponses,
                             exampleResponses
                     );
@@ -449,6 +502,15 @@ public class FlashcardService {
         if (size <= 0 || size > 100) {
             throw new IllegalArgumentException(
                     "Size must be between 1 and 100"
+            );
+        }
+    }
+
+    private void validateLesson(Integer lesson) {
+
+        if (lesson != null && lesson <= 0) {
+            throw new IllegalArgumentException(
+                    "Lesson must be greater than 0"
             );
         }
     }

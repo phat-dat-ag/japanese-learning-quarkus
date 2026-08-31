@@ -10,6 +10,8 @@ public class VocabularyImportItem {
 
     public List<String> levels;
 
+    public List<LessonImportItem> lessons;
+
     public List<VocabularyReadingImportItem> readings;
 
     public List<VocabularyMeaningImportItem> meanings;
