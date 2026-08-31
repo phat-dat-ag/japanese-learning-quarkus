@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.service;
 
+import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.vocabulary.dto.LessonResponse;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
 import com.japaneselearning.vocabulary.repository.LessonRepository;
@@ -8,7 +9,6 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.ws.rs.NotFoundException;
 
 import java.util.List;
 
@@ -34,8 +34,9 @@ public class LessonService {
                 .onItem()
                 .ifNull()
                 .failWith(() ->
-                        new NotFoundException(
-                                "JLPT level not found: " + level
+                        new ResourceNotFoundException(
+                                "JLPT_LEVEL_NOT_FOUND",
+                                "JLPT level " + level + " not found"
                         )
                 )
                 .chain(jlptLevel ->

@@ -5,7 +5,7 @@ import com.japaneselearning.vocabulary.service.LessonService;
 
 import io.smallrye.mutiny.Uni;
 
-import jakarta.ws.rs.BadRequestException;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -26,14 +26,8 @@ public class LessonResource {
 
     @GET
     public Uni<List<LessonResponse>> getLessons(
-            @QueryParam("level") String level
+            @QueryParam("level") @NotBlank(message = "Level is required") String level
     ) {
-
-        if (level == null || level.isBlank()) {
-            throw new BadRequestException(
-                    "Query parameter 'level' is required"
-            );
-        }
 
         return lessonService.getLessonsByLevel(level.trim());
     }
