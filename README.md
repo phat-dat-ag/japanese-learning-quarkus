@@ -1,10 +1,8 @@
-# Japanese Learning - Backend
+# Japanese Learning - Vocabulary
 
 Backend service for the Japanese Learning application.
 
-This project provides the backend foundation for managing Japanese vocabulary data, including JLPT levels, readings, meanings, parts of speech, Kanji, pitch accents, and example sentences.
-
-The backend is built with Quarkus and uses a reactive programming model with MySQL.
+Built with Quarkus and MySQL, currently focused on the Vocabulary domain.
 
 ---
 
@@ -24,6 +22,7 @@ The backend is built with Quarkus and uses a reactive programming model with MyS
 - SmallRye Health
 - JUnit
 - REST Assured
+- Docker
 
 ---
 
@@ -31,110 +30,66 @@ The backend is built with Quarkus and uses a reactive programming model with MyS
 
 ### Vocabulary Management
 
-The current backend focuses on Japanese vocabulary data and supports:
-
-- JLPT levels from N5 to N1
-- Vocabulary words
-- Normalized vocabulary words
-- Vocabulary readings
-- Vocabulary meanings
+- JLPT levels (N5–N1)
+- Vocabulary and normalized words
+- Readings and meanings
 - Parts of speech
-- Kanji information
-- Kanji readings
-- Vocabulary pitch accents
+- Kanji and Kanji readings
+- Pitch accents
 - Example sentences
-- Vocabulary-to-JLPT-level relationships
-- Vocabulary-to-Kanji relationships
-- Vocabulary-to-example relationships
+- Vocabulary relationships
 
 ### Vocabulary Import
 
-Vocabulary data can be imported from a JSON file through a `multipart/form-data` API.
+Vocabulary can be imported from a JSON file through:
+
+```http
+POST /api/vocabularies/import
+```
 
 The importer:
 
-1. Reads and deserializes the JSON file.
-2. Validates the imported data.
-3. Processes vocabulary items sequentially.
-4. Creates or updates vocabulary based on `normalizedWord`.
-5. Imports related data.
-6. Returns an import summary.
+1. Reads and deserializes the JSON file
+2. Validates the imported data
+3. Processes vocabulary items
+4. Creates or updates vocabulary based on `normalizedWord`
+5. Imports related vocabulary data
+6. Returns an import summary
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/api/vocabularies/import \
+  -F "file=@src/main/resources/data/vocabulary/n5.json"
+```
 
 ---
 
 ## Architecture
 
-The backend is organized by the Vocabulary domain.
+The project is organized around the Vocabulary domain.
 
 ```text
 com.japaneselearning.vocabulary
-│
 ├── entity
-│   ├── Vocabulary
-│   ├── VocabularyReading
-│   ├── VocabularyMeaning
-│   ├── VocabularyLevel
-│   ├── VocabularyPartOfSpeech
-│   ├── VocabularyKanji
-│   ├── VocabularyPitchAccent
-│   ├── VocabularyExample
-│   ├── Kanji
-│   ├── KanjiReading
-│   ├── JlptLevel
-│   ├── PartOfSpeech
-│   └── ExampleSentence
-│
 ├── importer
-│   ├── VocabularyImporter
-│   ├── VocabularyCoreImporter
-│   ├── VocabularyLevelImporter
-│   ├── VocabularyReadingImporter
-│   ├── VocabularyMeaningImporter
-│   ├── VocabularyPartOfSpeechImporter
-│   ├── VocabularyKanjiImporter
-│   ├── VocabularyPitchAccentImporter
-│   ├── VocabularyExampleImporter
-│   ├── VocabularyFileReader
-│   ├── VocabularyImportValidator
 │   └── dto
-│
 ├── repository
-│   └── Vocabulary repositories
-│
 ├── resource
-│   └── VocabularyResource
-│
 └── service
-    └── VocabularyService
 ```
 
-### Request Flow
+Request flow:
 
 ```text
 HTTP Request
-     │
-     ▼
+    ↓
 VocabularyResource
-     │
-     ▼
+    ↓
 VocabularyService
-     │
-     │ @WithTransaction
-     ▼
+    ↓
 VocabularyImporter
-     │
-     ├── Validate JSON
-     │
-     ├── Import Vocabulary
-     ├── Import JLPT Levels
-     ├── Import Readings
-     ├── Import Meanings
-     ├── Import Parts of Speech
-     ├── Import Kanji
-     ├── Import Pitch Accents
-     └── Import Examples
-     │
-     ▼
+    ↓
 MySQL
 ```
 
@@ -142,118 +97,51 @@ The vocabulary import operation runs inside a Hibernate Reactive transaction usi
 
 ---
 
-## Project Structure
-
-```text
-backend/
-├── .dockerignore
-├── .env
-├── .gitignore
-├── mvnw
-├── mvnw.cmd
-├── pom.xml
-├── README.md
-│
-├── src/
-│   ├── main/
-│   │   ├── docker/
-│   │   │   ├── Dockerfile.jvm
-│   │   │   ├── Dockerfile.legacy-jar
-│   │   │   ├── Dockerfile.native
-│   │   │   └── Dockerfile.native-micro
-│   │   │
-│   │   ├── java/
-│   │   │   └── com/
-│   │   │       └── japaneselearning/
-│   │   │           └── vocabulary/
-│   │   │               ├── entity/
-│   │   │               ├── importer/
-│   │   │               ├── repository/
-│   │   │               ├── resource/
-│   │   │               └── service/
-│   │   │
-│   │   └── resources/
-│   │       ├── application.properties
-│   │       ├── data/
-│   │       │   └── vocabulary/
-│   │       │       └── n5.json
-│   │       └── db/
-│   │           └── migration/
-│   │               ├── V1__create_vocabulary_schema.sql
-│   │               ├── V2__insert_master_data.sql
-│   │               ├── V3__add_vocabulary_unique_constraint.sql
-│   │               └── V4__fix_primary_column_type.sql
-│   │
-│   └── test/
-│       └── java/
-│           └── com/
-│               └── japaneselearning/
-│                   └── vocabulary/
-│                       └── importer/
-│
-└── target/
-```
-
-`target/` is generated by Maven and should not be committed to Git.
-
----
-
 ## Database
 
 The backend uses **MySQL 8.4**.
 
-The database schema is managed by Flyway migrations.
+Database schema changes are managed through **Flyway**.
 
 ### Main Tables
 
-The current vocabulary schema contains:
-
-- `jlpt_levels`
-- `vocabulary`
-- `vocabulary_levels`
-- `vocabulary_readings`
-- `vocabulary_meanings`
-- `parts_of_speech`
-- `vocabulary_parts_of_speech`
-- `kanji`
-- `vocabulary_kanji`
-- `kanji_readings`
-- `vocabulary_pitch_accents`
-- `example_sentences`
-- `vocabulary_examples`
+```text
+jlpt_levels
+vocabulary
+vocabulary_levels
+vocabulary_readings
+vocabulary_meanings
+parts_of_speech
+vocabulary_parts_of_speech
+kanji
+vocabulary_kanji
+kanji_readings
+vocabulary_pitch_accents
+example_sentences
+vocabulary_examples
+```
 
 ### Domain Relationships
 
 ```text
 JLPT Level
-     │
-     └── Vocabulary
-
-Vocabulary
-     ├── Readings
-     │     └── Pitch Accents
-     │
-     ├── Meanings
-     │
-     ├── Parts of Speech
-     │
-     ├── Kanji
-     │     └── Kanji Readings
-     │
-     └── Example Sentences
+    │
+    └── Vocabulary
+            │
+            ├── Readings
+            │     └── Pitch Accents
+            │
+            ├── Meanings
+            │
+            ├── Parts of Speech
+            │
+            ├── Kanji
+            │     └── Kanji Readings
+            │
+            └── Example Sentences
 ```
-
-### Vocabulary Uniqueness
 
 Vocabulary records are uniquely identified by `normalized_word`.
-
-The database contains a unique constraint on:
-
-```text
-vocabulary.normalized_word
-```
-
-This prevents duplicate vocabulary records based on the normalized form.
 
 ---
 
@@ -269,233 +157,62 @@ Current migrations:
 
 | Version | Migration | Description |
 |---|---|---|
-| V1 | `V1__create_vocabulary_schema.sql` | Creates the initial vocabulary schema |
-| V2 | `V2__insert_master_data.sql` | Inserts JLPT levels and parts of speech |
+| V1 | `V1__create_vocabulary_schema.sql` | Creates the vocabulary schema |
+| V2 | `V2__insert_master_data.sql` | Inserts master data |
 | V3 | `V3__add_vocabulary_unique_constraint.sql` | Adds unique constraint for `normalized_word` |
 | V4 | `V4__fix_primary_column_type.sql` | Fixes `is_primary` column types |
 
-Flyway is configured to run migrations automatically when the application starts:
+Flyway is executed separately through Docker.
 
-```properties
-quarkus.flyway.migrate-at-start=true
-```
-
-Hibernate schema generation is disabled:
+The Quarkus application does not manage database schema generation.
 
 ```properties
 quarkus.hibernate-orm.schema-management.strategy=none
 ```
 
-Therefore, database schema changes should be managed through Flyway migrations rather than Hibernate automatic schema generation.
+Database changes should be introduced through new Flyway migrations.
 
 ---
 
-## Vocabulary Import
-
-### Import API
-
-The current vocabulary import endpoint is:
-
-```http
-POST /api/vocabularies/import
-```
-
-The request uses:
+## Project Structure
 
 ```text
-Content-Type: multipart/form-data
+backend/
+├── pom.xml
+├── README.md
+├── mvnw
+├── mvnw.cmd
+│
+├── src/
+│   ├── main/
+│   │   ├── docker/
+│   │   │   ├── Dockerfile.jvm
+│   │   │   ├── Dockerfile.legacy-jar
+│   │   │   ├── Dockerfile.native
+│   │   │   └── Dockerfile.native-micro
+│   │   │
+│   │   ├── java/
+│   │   │   └── com/japaneselearning/vocabulary/
+│   │   │       ├── entity/
+│   │   │       ├── importer/
+│   │   │       ├── repository/
+│   │   │       ├── resource/
+│   │   │       └── service/
+│   │   │
+│   │   └── resources/
+│   │       ├── application.properties
+│   │       ├── data/
+│   │       │   └── vocabulary/
+│   │       └── db/
+│   │           └── migration/
+│   │
+│   └── test/
+│       └── java/
+│
+└── target/
 ```
 
-with the uploaded file provided using the form field:
-
-```text
-file
-```
-
-### cURL Example
-
-```bash
-curl -X POST http://localhost:8080/api/vocabularies/import \
-  -F "file=@src/main/resources/data/vocabulary/n5.json"
-```
-
----
-
-## Vocabulary Import Flow
-
-```text
-JSON File
-    │
-    ▼
-Jackson Deserialization
-    │
-    ▼
-Vocabulary Validation
-    │
-    ▼
-Process Vocabulary Items
-    │
-    ├── Get or Create Vocabulary
-    │
-    ├── Import JLPT Levels
-    │
-    ├── Import Readings
-    │
-    ├── Import Meanings
-    │
-    ├── Import Parts of Speech
-    │
-    ├── Import Kanji
-    │
-    ├── Import Pitch Accents
-    │
-    └── Import Example Sentences
-    │
-    ▼
-Import Result
-```
-
-### Create or Update Behavior
-
-Vocabulary records are looked up using:
-
-```text
-normalizedWord
-```
-
-If the vocabulary already exists:
-
-- The existing vocabulary is updated.
-- Related vocabulary data is processed.
-
-If the vocabulary does not exist:
-
-- A new vocabulary record is created.
-- Related vocabulary data is processed.
-
-This provides an upsert-like import behavior based on `normalizedWord`.
-
----
-
-## Import JSON Format
-
-Vocabulary data is represented as an array of vocabulary objects.
-
-Example:
-
-```json
-[
-  {
-    "word": "学生",
-    "normalizedWord": "学生",
-    "levels": [
-      "N5"
-    ],
-    "readings": [
-      {
-        "reading": "がくせい",
-        "isPrimary": true,
-        "displayOrder": 1
-      }
-    ],
-    "meanings": [
-      {
-        "language": "vi",
-        "meaning": "học sinh",
-        "isPrimary": true,
-        "displayOrder": 1
-      },
-      {
-        "language": "vi",
-        "meaning": "sinh viên",
-        "isPrimary": false,
-        "displayOrder": 2
-      },
-      {
-        "language": "en",
-        "meaning": "student",
-        "isPrimary": true,
-        "displayOrder": 1
-      }
-    ],
-    "partsOfSpeech": [
-      "NOUN"
-    ],
-    "kanji": [
-      {
-        "character": "学",
-        "strokeCount": 8,
-        "meaningVi": "học",
-        "meaningEn": "study; learning",
-        "readings": [
-          {
-            "reading": "ガク",
-            "readingType": "ON",
-            "displayOrder": 1
-          },
-          {
-            "reading": "まなぶ",
-            "readingType": "KUN",
-            "displayOrder": 1
-          }
-        ]
-      }
-    ],
-    "pitchAccents": [
-      {
-        "reading": "がくせい",
-        "accentPattern": 2
-      }
-    ],
-    "examples": [
-      {
-        "japaneseText": "私は学生です。",
-        "japaneseReading": "わたしはがくせいです。",
-        "meaningVi": "Tôi là học sinh.",
-        "meaningEn": "I am a student.",
-        "targetText": "学生",
-        "displayOrder": 1
-      }
-    ]
-  }
-]
-```
-
-### Supported Vocabulary Fields
-
-| Field | Description |
-|---|---|
-| `word` | Original vocabulary word |
-| `normalizedWord` | Normalized value used to identify the vocabulary |
-| `levels` | JLPT levels associated with the vocabulary |
-| `readings` | Vocabulary readings |
-| `meanings` | Meanings in supported languages |
-| `partsOfSpeech` | Parts of speech |
-| `kanji` | Kanji associated with the vocabulary |
-| `pitchAccents` | Pitch accent patterns |
-| `examples` | Example sentences |
-
----
-
-## Import Result
-
-The import operation returns a summary containing:
-
-```json
-{
-  "total": 1,
-  "created": 1,
-  "updated": 0
-}
-```
-
-The fields represent:
-
-| Field | Description |
-|---|---|
-| `total` | Total number of vocabulary items processed |
-| `created` | Number of newly created vocabulary records |
-| `updated` | Number of existing vocabulary records processed as updates |
+`target/` is generated by Maven and should not be committed to Git.
 
 ---
 
@@ -509,8 +226,6 @@ src/main/resources/application.properties
 
 Database connection information is provided through environment variables.
 
-### Required Environment Variables
-
 ```env
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
@@ -518,24 +233,12 @@ DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
 DB_JDBC_URL=jdbc:mysql://localhost:3306/japanese_learning
 ```
 
-The project uses two database connection configurations:
+The project uses:
 
-- Reactive MySQL URL for Hibernate Reactive.
-- JDBC MySQL URL for Flyway.
+- Reactive MySQL URL for Hibernate Reactive
+- JDBC MySQL URL for Flyway
 
-Example:
-
-```properties
-quarkus.datasource.db-kind=mysql
-quarkus.datasource.username=${DB_USERNAME}
-quarkus.datasource.password=${DB_PASSWORD}
-
-quarkus.datasource.reactive.url=${DB_REACTIVE_URL}
-
-quarkus.datasource.jdbc.url=${DB_JDBC_URL}
-```
-
-Do not commit real database credentials to Git.
+Do not commit real database credentials.
 
 ---
 
@@ -543,74 +246,52 @@ Do not commit real database credentials to Git.
 
 ### Prerequisites
 
-Make sure the following are installed:
-
 - Java 17
 - Docker
-- MySQL 8.4 or the project's MySQL infrastructure
+- MySQL 8.4
 - Git
 
 Maven does not need to be installed separately because the project includes the Maven Wrapper.
 
-### 1. Clone the Repository
+### Start Database Infrastructure
+
+Start the MySQL and Flyway containers using the project's Docker configuration.
 
 ```bash
-git clone <repository-url>
-cd backend
+docker compose up -d
 ```
 
-### 2. Configure Environment Variables
+Check running services:
 
-Create a `.env` file or configure the required environment variables:
-
-```env
-DB_USERNAME=your_username
-DB_PASSWORD=your_password
-DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
-DB_JDBC_URL=jdbc:mysql://localhost:3306/japanese_learning
+```bash
+docker compose ps
 ```
 
-Make sure the MySQL database is available at:
+Flyway migrations are handled by the Flyway container separately from the Quarkus application.
 
-```text
-localhost:3306
-```
+### Start Quarkus
 
-and the database is:
-
-```text
-japanese_learning
-```
-
-### 3. Start the Application in Development Mode
-
-On Windows:
+Windows:
 
 ```cmd
 mvnw.cmd quarkus:dev
 ```
 
-On Linux/macOS:
+Linux/macOS:
 
 ```bash
 ./mvnw quarkus:dev
 ```
 
-Quarkus will start the application in development mode.
-
-Flyway will automatically execute pending migrations when the application starts.
-
 ---
 
 ## API Documentation
 
-The project uses SmallRye OpenAPI.
-
-When the application is running, the OpenAPI documentation can be accessed through the Quarkus OpenAPI/Swagger UI.
+The project uses SmallRye OpenAPI and Quarkus Swagger UI.
 
 The main API currently available is:
 
-```text
+```http
 POST /api/vocabularies/import
 ```
 
@@ -620,17 +301,11 @@ POST /api/vocabularies/import
 
 The project includes SmallRye Health for application health monitoring.
 
-Health endpoints are provided by Quarkus.
+Quarkus health endpoints are available when the application is running.
 
 ---
 
 ## Testing
-
-The project uses:
-
-- Quarkus JUnit
-- JUnit
-- REST Assured
 
 Run tests with:
 
@@ -650,8 +325,6 @@ mvnw.cmd test
 
 ## Build
 
-Build the application using:
-
 ### Windows
 
 ```cmd
@@ -664,7 +337,7 @@ mvnw.cmd package
 ./mvnw package
 ```
 
-The generated artifacts are placed in:
+Build artifacts are generated under:
 
 ```text
 target/
@@ -674,33 +347,31 @@ target/
 
 ## Native Build
 
-The project includes a Quarkus native build profile.
-
-To build the native executable:
+The project includes Quarkus native build support.
 
 ```bash
 ./mvnw package -Dnative
 ```
 
-On Windows:
+Windows:
 
 ```cmd
 mvnw.cmd package -Dnative
 ```
 
-The native build requires the appropriate GraalVM/Mandrel native build environment.
+The native build requires an appropriate GraalVM or Mandrel environment.
 
 ---
 
 ## Docker
 
-The project includes Quarkus Dockerfiles under:
+Quarkus Dockerfiles are available under:
 
 ```text
 src/main/docker/
 ```
 
-Available Dockerfiles include:
+Available Dockerfiles:
 
 ```text
 Dockerfile.jvm
@@ -709,68 +380,28 @@ Dockerfile.native
 Dockerfile.native-micro
 ```
 
-These can be used depending on the desired Quarkus packaging and deployment approach.
-
----
-
-## Development Notes
-
-### Database Schema Management
-
-Do not rely on Hibernate automatic schema generation.
-
-Database changes should be introduced through new Flyway migrations:
-
-```text
-src/main/resources/db/migration/
-```
-
-Example:
-
-```text
-V5__your_migration_description.sql
-```
-
-### Vocabulary Data
-
-Sample vocabulary data is currently stored under:
-
-```text
-src/main/resources/data/vocabulary/
-```
-
-The current sample dataset includes:
-
-```text
-n5.json
-```
-
 ---
 
 ## Current Scope
 
-The current backend implementation focuses on the Vocabulary domain.
+The backend currently focuses on the **Vocabulary domain**, including:
 
-Implemented:
-
-- Vocabulary database schema
-- JLPT master data
-- Parts of speech master data
-- Vocabulary import
-- Vocabulary readings
-- Vocabulary meanings
+- Vocabulary management
+- JLPT data
+- Readings and meanings
+- Parts of speech
 - Kanji
 - Kanji readings
 - Pitch accents
 - Example sentences
-- Vocabulary relationships
+- Vocabulary import
 - Database migrations
 - Validation
 - Health checks
-- OpenAPI support
+- OpenAPI
 - Automated tests
 
-Additional application modules and features will be developed incrementally as the Japanese Learning application evolves.
+Additional modules and features will be developed incrementally as the Japanese Learning application evolves.
 
 ---
 
