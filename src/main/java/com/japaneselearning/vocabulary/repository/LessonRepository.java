@@ -5,6 +5,8 @@ import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.List;
+
 @ApplicationScoped
 public class LessonRepository
         implements PanacheRepository<Lesson> {
@@ -18,5 +20,12 @@ public class LessonRepository
                 levelId,
                 lessonNumber
         ).firstResult();
+    }
+
+    public Uni<List<Lesson>> findByLevelId(Long levelId) {
+        return find(
+                "levelId = ?1 order by displayOrder",
+                levelId
+        ).list();
     }
 }
