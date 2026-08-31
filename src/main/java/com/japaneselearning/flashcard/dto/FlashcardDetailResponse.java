@@ -9,6 +9,7 @@ public record FlashcardDetailResponse(
         List<FlashcardMeaningResponse> meanings,
         List<FlashcardPartOfSpeechResponse> partsOfSpeech,
         List<FlashcardLevelResponse> levels,
+        List<FlashcardLessonResponse> lessons,
         List<FlashcardKanjiResponse> kanji,
         List<FlashcardExampleResponse> examples
 ) {

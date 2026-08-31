@@ -536,4 +536,39 @@ public class FlashcardRepository {
                                 .getSingleResult()
                 );
     }
+
+    public Uni<List<Object[]>> findLessons(Long vocabularyId) {
+
+        return Panache.getSession()
+                .flatMap(session ->
+                        session.createNativeQuery("""
+                                        SELECT
+                                            jl.code,
+                                            jl.name,
+                                            l.lesson_number,
+                                            l.title,
+                                            l.description,
+                                            l.display_order
+                                        FROM lesson_vocabulary lv
+                                        INNER JOIN lessons l
+                                            ON l.id = lv.lesson_id
+                                        INNER JOIN jlpt_levels jl
+                                            ON jl.id = l.level_id
+                                        WHERE lv.vocabulary_id = :vocabularyId
+                                        ORDER BY
+                                            jl.display_order ASC,
+                                            l.display_order ASC
+                                        """)
+                                .setParameter(
+                                        "vocabularyId",
+                                        vocabularyId
+                                )
+                                .getResultList()
+                )
+                .map(rows ->
+                        rows.stream()
+                                .map(row -> (Object[]) row)
+                                .toList()
+                );
+    }
 }
