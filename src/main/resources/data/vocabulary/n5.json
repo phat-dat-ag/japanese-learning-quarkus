@@ -1,33 +1,39 @@
 [
   {
-    "word": "学生",
-    "normalizedWord": "学生",
+    "word": "魚",
+    "normalizedWord": "魚",
     "levels": [
       "N5"
     ],
+    "lessons": [
+      {
+        "level": "N5",
+        "lessonNumber": 1,
+        "displayOrder": 1
+      }
+    ],
     "readings": [
       {
-        "reading": "がくせい",
+        "reading": "さかな",
         "isPrimary": true,
         "displayOrder": 1
+      },
+      {
+        "reading": "うお",
+        "isPrimary": false,
+        "displayOrder": 2
       }
     ],
     "meanings": [
       {
         "language": "vi",
-        "meaning": "học sinh",
+        "meaning": "cá",
         "isPrimary": true,
         "displayOrder": 1
       },
       {
-        "language": "vi",
-        "meaning": "sinh viên",
-        "isPrimary": false,
-        "displayOrder": 2
-      },
-      {
         "language": "en",
-        "meaning": "student",
+        "meaning": "fish",
         "isPrimary": true,
         "displayOrder": 1
       }
@@ -37,68 +43,50 @@
     ],
     "kanji": [
       {
-        "character": "学",
-        "strokeCount": 8,
-        "meaningVi": "học",
-        "meaningEn": "study; learning",
+        "character": "魚",
+        "strokeCount": 11,
+        "meaningVi": "cá",
+        "meaningEn": "fish",
         "readings": [
           {
-            "reading": "ガク",
+            "reading": "ギョ",
             "readingType": "ON",
             "displayOrder": 1
           },
           {
-            "reading": "まなぶ",
+            "reading": "さかな",
             "readingType": "KUN",
             "displayOrder": 1
-          }
-        ]
-      },
-      {
-        "character": "生",
-        "strokeCount": 5,
-        "meaningVi": "sinh; sống",
-        "meaningEn": "life; birth",
-        "readings": [
-          {
-            "reading": "セイ",
-            "readingType": "ON",
-            "displayOrder": 1
           },
           {
-            "reading": "ショウ",
-            "readingType": "ON",
+            "reading": "うお",
+            "readingType": "KUN",
             "displayOrder": 2
-          },
-          {
-            "reading": "いきる",
-            "readingType": "KUN",
-            "displayOrder": 1
           }
         ]
       }
     ],
     "pitchAccents": [
       {
-        "reading": "がくせい",
-        "accentPattern": 2
+        "reading": "さかな",
+        "accentPattern": 0
       }
     ],
     "examples": [
       {
-        "japaneseText": "私は学生です。",
-        "japaneseReading": "わたしはがくせいです。",
-        "meaningVi": "Tôi là học sinh.",
-        "meaningEn": "I am a student.",
-        "targetText": "学生",
+        "japaneseText": "魚を食べます。",
+        "japaneseReading": "さかなをたべます。",
+        "meaningVi": "Tôi ăn cá.",
+        "meaningEn": "I eat fish.",
+        "targetText": "魚",
         "displayOrder": 1
       },
       {
-        "japaneseText": "学生が学校へ行きます。",
-        "japaneseReading": "がくせいががっこうへいきます。",
-        "meaningVi": "Học sinh đi đến trường.",
-        "meaningEn": "The student goes to school.",
-        "targetText": "学生",
+        "japaneseText": "魚が好きです。",
+        "japaneseReading": "さかながすきです。",
+        "meaningVi": "Tôi thích cá.",
+        "meaningEn": "I like fish.",
+        "targetText": "魚",
         "displayOrder": 2
       }
     ]

@@ -28,6 +28,7 @@ public class VocabularyImporter {
     private final VocabularyKanjiImporter kanjiImporter;
     private final VocabularyPitchAccentImporter pitchAccentImporter;
     private final VocabularyExampleImporter exampleImporter;
+    private final VocabularyLessonImporter lessonImporter;
 
     public VocabularyImporter(
             ObjectMapper objectMapper,
@@ -39,7 +40,8 @@ public class VocabularyImporter {
             VocabularyPartOfSpeechImporter partOfSpeechImporter,
             VocabularyKanjiImporter kanjiImporter,
             VocabularyPitchAccentImporter pitchAccentImporter,
-            VocabularyExampleImporter exampleImporter) {
+            VocabularyExampleImporter exampleImporter,
+            VocabularyLessonImporter lessonImporter) {
 
         this.objectMapper = objectMapper;
         this.validator = validator;
@@ -51,6 +53,7 @@ public class VocabularyImporter {
         this.kanjiImporter = kanjiImporter;
         this.pitchAccentImporter = pitchAccentImporter;
         this.exampleImporter = exampleImporter;
+        this.lessonImporter = lessonImporter;
     }
 
     public Uni<ImportResult> importVocabulary(Path file) {
@@ -140,6 +143,14 @@ public class VocabularyImporter {
 
         return levelImporter
                 .importLevels(vocabulary, item)
+
+                .chain(() ->
+                        lessonImporter
+                                .importLessons(
+                                        vocabulary,
+                                        item
+                                )
+                )
 
                 .chain(() ->
                         readingImporter
