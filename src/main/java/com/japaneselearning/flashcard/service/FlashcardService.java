@@ -33,27 +33,53 @@ public class FlashcardService {
     @WithSession
     public Uni<FlashcardListResponse> getFlashcards(
             String level,
+            Integer lesson,
             int page,
             int size
     ) {
 
         validatePagination(page, size);
 
+        validateLesson(lesson);
+
         String levelCode = normalizeLevel(level);
 
         int offset = page * size;
 
-        Uni<List<Object[]>> vocabularyUni =
-                flashcardRepository.findVocabularyByLevel(
-                        levelCode,
-                        offset,
-                        size
-                );
+        Uni<List<Object[]>> vocabularyUni;
 
-        Uni<Long> countUni =
-                flashcardRepository.countVocabularyByLevel(
-                        levelCode
-                );
+        Uni<Long> countUni;
+
+        if (lesson == null) {
+
+            vocabularyUni =
+                    flashcardRepository.findVocabularyByLevel(
+                            levelCode,
+                            offset,
+                            size
+                    );
+
+            countUni =
+                    flashcardRepository.countVocabularyByLevel(
+                            levelCode
+                    );
+
+        } else {
+
+            vocabularyUni =
+                    flashcardRepository.findVocabularyByLevelAndLesson(
+                            levelCode,
+                            lesson,
+                            offset,
+                            size
+                    );
+
+            countUni =
+                    flashcardRepository.countVocabularyByLevelAndLesson(
+                            levelCode,
+                            lesson
+                    );
+        }
 
         return Uni.combine()
                 .all()
@@ -449,6 +475,15 @@ public class FlashcardService {
         if (size <= 0 || size > 100) {
             throw new IllegalArgumentException(
                     "Size must be between 1 and 100"
+            );
+        }
+    }
+
+    private void validateLesson(Integer lesson) {
+
+        if (lesson != null && lesson <= 0) {
+            throw new IllegalArgumentException(
+                    "Lesson must be greater than 0"
             );
         }
     }

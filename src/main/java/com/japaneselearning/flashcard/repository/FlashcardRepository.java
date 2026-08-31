@@ -456,4 +456,84 @@ public class FlashcardRepository {
                                 .toList()
                 );
     }
+
+    public Uni<List<Object[]>> findVocabularyByLevelAndLesson(
+            String levelCode,
+            Integer lessonNumber,
+            int offset,
+            int size
+    ) {
+
+        return Panache.getSession()
+                .flatMap(session ->
+                        session.createNativeQuery("""
+                                                SELECT
+                                                    v.id,
+                                                    v.word
+                                                FROM vocabulary v
+                                                INNER JOIN lesson_vocabulary lv
+                                                    ON lv.vocabulary_id = v.id
+                                                INNER JOIN lessons l
+                                                    ON l.id = lv.lesson_id
+                                                INNER JOIN jlpt_levels jl
+                                                    ON jl.id = l.level_id
+                                                WHERE jl.code = :levelCode
+                                                  AND l.lesson_number = :lessonNumber
+                                                ORDER BY
+                                                    lv.display_order ASC,
+                                                    v.id ASC
+                                                LIMIT :size OFFSET :offset
+                                                """,
+                                        Object[].class
+                                )
+                                .setParameter(
+                                        "levelCode",
+                                        levelCode
+                                )
+                                .setParameter(
+                                        "lessonNumber",
+                                        lessonNumber
+                                )
+                                .setParameter(
+                                        "size",
+                                        size
+                                )
+                                .setParameter(
+                                        "offset",
+                                        offset
+                                )
+                                .getResultList()
+                );
+    }
+
+    public Uni<Long> countVocabularyByLevelAndLesson(
+            String levelCode,
+            Integer lessonNumber
+    ) {
+
+        return Panache.getSession()
+                .flatMap(session ->
+                        session.createNativeQuery("""
+                                                SELECT COUNT(*)
+                                                FROM lesson_vocabulary lv
+                                                INNER JOIN lessons l
+                                                    ON l.id = lv.lesson_id
+                                                INNER JOIN jlpt_levels jl
+                                                    ON jl.id = l.level_id
+                                                WHERE jl.code = :levelCode
+                                                  AND l.lesson_number = :lessonNumber
+                                                """,
+                                        Long.class
+                                )
+                                .setParameter(
+                                        "levelCode",
+                                        levelCode
+                                )
+                                .setParameter(
+                                        "lessonNumber",
+                                        lessonNumber
+                                )
+                                .getSingleResult()
+                );
+    }
 }

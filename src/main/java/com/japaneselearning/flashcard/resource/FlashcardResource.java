@@ -24,11 +24,13 @@ public class FlashcardResource {
     @GET
     public Uni<FlashcardListResponse> getFlashcards(
             @QueryParam("level") String level,
+            @QueryParam("lesson") Integer lesson,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size
     ) {
         return flashcardService.getFlashcards(
                 level,
+                lesson,
                 page,
                 size
         );
