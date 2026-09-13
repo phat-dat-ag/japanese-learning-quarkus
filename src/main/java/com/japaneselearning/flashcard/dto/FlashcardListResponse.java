@@ -3,7 +3,7 @@ package com.japaneselearning.flashcard.dto;
 import java.util.List;
 
 public record FlashcardListResponse(
-        List<FlashcardListItemResponse> items,
+        List<FlashcardListItemResponse> flashcardItems,
         int page,
         int size,
         long totalElements,

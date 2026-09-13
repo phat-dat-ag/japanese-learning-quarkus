@@ -1,6 +1,6 @@
 package com.japaneselearning.vocabulary.resource;
 
-import com.japaneselearning.vocabulary.dto.JlptLevelResponse;
+import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.vocabulary.service.JlptLevelService;
 
 import io.smallrye.mutiny.Uni;
@@ -9,12 +9,11 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
-
-import java.util.List;
+import jakarta.ws.rs.core.Response;
 
 @Path("/api/v1/jlpt-levels")
 @Produces(MediaType.APPLICATION_JSON)
-public class JlptLevelResource {
+public class JlptLevelResource extends BaseResource {
 
     private final JlptLevelService jlptLevelService;
 
@@ -25,7 +24,9 @@ public class JlptLevelResource {
     }
 
     @GET
-    public Uni<List<JlptLevelResponse>> getLevels() {
-        return jlptLevelService.getLevels();
+    public Uni<Response> getLevels() {
+        return jlptLevelService
+                .getLevels()
+                .map(this::success);
     }
 }
