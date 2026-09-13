@@ -2,28 +2,25 @@ package com.japaneselearning.common.exception.handler;
 
 import com.japaneselearning.common.exception.BusinessException;
 import com.japaneselearning.common.exception.ConflictException;
-import com.japaneselearning.common.exception.ErrorResponse;
+import com.japaneselearning.common.response.ApiResponse;
+import com.japaneselearning.common.response.ErrorResponse;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
-import com.japaneselearning.common.web.RequestTraceContext;
 
+import com.japaneselearning.common.response.ResponseMeta;
+import com.japaneselearning.common.web.RequestTraceContext;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
-import java.time.Instant;
 import java.util.List;
 
 @Provider
 public class BusinessExceptionMapper
         implements ExceptionMapper<BusinessException> {
-
-    @Inject
-    UriInfo uriInfo;
 
     @Inject
     RequestTraceContext traceContext;
@@ -38,15 +35,18 @@ public class BusinessExceptionMapper
                         ? validationException.getErrors()
                         : List.of();
 
-        ErrorResponse response = new ErrorResponse(
-                Instant.now(),
-                status.getStatusCode(),
+        ErrorResponse errorResponse = ErrorResponse.validation(
                 exception.getCode(),
                 exception.getMessage(),
-                uriInfo.getRequestUri().getPath(),
-                traceContext.getTraceId(),
                 errors
         );
+
+        ResponseMeta responseMeta = ResponseMeta.create(
+                traceContext.getTraceId(),
+                "correlationId"
+        );
+
+        ApiResponse<Object> response = ApiResponse.error(errorResponse, responseMeta);
 
         return Response
                 .status(status)

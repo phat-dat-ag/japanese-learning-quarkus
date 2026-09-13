@@ -17,6 +17,7 @@ public class RequestTraceFilter
         implements ContainerRequestFilter, ContainerResponseFilter {
 
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
+    public static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
 
     @Inject
     RequestTraceContext traceContext;
@@ -25,16 +26,16 @@ public class RequestTraceFilter
     public void filter(ContainerRequestContext requestContext)
             throws IOException {
 
-        String traceId =
-                requestContext.getHeaderString(TRACE_ID_HEADER);
+        String traceId = getOrGenerateId(
+                requestContext.getHeaderString(TRACE_ID_HEADER)
+        );
 
-        if (traceId == null || traceId.isBlank()) {
-            traceId = UUID.randomUUID()
-                    .toString()
-                    .replace("-", "");
-        }
+        String correlationId = getOrGenerateId(
+                requestContext.getHeaderString(CORRELATION_ID_HEADER)
+        );
 
         traceContext.setTraceId(traceId);
+        traceContext.setCorrelationId(correlationId);
     }
 
     @Override
@@ -43,13 +44,24 @@ public class RequestTraceFilter
             ContainerResponseContext responseContext
     ) throws IOException {
 
-        String traceId = traceContext.getTraceId();
+        responseContext.getHeaders().putSingle(
+                TRACE_ID_HEADER,
+                traceContext.getTraceId()
+        );
 
-        if (traceId != null) {
-            responseContext.getHeaders().putSingle(
-                    TRACE_ID_HEADER,
-                    traceId
-            );
+        responseContext.getHeaders().putSingle(
+                CORRELATION_ID_HEADER,
+                traceContext.getCorrelationId()
+        );
+    }
+
+    private String getOrGenerateId(String id) {
+        if (id == null || id.isBlank()) {
+            return UUID.randomUUID()
+                    .toString()
+                    .replace("-", "");
         }
+
+        return id;
     }
 }
