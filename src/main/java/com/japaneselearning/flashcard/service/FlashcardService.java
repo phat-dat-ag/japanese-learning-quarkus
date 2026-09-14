@@ -1,6 +1,10 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.common.exception.ValidationError;
+import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.flashcard.dto.FlashcardDetailResponse;
+import com.japaneselearning.flashcard.dto.VocabularyResponse;
 import com.japaneselearning.flashcard.dto.FlashcardLessonResponse;
 import com.japaneselearning.flashcard.dto.FlashcardExampleResponse;
 import com.japaneselearning.flashcard.dto.FlashcardKanjiReadingResponse;
@@ -12,17 +16,31 @@ import com.japaneselearning.flashcard.dto.FlashcardMeaningResponse;
 import com.japaneselearning.flashcard.dto.FlashcardPartOfSpeechResponse;
 import com.japaneselearning.flashcard.dto.FlashcardReadingResponse;
 import com.japaneselearning.flashcard.repository.FlashcardRepository;
+import com.japaneselearning.vocabulary.entity.Vocabulary;
+import com.japaneselearning.vocabulary.entity.VocabularyReading;
+import com.japaneselearning.vocabulary.entity.VocabularyMeaning;
+import com.japaneselearning.vocabulary.entity.PartOfSpeech;
+import com.japaneselearning.vocabulary.entity.JlptLevel;
+import com.japaneselearning.vocabulary.entity.Lesson;
+import com.japaneselearning.vocabulary.entity.Kanji;
+import com.japaneselearning.vocabulary.entity.VocabularyExample;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.NoResultException;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class FlashcardService {
+
+    private static final Set<String> SUPPORTED_LEVELS = Set.of("N1", "N2", "N3", "N4", "N5");
 
     @Inject
     FlashcardRepository flashcardRepository;
@@ -38,82 +56,28 @@ public class FlashcardService {
             int page,
             int size
     ) {
-
-        validatePagination(page, size);
-
-        validateLesson(lesson);
-
         String levelCode = normalizeLevel(level);
-
+        validateListRequest(levelCode, lesson, page, size);
         int offset = page * size;
 
-        Uni<List<Object[]>> vocabularyUni;
+        Uni<List<Vocabulary>> vocabularyUni =
+                flashcardRepository.findVocabulary(levelCode, lesson, offset, size);
 
-        Uni<Long> countUni;
+        return vocabularyUni.flatMap(vocabulary -> {
+            Uni<Long> countUni = flashcardRepository.countVocabulary(levelCode, lesson);
 
-        if (lesson == null) {
+            return countUni.map(totalElements -> {
+                List<FlashcardListItemResponse> items = vocabulary.stream()
+                        .map(item -> new FlashcardListItemResponse(item.id, item.word))
+                        .toList();
 
-            vocabularyUni =
-                    flashcardRepository.findVocabularyByLevel(
-                            levelCode,
-                            offset,
-                            size
-                    );
+                int totalPages = (int) Math.ceil((double) totalElements / size);
 
-            countUni =
-                    flashcardRepository.countVocabularyByLevel(
-                            levelCode
-                    );
-
-        } else {
-
-            vocabularyUni =
-                    flashcardRepository.findVocabularyByLevelAndLesson(
-                            levelCode,
-                            lesson,
-                            offset,
-                            size
-                    );
-
-            countUni =
-                    flashcardRepository.countVocabularyByLevelAndLesson(
-                            levelCode,
-                            lesson
-                    );
-        }
-
-        return Uni.combine()
-                .all()
-                .unis(vocabularyUni, countUni)
-                .asTuple()
-                .map(tuple -> {
-
-                    List<Object[]> rows = tuple.getItem1();
-                    Long totalElements = tuple.getItem2();
-
-                    List<FlashcardListItemResponse> items =
-                            rows.stream()
-                                    .map(row ->
-                                            new FlashcardListItemResponse(
-                                                    ((Number) row[0]).longValue(),
-                                                    (String) row[1]
-                                            )
-                                    )
-                                    .toList();
-
-                    int totalPages =
-                            (int) Math.ceil(
-                                    (double) totalElements / size
-                            );
-
-                    return new FlashcardListResponse(
-                            items,
-                            page,
-                            size,
-                            totalElements,
-                            totalPages
-                    );
-                });
+                return new FlashcardListResponse(
+                        items, page, size, totalElements, totalPages
+                );
+            });
+        });
     }
 
     // ============================================================
@@ -121,396 +85,145 @@ public class FlashcardService {
     // ============================================================
 
     @WithSession
-    public Uni<FlashcardDetailResponse> getFlashcard(
-            Long vocabularyId
-    ) {
+    public Uni<FlashcardDetailResponse> getFlashcard(Long vocabularyId) {
+        if (vocabularyId == null || vocabularyId <= 0) {
+            throw new ValidationException(
+                    "FLASHCARD_VALIDATION_ERROR",
+                    "Invalid flashcard request",
+                    List.of(new ValidationError("id", "Vocabulary ID must be greater than 0"))
+            );
+        }
 
-        return flashcardRepository
-                .findVocabularyById(vocabularyId)
-                .flatMap(vocabulary -> {
-
-                    Long id =
-                            ((Number) vocabulary[0]).longValue();
-
-                    String word =
-                            (String) vocabulary[1];
-
-                    return Uni.combine()
-                            .all()
-                            .unis(
-                                    flashcardRepository.findReadings(id),
-                                    flashcardRepository.findMeanings(id),
-                                    flashcardRepository.findPartsOfSpeech(id),
-                                    flashcardRepository.findLevels(id),
-                                    flashcardRepository.findLessons(id),
-                                    flashcardRepository.findKanji(id),
-                                    flashcardRepository.findExamples(id)
-                            )
-                            .asTuple()
-                            .flatMap(tuple -> {
-
-                                List<Object[]> readings =
-                                        tuple.getItem1();
-
-                                List<Object[]> meanings =
-                                        tuple.getItem2();
-
-                                List<Object[]> partsOfSpeech =
-                                        tuple.getItem3();
-
-                                List<Object[]> levels =
-                                        tuple.getItem4();
-
-                                List<Object[]> lessons =
-                                        tuple.getItem5();
-
-                                List<Object[]> kanji =
-                                        tuple.getItem6();
-
-                                List<Object[]> examples =
-                                        tuple.getItem7();
-
-                                return buildDetailResponse(
-                                        id,
-                                        word,
-                                        readings,
-                                        meanings,
-                                        partsOfSpeech,
-                                        levels,
-                                        lessons,
-                                        kanji,
-                                        examples
-                                );
-                            });
-                });
+        return flashcardRepository.findVocabularyById(vocabularyId)
+                .onFailure(NoResultException.class)
+                .transform(failure -> new ResourceNotFoundException(
+                        "VOCABULARY_NOT_FOUND",
+                        "Vocabulary " + vocabularyId + " not found"
+                ))
+                .flatMap(vocabulary ->
+                        flashcardRepository.findReadings(vocabulary.id).flatMap(readings ->
+                                flashcardRepository.findMeanings(vocabulary.id).flatMap(meanings ->
+                                        flashcardRepository.findPartsOfSpeech(vocabulary.id).flatMap(partsOfSpeech ->
+                                                flashcardRepository.findLevels(vocabulary.id).flatMap(levels ->
+                                                        flashcardRepository.findLessons(vocabulary.id).flatMap(lessons ->
+                                                                flashcardRepository.findKanji(vocabulary.id).flatMap(kanji ->
+                                                                        flashcardRepository.findExamples(vocabulary.id).flatMap(examples ->
+                                                                                buildDetailResponse(
+                                                                                        vocabulary, readings, meanings, partsOfSpeech,
+                                                                                        levels, lessons, kanji, examples
+                                                                                )
+                                                                        )))))))
+                );
     }
 
-    // ============================================================
-    // BUILD DETAIL RESPONSE
-    // ============================================================
-
     private Uni<FlashcardDetailResponse> buildDetailResponse(
-            Long id,
-            String word,
-            List<Object[]> readings,
-            List<Object[]> meanings,
-            List<Object[]> partsOfSpeech,
-            List<Object[]> levels,
-            List<Object[]> lessons,
-            List<Object[]> kanji,
-            List<Object[]> examples
+            Vocabulary vocabulary,
+            List<VocabularyReading> readings,
+            List<VocabularyMeaning> meanings,
+            List<PartOfSpeech> partsOfSpeech,
+            List<JlptLevel> levels,
+            List<Lesson> lessons,
+            List<Kanji> kanji,
+            List<VocabularyExample> examples
     ) {
+        List<Long> readingIds = readings.stream().map(reading -> reading.id).toList();
+        List<Long> kanjiIds = kanji.stream().map(character -> character.id).toList();
 
-        // --------------------------------------------------------
-        // Reading IDs
-        // --------------------------------------------------------
-
-        List<Long> readingIds =
-                readings.stream()
-                        .map(row ->
-                                ((Number) row[0]).longValue()
-                        )
-                        .toList();
-
-        // --------------------------------------------------------
-        // Kanji IDs
-        // --------------------------------------------------------
-
-        List<Long> kanjiIds =
-                kanji.stream()
-                        .map(row ->
-                                ((Number) row[0]).longValue()
-                        )
-                        .toList();
-
-        // --------------------------------------------------------
-        // Batch load pitch accents + kanji readings
-        // --------------------------------------------------------
-
-        Uni<List<Object[]>> pitchAccentsUni =
-                flashcardRepository
-                        .findPitchAccentsByReadingIds(
-                                readingIds
-                        );
-
-        Uni<List<Object[]>> kanjiReadingsUni =
-                flashcardRepository
-                        .findKanjiReadings(
-                                kanjiIds
-                        );
-
-        return Uni.combine()
-                .all()
-                .unis(
-                        pitchAccentsUni,
-                        kanjiReadingsUni
-                )
-                .asTuple()
-                .map(tuple -> {
-
-                    List<Object[]> pitchAccentRows =
-                            tuple.getItem1();
-
-                    List<Object[]> kanjiReadingRows =
-                            tuple.getItem2();
-
-                    // ====================================================
-                    // PITCH ACCENT MAP
-                    // readingId -> List<Integer>
-                    // ====================================================
-
-                    Map<Long, List<Integer>> pitchAccentMap =
-                            pitchAccentRows.stream()
-                                    .collect(
-                                            Collectors.groupingBy(
-                                                    row ->
-                                                            ((Number) row[0])
-                                                                    .longValue(),
-
-                                                    Collectors.mapping(
-                                                            row ->
-                                                                    ((Number) row[1])
-                                                                            .intValue(),
-
-                                                            Collectors.toList()
-                                                    )
+        return flashcardRepository.findPitchAccentsByReadingIds(readingIds)
+                .flatMap(pitchAccents -> flashcardRepository.findKanjiReadings(kanjiIds)
+                        .map(kanjiReadings -> {
+                            Map<Long, List<Integer>> pitchAccentMap = pitchAccents.stream()
+                                    .collect(Collectors.groupingBy(
+                                            accent -> accent.vocabularyReadingId,
+                                            Collectors.mapping(
+                                                    accent -> accent.accentPattern,
+                                                    Collectors.toList()
                                             )
-                                    );
+                                    ));
 
-                    // ====================================================
-                    // KANJI READING MAP
-                    // kanjiId -> List<FlashcardKanjiReadingResponse>
-                    // ====================================================
-
-                    Map<Long,
-                            List<FlashcardKanjiReadingResponse>>
-                            kanjiReadingMap =
-                            kanjiReadingRows.stream()
-                                    .collect(
-                                            Collectors.groupingBy(
-                                                    row ->
-                                                            ((Number) row[0])
-                                                                    .longValue(),
-
-                                                    Collectors.mapping(
-                                                            row ->
-                                                                    new FlashcardKanjiReadingResponse(
-                                                                            (String) row[1],
-                                                                            (String) row[2]
-                                                                    ),
-
-                                                            Collectors.toList()
-                                                    )
+                            Map<Long, List<FlashcardKanjiReadingResponse>> kanjiReadingMap =
+                                    kanjiReadings.stream().collect(Collectors.groupingBy(
+                                            reading -> reading.kanjiId,
+                                            Collectors.mapping(
+                                                    reading -> new FlashcardKanjiReadingResponse(
+                                                            reading.reading, reading.readingType
+                                                    ),
+                                                    Collectors.toList()
                                             )
-                                    );
+                                    ));
 
-                    // ====================================================
-                    // READINGS
-                    // ====================================================
-
-                    List<FlashcardReadingResponse>
-                            readingResponses =
-                            readings.stream()
-                                    .map(row -> {
-
-                                        Long readingId =
-                                                ((Number) row[0])
-                                                        .longValue();
-
-                                        String reading =
-                                                (String) row[1];
-
-                                        Boolean isPrimary =
-                                                (Boolean) row[2];
-
-                                        List<Integer> pitchAccents =
-                                                pitchAccentMap.getOrDefault(
-                                                        readingId,
-                                                        List.of()
-                                                );
-
-                                        return new FlashcardReadingResponse(
-                                                reading,
-                                                isPrimary,
-                                                pitchAccents
-                                        );
-                                    })
-                                    .toList();
-
-                    // ====================================================
-                    // MEANINGS
-                    // ====================================================
-
-                    List<FlashcardMeaningResponse>
-                            meaningResponses =
-                            meanings.stream()
-                                    .map(row ->
-                                            new FlashcardMeaningResponse(
-                                                    (String) row[0],
-                                                    (String) row[1],
-                                                    (Boolean) row[2]
-                                            )
-                                    )
-                                    .toList();
-
-                    // ====================================================
-                    // PARTS OF SPEECH
-                    // ====================================================
-
-                    List<FlashcardPartOfSpeechResponse>
-                            posResponses =
-                            partsOfSpeech.stream()
-                                    .map(row ->
-                                            new FlashcardPartOfSpeechResponse(
-                                                    (String) row[0],
-                                                    (String) row[1],
-                                                    (String) row[2]
-                                            )
-                                    )
-                                    .toList();
-
-                    // ====================================================
-                    // JLPT LEVELS
-                    // ====================================================
-
-                    List<FlashcardLevelResponse>
-                            levelResponses =
-                            levels.stream()
-                                    .map(row ->
-                                            new FlashcardLevelResponse(
-                                                    (String) row[0],
-                                                    (String) row[1]
-                                            )
-                                    )
-                                    .toList();
-
-                    // ====================================================
-                    // LESSONS
-                    // ====================================================
-
-                    List<FlashcardLessonResponse>
-                            lessonResponses =
-                            lessons.stream()
-                                    .map(row ->
-                                            new FlashcardLessonResponse(
-                                                    (String) row[0],
-                                                    (String) row[1],
-                                                    ((Number) row[2]).intValue(),
-                                                    (String) row[3],
-                                                    (String) row[4],
-                                                    ((Number) row[5]).intValue()
-                                            )
-                                    )
-                                    .toList();
-
-                    // ====================================================
-                    // KANJI
-                    // ====================================================
-
-                    List<FlashcardKanjiResponse>
-                            kanjiResponses =
-                            kanji.stream()
-                                    .map(row -> {
-
-                                        Long kanjiId =
-                                                ((Number) row[0])
-                                                        .longValue();
-
-                                        String character =
-                                                (String) row[1];
-
-                                        Integer strokeCount =
-                                                row[2] == null
-                                                        ? null
-                                                        : ((Number) row[2])
-                                                        .intValue();
-
-                                        String meaningVi =
-                                                (String) row[3];
-
-                                        String meaningEn =
-                                                (String) row[4];
-
-                                        List<FlashcardKanjiReadingResponse>
-                                                kanjiReadings =
-                                                kanjiReadingMap.getOrDefault(
-                                                        kanjiId,
-                                                        List.of()
-                                                );
-
-                                        return new FlashcardKanjiResponse(
-                                                character,
-                                                strokeCount,
-                                                meaningVi,
-                                                meaningEn,
-                                                kanjiReadings
-                                        );
-                                    })
-                                    .toList();
-
-                    // ====================================================
-                    // EXAMPLES
-                    // ====================================================
-
-                    List<FlashcardExampleResponse>
-                            exampleResponses =
-                            examples.stream()
-                                    .map(row ->
-                                            new FlashcardExampleResponse(
-                                                    (String) row[0],
-                                                    (String) row[1],
-                                                    (String) row[2],
-                                                    (String) row[3],
-                                                    (String) row[4]
-                                            )
-                                    )
-                                    .toList();
-
-                    // ====================================================
-                    // FINAL RESPONSE
-                    // ====================================================
-
-                    return new FlashcardDetailResponse(
-                            id,
-                            word,
-                            readingResponses,
-                            meaningResponses,
-                            posResponses,
-                            levelResponses,
-                            lessonResponses,
-                            kanjiResponses,
-                            exampleResponses
-                    );
-                });
+                            return new FlashcardDetailResponse(
+                                    new VocabularyResponse(
+                                            vocabulary.id, vocabulary.word, vocabulary.normalizedWord
+                                    ),
+                                    readings.stream().map(reading -> new FlashcardReadingResponse(
+                                            reading.reading,
+                                            reading.isPrimary,
+                                            pitchAccentMap.getOrDefault(reading.id, List.of())
+                                    )).toList(),
+                                    meanings.stream().map(meaning -> new FlashcardMeaningResponse(
+                                            meaning.languageCode, meaning.meaning, meaning.isPrimary
+                                    )).toList(),
+                                    partsOfSpeech.stream().map(pos -> new FlashcardPartOfSpeechResponse(
+                                            pos.code, pos.nameVi, pos.nameEn
+                                    )).toList(),
+                                    levels.stream().map(level -> new FlashcardLevelResponse(
+                                            level.code, level.name
+                                    )).toList(),
+                                    lessons.stream().map(lesson -> new FlashcardLessonResponse(
+                                            lesson.level.code,
+                                            lesson.level.name,
+                                            lesson.lessonNumber,
+                                            lesson.title,
+                                            lesson.description,
+                                            lesson.displayOrder
+                                    )).toList(),
+                                    kanji.stream().map(character -> new FlashcardKanjiResponse(
+                                            character.character,
+                                            character.strokeCount,
+                                            character.meaningVi,
+                                            character.meaningEn,
+                                            kanjiReadingMap.getOrDefault(character.id, List.of())
+                                    )).toList(),
+                                    examples.stream().map(example -> new FlashcardExampleResponse(
+                                            example.exampleSentence.japaneseText,
+                                            example.exampleSentence.japaneseReading,
+                                            example.exampleSentence.meaningVi,
+                                            example.exampleSentence.meaningEn,
+                                            example.targetText
+                                    )).toList()
+                            );
+                        })
+                );
     }
 
     // ============================================================
     // VALIDATION
     // ============================================================
 
-    private void validatePagination(
-            int page,
-            int size
-    ) {
+    private void validateListRequest(String levelCode, Integer lesson, int page, int size) {
+        List<ValidationError> errors = new ArrayList<>();
 
-        if (page < 0) {
-            throw new IllegalArgumentException(
-                    "Page must be greater than or equal to 0"
-            );
+        if (!SUPPORTED_LEVELS.contains(levelCode)) {
+            errors.add(new ValidationError("level", "Level must be one of N1, N2, N3, N4, N5"));
         }
-
-        if (size <= 0 || size > 100) {
-            throw new IllegalArgumentException(
-                    "Size must be between 1 and 100"
-            );
-        }
-    }
-
-    private void validateLesson(Integer lesson) {
-
         if (lesson != null && lesson <= 0) {
-            throw new IllegalArgumentException(
-                    "Lesson must be greater than 0"
+            errors.add(new ValidationError("lesson", "Lesson must be greater than 0"));
+        }
+        if (page < 0) {
+            errors.add(new ValidationError("page", "Page must be greater than or equal to 0"));
+        }
+        if (size <= 0 || size > 100) {
+            errors.add(new ValidationError("size", "Size must be between 1 and 100"));
+        } else if (page >= 0 && (long) page * size > Integer.MAX_VALUE) {
+            errors.add(new ValidationError("page", "Page exceeds the supported pagination range"));
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(
+                    "FLASHCARD_VALIDATION_ERROR",
+                    "Invalid flashcard request",
+                    errors
             );
         }
     }
@@ -521,6 +234,6 @@ public class FlashcardService {
             return "N5";
         }
 
-        return level.trim().toUpperCase();
+        return level.trim().toUpperCase(Locale.ROOT);
     }
 }

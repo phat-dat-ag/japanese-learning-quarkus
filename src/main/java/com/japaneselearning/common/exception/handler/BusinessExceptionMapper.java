@@ -43,7 +43,7 @@ public class BusinessExceptionMapper
 
         ResponseMeta responseMeta = ResponseMeta.create(
                 traceContext.getTraceId(),
-                "correlationId"
+                traceContext.getCorrelationId()
         );
 
         ApiResponse<Object> response = ApiResponse.error(errorResponse, responseMeta);

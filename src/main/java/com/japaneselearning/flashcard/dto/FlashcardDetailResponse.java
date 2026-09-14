@@ -3,8 +3,7 @@ package com.japaneselearning.flashcard.dto;
 import java.util.List;
 
 public record FlashcardDetailResponse(
-        Long id,
-        String word,
+        VocabularyResponse vocabulary,
         List<FlashcardReadingResponse> readings,
         List<FlashcardMeaningResponse> meanings,
         List<FlashcardPartOfSpeechResponse> partsOfSpeech,

@@ -44,7 +44,7 @@ public class GlobalExceptionMapper
 
         ResponseMeta responseMeta = ResponseMeta.create(
                 traceContext.getTraceId(),
-                "correlationId"
+                traceContext.getCorrelationId()
         );
 
         ApiResponse<Objects> response = ApiResponse.error(errorResponse, responseMeta);

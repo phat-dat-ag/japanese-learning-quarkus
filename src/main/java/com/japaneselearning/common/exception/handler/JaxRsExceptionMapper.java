@@ -35,16 +35,16 @@ public class JaxRsExceptionMapper
         Response.Status status =
                 Response.Status.fromStatusCode(statusCode);
 
-        String code = resolveCode(status);
+        String code = statusCode >= 500 ? "INTERNAL_SERVER_ERROR" : resolveCode(status);
 
         ErrorResponse errorResponse = ErrorResponse.of(
                 code,
-                resolveMessage(exception, status)
+                statusCode >= 500 ? "An unexpected error occurred" : resolveMessage(exception, status)
         );
 
         ResponseMeta responseMeta = ResponseMeta.create(
                 traceContext.getTraceId(),
-                "correlationId"
+                traceContext.getCorrelationId()
         );
 
         ApiResponse<Objects> response = ApiResponse.error(errorResponse, responseMeta);
@@ -57,6 +57,10 @@ public class JaxRsExceptionMapper
     }
 
     private String resolveCode(Response.Status status) {
+
+        if (status == null) {
+            return "HTTP_ERROR";
+        }
 
         return switch (status) {
             case BAD_REQUEST -> "BAD_REQUEST";
@@ -80,6 +84,6 @@ public class JaxRsExceptionMapper
             return exception.getMessage();
         }
 
-        return status.getReasonPhrase();
+        return status == null ? "HTTP request failed" : status.getReasonPhrase();
     }
 }
