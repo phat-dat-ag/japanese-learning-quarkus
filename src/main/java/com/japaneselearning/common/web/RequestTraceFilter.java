@@ -7,11 +7,13 @@ import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.ext.Provider;
+import jakarta.ws.rs.container.PreMatching;
 
 import java.io.IOException;
 import java.util.UUID;
 
 @Provider
+@PreMatching
 @Priority(1000)
 public class RequestTraceFilter
         implements ContainerRequestFilter, ContainerResponseFilter {

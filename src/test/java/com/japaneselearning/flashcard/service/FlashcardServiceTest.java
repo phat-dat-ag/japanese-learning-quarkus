@@ -1,6 +1,8 @@
 package com.japaneselearning.flashcard.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.flashcard.dto.FlashcardDetailResponse;
 import com.japaneselearning.flashcard.dto.VocabularyResponse;
 import com.japaneselearning.flashcard.dto.FlashcardExampleResponse;
@@ -31,7 +33,6 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FlashcardServiceTest {
@@ -163,12 +164,14 @@ class FlashcardServiceTest {
     }
 
     @Test
-    void propagatesMissingVocabularyWithoutLoadingRelations() {
+    void mapsMissingVocabularyWithoutLoadingRelations() {
         repository.failure = new NoResultException("Missing vocabulary");
-        assertSame(repository.failure, assertThrows(
-                NoResultException.class,
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
                 () -> service.getFlashcard(42L).await().atMost(Duration.ofSeconds(1))
-        ));
+        );
+        assertEquals("VOCABULARY_NOT_FOUND", exception.getCode());
+        assertEquals("Vocabulary 42 not found", exception.getMessage());
         assertEquals(0, repository.relationCalls);
     }
 
@@ -184,6 +187,16 @@ class FlashcardServiceTest {
                         """),
                 mapper.readTree(mapper.writeValueAsString(response)).get("vocabulary")
         );
+    }
+
+    @Test
+    void rejectsMissingVocabularyIdBeforeRepositoryAccess() {
+        ValidationException exception = assertThrows(
+                ValidationException.class, () -> service.getFlashcard(null)
+        );
+        assertEquals("FLASHCARD_VALIDATION_ERROR", exception.getCode());
+        assertEquals("id", exception.getErrors().get(0).field());
+        assertEquals(0, repository.relationCalls);
     }
 
     @Test
