@@ -19,11 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FlashcardListServiceTest {
 
     private final StubRepository repository = new StubRepository();
-    private final FlashcardService service = new FlashcardService();
-
-    FlashcardListServiceTest() {
-        service.flashcardRepository = repository;
-    }
+    private final FlashcardService service = new FlashcardService(repository);
 
     @Test
     void mapsLevelResultsAndPreservesPaginationAndOrder() {
