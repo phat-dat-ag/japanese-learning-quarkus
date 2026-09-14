@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,10 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class FlashcardServiceTest {
 
     private final StubRepository repository = new StubRepository();
-    private final FlashcardService service = new FlashcardService();
+    private final FlashcardService service = new FlashcardService(repository);
 
     FlashcardServiceTest() {
-        service.flashcardRepository = repository;
         repository.vocabulary.id = 42L;
         repository.vocabulary.word = "word";
         repository.vocabulary.normalizedWord = "normalized-word";
@@ -197,6 +197,41 @@ class FlashcardServiceTest {
         assertEquals("FLASHCARD_VALIDATION_ERROR", exception.getCode());
         assertEquals("id", exception.getErrors().get(0).field());
         assertEquals(0, repository.relationCalls);
+    }
+
+    @Test
+    void keepsDetailAssemblyIndependentAcrossSubscriptions() {
+        CompletableFuture<List<VocabularyReading>> firstReadings = new CompletableFuture<>();
+        CompletableFuture<List<VocabularyReading>> secondReadings = new CompletableFuture<>();
+        StubRepository isolatedRepository = new StubRepository() {
+            private int subscriptions;
+
+            @Override
+            public Uni<List<VocabularyReading>> findReadings(Long vocabularyId) {
+                CompletableFuture<List<VocabularyReading>> readings =
+                        subscriptions++ == 0 ? firstReadings : secondReadings;
+                return Uni.createFrom().completionStage(() -> readings);
+            }
+        };
+        isolatedRepository.vocabulary = repository.vocabulary;
+        FlashcardService isolatedService = new FlashcardService(isolatedRepository);
+        Uni<FlashcardDetailResponse> detail = isolatedService.getFlashcard(42L);
+
+        CompletableFuture<FlashcardDetailResponse> first = detail.subscribeAsCompletionStage();
+        CompletableFuture<FlashcardDetailResponse> second = detail.subscribeAsCompletionStage();
+
+        VocabularyReading secondReading = new VocabularyReading();
+        secondReading.id = 12L;
+        secondReading.reading = "second";
+        secondReadings.complete(List.of(secondReading));
+
+        VocabularyReading firstReading = new VocabularyReading();
+        firstReading.id = 11L;
+        firstReading.reading = "first";
+        firstReadings.complete(List.of(firstReading));
+
+        assertEquals("first", first.join().readings().get(0).reading());
+        assertEquals("second", second.join().readings().get(0).reading());
     }
 
     @Test

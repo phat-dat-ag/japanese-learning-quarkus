@@ -4,13 +4,10 @@ import com.japaneselearning.common.response.ApiResponse;
 import com.japaneselearning.common.response.ErrorResponse;
 import com.japaneselearning.common.response.ResponseMeta;
 import com.japaneselearning.common.web.RequestTraceContext;
-
-import jakarta.inject.Inject;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-
 import org.jboss.logging.Logger;
 
 import java.util.Objects;
@@ -22,8 +19,11 @@ public class GlobalExceptionMapper
     private static final Logger LOG =
             Logger.getLogger(GlobalExceptionMapper.class);
 
-    @Inject
-    RequestTraceContext traceContext;
+    private final RequestTraceContext traceContext;
+
+    public GlobalExceptionMapper(RequestTraceContext traceContext) {
+        this.traceContext = traceContext;
+    }
 
     @Override
     public Response toResponse(Exception exception) {

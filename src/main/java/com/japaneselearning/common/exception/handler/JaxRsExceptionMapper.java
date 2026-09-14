@@ -4,8 +4,6 @@ import com.japaneselearning.common.response.ApiResponse;
 import com.japaneselearning.common.response.ErrorResponse;
 import com.japaneselearning.common.response.ResponseMeta;
 import com.japaneselearning.common.web.RequestTraceContext;
-
-import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -18,8 +16,11 @@ import java.util.Objects;
 public class JaxRsExceptionMapper
         implements ExceptionMapper<WebApplicationException> {
 
-    @Inject
-    RequestTraceContext traceContext;
+    private final RequestTraceContext traceContext;
+
+    public JaxRsExceptionMapper(RequestTraceContext traceContext) {
+        this.traceContext = traceContext;
+    }
 
     @Override
     public Response toResponse(
