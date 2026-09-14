@@ -1,5 +1,15 @@
 package com.japaneselearning.flashcard.repository;
 
+import com.japaneselearning.vocabulary.entity.Vocabulary;
+import com.japaneselearning.vocabulary.entity.VocabularyReading;
+import com.japaneselearning.vocabulary.entity.VocabularyMeaning;
+import com.japaneselearning.vocabulary.entity.PartOfSpeech;
+import com.japaneselearning.vocabulary.entity.JlptLevel;
+import com.japaneselearning.vocabulary.entity.Lesson;
+import com.japaneselearning.vocabulary.entity.Kanji;
+import com.japaneselearning.vocabulary.entity.KanjiReading;
+import com.japaneselearning.vocabulary.entity.VocabularyExample;
+import com.japaneselearning.vocabulary.entity.VocabularyPitchAccent;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -64,146 +74,32 @@ public class FlashcardRepository {
                 .map(result -> ((Number) result).longValue());
     }
 
-    public Uni<List<Object[]>> findReadings(
-            List<Long> vocabularyIds
-    ) {
-        if (vocabularyIds.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
+    public Uni<Vocabulary> findVocabularyById(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            id,
-                                            vocabulary_id,
-                                            reading,
-                                            is_primary
-                                        FROM vocabulary_readings
-                                        WHERE vocabulary_id IN (:ids)
-                                        ORDER BY
-                                            vocabulary_id,
-                                            display_order
-                                        """)
-                                .setParameter("ids", vocabularyIds)
-                                .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
-                );
-    }
-
-    public Uni<List<Object[]>> findMeanings(
-            List<Long> vocabularyIds
-    ) {
-        if (vocabularyIds.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            vocabulary_id,
-                                            language_code,
-                                            meaning,
-                                            is_primary
-                                        FROM vocabulary_meanings
-                                        WHERE vocabulary_id IN (:ids)
-                                        ORDER BY
-                                            vocabulary_id,
-                                            language_code,
-                                            display_order
-                                        """)
-                                .setParameter("ids", vocabularyIds)
-                                .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
-                );
-    }
-
-    public Uni<List<Object[]>> findPartsOfSpeech(
-            List<Long> vocabularyIds
-    ) {
-        if (vocabularyIds.isEmpty()) {
-            return Uni.createFrom().item(List.of());
-        }
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            vpos.vocabulary_id,
-                                            pos.code,
-                                            pos.name_vi,
-                                            pos.name_en
-                                        FROM vocabulary_parts_of_speech vpos
-                                        INNER JOIN parts_of_speech pos
-                                            ON pos.id = vpos.part_of_speech_id
-                                        WHERE vpos.vocabulary_id IN (:ids)
-                                        ORDER BY
-                                            vpos.vocabulary_id
-                                        """)
-                                .setParameter("ids", vocabularyIds)
-                                .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
-                );
-    }
-
-    /**
-     * Lấy vocabulary cơ bản.
-     */
-    public Uni<Object[]> findVocabularyById(Long vocabularyId) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            id,
-                                            word
-                                        FROM vocabulary
-                                        WHERE id = :vocabularyId
-                                        """)
+                        session.createQuery("""
+                                        SELECT v
+                                        FROM Vocabulary v
+                                        WHERE v.id = :vocabularyId
+                                        """, Vocabulary.class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getSingleResult()
-                )
-                .map(result -> (Object[]) result);
+                );
     }
 
-    /**
-     * Lấy readings của vocabulary.
-     */
-    public Uni<List<Object[]>> findReadings(Long vocabularyId) {
+    public Uni<List<VocabularyReading>> findReadings(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            vr.id,
-                                            vr.reading,
-                                            vr.is_primary
-                                        FROM vocabulary_readings vr
-                                        WHERE vr.vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            vr.display_order ASC,
-                                            vr.id ASC
-                                        """)
+                        session.createQuery("""
+                                        SELECT vr
+                                        FROM VocabularyReading vr
+                                        WHERE vr.vocabularyId = :vocabularyId
+                                        ORDER BY vr.displayOrder ASC, vr.id ASC
+                                        """, VocabularyReading.class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
@@ -229,141 +125,87 @@ public class FlashcardRepository {
                 );
     }
 
-    /**
-     * Lấy meanings.
-     */
-    public Uni<List<Object[]>> findMeanings(Long vocabularyId) {
+    public Uni<List<VocabularyMeaning>> findMeanings(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            language_code,
-                                            meaning,
-                                            is_primary
-                                        FROM vocabulary_meanings
-                                        WHERE vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            language_code ASC,
-                                            display_order ASC,
-                                            id ASC
-                                        """)
+                        session.createQuery("""
+                                        SELECT vm
+                                        FROM VocabularyMeaning vm
+                                        WHERE vm.vocabularyId = :vocabularyId
+                                        ORDER BY vm.languageCode ASC, vm.displayOrder ASC, vm.id ASC
+                                        """, VocabularyMeaning.class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    /**
-     * Lấy parts of speech.
-     */
-    public Uni<List<Object[]>> findPartsOfSpeech(
-            Long vocabularyId
-    ) {
+    public Uni<List<PartOfSpeech>> findPartsOfSpeech(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            pos.code,
-                                            pos.name_vi,
-                                            pos.name_en
-                                        FROM vocabulary_parts_of_speech vpos
-                                        INNER JOIN parts_of_speech pos
-                                            ON pos.id = vpos.part_of_speech_id
-                                        WHERE vpos.vocabulary_id = :vocabularyId
+                        session.createQuery("""
+                                        SELECT pos
+                                        FROM VocabularyPartOfSpeech vpos
+                                        JOIN PartOfSpeech pos ON pos.id = vpos.partOfSpeechId
+                                        WHERE vpos.vocabularyId = :vocabularyId
                                         ORDER BY pos.id ASC
-                                        """)
-                                .setParameter(
-                                        "vocabularyId",
-                                        vocabularyId
-                                )
+                                        """, PartOfSpeech.class)
+                                .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    /**
-     * Lấy JLPT levels.
-     */
-    public Uni<List<Object[]>> findLevels(Long vocabularyId) {
+    public Uni<List<JlptLevel>> findLevels(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            l.code,
-                                            l.name
-                                        FROM vocabulary_levels vl
-                                        INNER JOIN jlpt_levels l
-                                            ON l.id = vl.level_id
-                                        WHERE vl.vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            vl.display_order ASC,
-                                            l.display_order ASC
-                                        """)
-                                .setParameter(
-                                        "vocabularyId",
-                                        vocabularyId
-                                )
+                        session.createQuery("""
+                                        SELECT l
+                                        FROM VocabularyLevel vl
+                                        JOIN JlptLevel l ON l.id = vl.levelId
+                                        WHERE vl.vocabularyId = :vocabularyId
+                                        ORDER BY vl.displayOrder ASC, l.displayOrder ASC
+                                        """, JlptLevel.class)
+                                .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    /**
-     * Lấy Kanji của vocabulary.
-     */
-    public Uni<List<Object[]>> findKanji(Long vocabularyId) {
+    public Uni<List<Lesson>> findLessons(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            k.id,
-                                            k.kanji_character,
-                                            k.stroke_count,
-                                            k.meaning_vi,
-                                            k.meaning_en
-                                        FROM vocabulary_kanji vk
-                                        INNER JOIN kanji k
-                                            ON k.id = vk.kanji_id
-                                        WHERE vk.vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            vk.display_order ASC,
-                                            k.id ASC
-                                        """)
-                                .setParameter(
-                                        "vocabularyId",
-                                        vocabularyId
-                                )
+                        session.createQuery("""
+                                        SELECT l
+                                        FROM LessonVocabulary lv
+                                        JOIN Lesson l ON l.id = lv.lessonId
+                                        JOIN FETCH l.level jl
+                                        WHERE lv.vocabularyId = :vocabularyId
+                                        ORDER BY jl.displayOrder ASC, l.displayOrder ASC
+                                        """, Lesson.class)
+                                .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    /**
-     * Lấy readings của các Kanji.
-     */
-    public Uni<List<Object[]>> findKanjiReadings(
-            List<Long> kanjiIds
-    ) {
+    public Uni<List<Kanji>> findKanji(Long vocabularyId) {
+
+        return Panache.getSession()
+                .flatMap(session ->
+                        session.createQuery("""
+                                        SELECT k
+                                        FROM VocabularyKanji vk
+                                        JOIN Kanji k ON k.id = vk.kanjiId
+                                        WHERE vk.vocabularyId = :vocabularyId
+                                        ORDER BY vk.displayOrder ASC, k.id ASC
+                                        """, Kanji.class)
+                                .setParameter("vocabularyId", vocabularyId)
+                                .getResultList()
+                );
+    }
+
+    public Uni<List<KanjiReading>> findKanjiReadings(List<Long> kanjiIds) {
 
         if (kanjiIds.isEmpty()) {
             return Uni.createFrom().item(List.of());
@@ -371,89 +213,49 @@ public class FlashcardRepository {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            kr.kanji_id,
-                                            kr.reading,
-                                            kr.reading_type
-                                        FROM kanji_readings kr
-                                        WHERE kr.kanji_id IN (:kanjiIds)
-                                        ORDER BY
-                                            kr.kanji_id ASC,
-                                            kr.display_order ASC,
-                                            kr.id ASC
-                                        """)
+                        session.createQuery("""
+                                        SELECT kr
+                                        FROM KanjiReading kr
+                                        WHERE kr.kanjiId IN (:kanjiIds)
+                                        ORDER BY kr.kanjiId ASC, kr.displayOrder ASC, kr.id ASC
+                                        """, KanjiReading.class)
                                 .setParameter("kanjiIds", kanjiIds)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    /**
-     * Lấy example sentences.
-     */
-    public Uni<List<Object[]>> findExamples(Long vocabularyId) {
+    public Uni<List<VocabularyExample>> findExamples(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            es.japanese_text,
-                                            es.japanese_reading,
-                                            es.meaning_vi,
-                                            es.meaning_en,
-                                            ve.target_text
-                                        FROM vocabulary_examples ve
-                                        INNER JOIN example_sentences es
-                                            ON es.id = ve.example_sentence_id
-                                        WHERE ve.vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            ve.display_order ASC,
-                                            es.id ASC
-                                        """)
-                                .setParameter(
-                                        "vocabularyId",
-                                        vocabularyId
-                                )
+                        session.createQuery("""
+                                        SELECT ve
+                                        FROM VocabularyExample ve
+                                        JOIN FETCH ve.exampleSentence es
+                                        WHERE ve.vocabularyId = :vocabularyId
+                                        ORDER BY ve.displayOrder ASC, es.id ASC
+                                        """, VocabularyExample.class)
+                                .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
-    public Uni<List<Object[]>> findPitchAccentsByReadingIds(
-            List<Long> readingIds
-    ) {
+    public Uni<List<VocabularyPitchAccent>> findPitchAccentsByReadingIds(List<Long> readingIds) {
+
         if (readingIds.isEmpty()) {
             return Uni.createFrom().item(List.of());
         }
 
         return Panache.getSession()
                 .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            vocabulary_reading_id,
-                                            accent_pattern
-                                        FROM vocabulary_pitch_accents
-                                        WHERE vocabulary_reading_id IN (:readingIds)
-                                        ORDER BY
-                                            vocabulary_reading_id,
-                                            accent_pattern
-                                        """)
+                        session.createQuery("""
+                                        SELECT pa
+                                        FROM VocabularyPitchAccent pa
+                                        WHERE pa.vocabularyReadingId IN (:readingIds)
+                                        ORDER BY pa.vocabularyReadingId, pa.accentPattern
+                                        """, VocabularyPitchAccent.class)
                                 .setParameter("readingIds", readingIds)
                                 .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 
@@ -534,41 +336,6 @@ public class FlashcardRepository {
                                         lessonNumber
                                 )
                                 .getSingleResult()
-                );
-    }
-
-    public Uni<List<Object[]>> findLessons(Long vocabularyId) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            jl.code,
-                                            jl.name,
-                                            l.lesson_number,
-                                            l.title,
-                                            l.description,
-                                            l.display_order
-                                        FROM lesson_vocabulary lv
-                                        INNER JOIN lessons l
-                                            ON l.id = lv.lesson_id
-                                        INNER JOIN jlpt_levels jl
-                                            ON jl.id = l.level_id
-                                        WHERE lv.vocabulary_id = :vocabularyId
-                                        ORDER BY
-                                            jl.display_order ASC,
-                                            l.display_order ASC
-                                        """)
-                                .setParameter(
-                                        "vocabularyId",
-                                        vocabularyId
-                                )
-                                .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
                 );
     }
 }
