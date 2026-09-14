@@ -19,59 +19,76 @@ import java.util.List;
 @ApplicationScoped
 public class FlashcardRepository {
 
-    public Uni<List<Object[]>> findVocabularyByLevel(
+    public Uni<List<Vocabulary>> findVocabulary(
             String levelCode,
+            Integer lessonNumber,
             int offset,
             int limit
     ) {
+        String hql = lessonNumber == null
+                ? """
+                SELECT v
+                FROM Vocabulary v
+                JOIN VocabularyLevel vl ON vl.vocabularyId = v.id
+                JOIN JlptLevel l ON l.id = vl.levelId
+                WHERE l.code = :levelCode
+                ORDER BY vl.displayOrder ASC, v.id ASC
+                """
+                : """
+                SELECT v
+                FROM Vocabulary v
+                JOIN LessonVocabulary lv ON lv.vocabularyId = v.id
+                JOIN Lesson l ON l.id = lv.lessonId
+                JOIN JlptLevel jl ON jl.id = l.levelId
+                WHERE jl.code = :levelCode
+                AND l.lessonNumber = :lessonNumber
+                ORDER BY lv.displayOrder ASC, v.id ASC
+                """;
+
         return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT
-                                            v.id,
-                                            v.word
-                                        FROM vocabulary v
-                                        INNER JOIN vocabulary_levels vl
-                                            ON vl.vocabulary_id = v.id
-                                        INNER JOIN jlpt_levels l
-                                            ON l.id = vl.level_id
-                                        WHERE l.code = :levelCode
-                                        ORDER BY
-                                            vl.display_order ASC,
-                                            v.id ASC
-                                        LIMIT :limit
-                                        OFFSET :offset
-                                        """)
-                                .setParameter("levelCode", levelCode)
-                                .setParameter("limit", limit)
-                                .setParameter("offset", offset)
-                                .getResultList()
-                )
-                .map(rows ->
-                        rows.stream()
-                                .map(row -> (Object[]) row)
-                                .toList()
-                );
+                .flatMap(session -> {
+                    var query = session.createQuery(hql, Vocabulary.class)
+                            .setParameter("levelCode", levelCode)
+                            .setFirstResult(offset)
+                            .setMaxResults(limit);
+
+                    if (lessonNumber != null) {
+                        query.setParameter("lessonNumber", lessonNumber);
+                    }
+
+                    return query.getResultList();
+                });
     }
 
-    public Uni<Long> countVocabularyByLevel(
-            String levelCode
-    ) {
+    public Uni<Long> countVocabulary(String levelCode, Integer lessonNumber) {
+        String hql = lessonNumber == null
+                ? """
+                SELECT COUNT(v)
+                FROM Vocabulary v
+                JOIN VocabularyLevel vl ON vl.vocabularyId = v.id
+                JOIN JlptLevel l ON l.id = vl.levelId
+                WHERE l.code = :levelCode
+                """
+                : """
+                SELECT COUNT(lv)
+                FROM LessonVocabulary lv
+                JOIN Lesson l ON l.id = lv.lessonId
+                JOIN JlptLevel jl ON jl.id = l.levelId
+                WHERE jl.code = :levelCode
+                AND l.lessonNumber = :lessonNumber
+                """;
+
         return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT COUNT(*)
-                                        FROM vocabulary v
-                                        INNER JOIN vocabulary_levels vl
-                                            ON vl.vocabulary_id = v.id
-                                        INNER JOIN jlpt_levels l
-                                            ON l.id = vl.level_id
-                                        WHERE l.code = :levelCode
-                                        """)
-                                .setParameter("levelCode", levelCode)
-                                .getSingleResult()
-                )
-                .map(result -> ((Number) result).longValue());
+                .flatMap(session -> {
+                    var query = session.createQuery(hql, Long.class)
+                            .setParameter("levelCode", levelCode);
+
+                    if (lessonNumber != null) {
+                        query.setParameter("lessonNumber", lessonNumber);
+                    }
+
+                    return query.getSingleResult();
+                });
     }
 
     public Uni<Vocabulary> findVocabularyById(Long vocabularyId) {
@@ -99,28 +116,6 @@ public class FlashcardRepository {
                                         ORDER BY vr.displayOrder ASC, vr.id ASC
                                         """, VocabularyReading.class)
                                 .setParameter("vocabularyId", vocabularyId)
-                                .getResultList()
-                );
-    }
-
-    /**
-     * Lấy pitch accent theo reading.
-     */
-    public Uni<List<Object>> findPitchAccents(
-            Long vocabularyReadingId
-    ) {
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                        SELECT accent_pattern
-                                        FROM vocabulary_pitch_accents
-                                        WHERE vocabulary_reading_id = :readingId
-                                        ORDER BY accent_pattern ASC
-                                        """)
-                                .setParameter(
-                                        "readingId",
-                                        vocabularyReadingId
-                                )
                                 .getResultList()
                 );
     }
@@ -256,86 +251,6 @@ public class FlashcardRepository {
                                         """, VocabularyPitchAccent.class)
                                 .setParameter("readingIds", readingIds)
                                 .getResultList()
-                );
-    }
-
-    public Uni<List<Object[]>> findVocabularyByLevelAndLesson(
-            String levelCode,
-            Integer lessonNumber,
-            int offset,
-            int size
-    ) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                                SELECT
-                                                    v.id,
-                                                    v.word
-                                                FROM vocabulary v
-                                                INNER JOIN lesson_vocabulary lv
-                                                    ON lv.vocabulary_id = v.id
-                                                INNER JOIN lessons l
-                                                    ON l.id = lv.lesson_id
-                                                INNER JOIN jlpt_levels jl
-                                                    ON jl.id = l.level_id
-                                                WHERE jl.code = :levelCode
-                                                  AND l.lesson_number = :lessonNumber
-                                                ORDER BY
-                                                    lv.display_order ASC,
-                                                    v.id ASC
-                                                LIMIT :size OFFSET :offset
-                                                """,
-                                        Object[].class
-                                )
-                                .setParameter(
-                                        "levelCode",
-                                        levelCode
-                                )
-                                .setParameter(
-                                        "lessonNumber",
-                                        lessonNumber
-                                )
-                                .setParameter(
-                                        "size",
-                                        size
-                                )
-                                .setParameter(
-                                        "offset",
-                                        offset
-                                )
-                                .getResultList()
-                );
-    }
-
-    public Uni<Long> countVocabularyByLevelAndLesson(
-            String levelCode,
-            Integer lessonNumber
-    ) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeQuery("""
-                                                SELECT COUNT(*)
-                                                FROM lesson_vocabulary lv
-                                                INNER JOIN lessons l
-                                                    ON l.id = lv.lesson_id
-                                                INNER JOIN jlpt_levels jl
-                                                    ON jl.id = l.level_id
-                                                WHERE jl.code = :levelCode
-                                                  AND l.lesson_number = :lessonNumber
-                                                """,
-                                        Long.class
-                                )
-                                .setParameter(
-                                        "levelCode",
-                                        levelCode
-                                )
-                                .setParameter(
-                                        "lessonNumber",
-                                        lessonNumber
-                                )
-                                .getSingleResult()
                 );
     }
 }

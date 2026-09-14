@@ -47,82 +47,30 @@ public class FlashcardService {
             int page,
             int size
     ) {
-
         validatePagination(page, size);
-
         validateLesson(lesson);
 
         String levelCode = normalizeLevel(level);
-
         int offset = page * size;
 
-        Uni<List<Object[]>> vocabularyUni;
+        Uni<List<Vocabulary>> vocabularyUni =
+                flashcardRepository.findVocabulary(levelCode, lesson, offset, size);
 
-        Uni<Long> countUni;
+        return vocabularyUni.flatMap(vocabulary -> {
+            Uni<Long> countUni = flashcardRepository.countVocabulary(levelCode, lesson);
 
-        if (lesson == null) {
+            return countUni.map(totalElements -> {
+                List<FlashcardListItemResponse> items = vocabulary.stream()
+                        .map(item -> new FlashcardListItemResponse(item.id, item.word))
+                        .toList();
 
-            vocabularyUni =
-                    flashcardRepository.findVocabularyByLevel(
-                            levelCode,
-                            offset,
-                            size
-                    );
+                int totalPages = (int) Math.ceil((double) totalElements / size);
 
-            countUni =
-                    flashcardRepository.countVocabularyByLevel(
-                            levelCode
-                    );
-
-        } else {
-
-            vocabularyUni =
-                    flashcardRepository.findVocabularyByLevelAndLesson(
-                            levelCode,
-                            lesson,
-                            offset,
-                            size
-                    );
-
-            countUni =
-                    flashcardRepository.countVocabularyByLevelAndLesson(
-                            levelCode,
-                            lesson
-                    );
-        }
-
-        return Uni.combine()
-                .all()
-                .unis(vocabularyUni, countUni)
-                .asTuple()
-                .map(tuple -> {
-
-                    List<Object[]> rows = tuple.getItem1();
-                    Long totalElements = tuple.getItem2();
-
-                    List<FlashcardListItemResponse> items =
-                            rows.stream()
-                                    .map(row ->
-                                            new FlashcardListItemResponse(
-                                                    ((Number) row[0]).longValue(),
-                                                    (String) row[1]
-                                            )
-                                    )
-                                    .toList();
-
-                    int totalPages =
-                            (int) Math.ceil(
-                                    (double) totalElements / size
-                            );
-
-                    return new FlashcardListResponse(
-                            items,
-                            page,
-                            size,
-                            totalElements,
-                            totalPages
-                    );
-                });
+                return new FlashcardListResponse(
+                        items, page, size, totalElements, totalPages
+                );
+            });
+        });
     }
 
     // ============================================================
