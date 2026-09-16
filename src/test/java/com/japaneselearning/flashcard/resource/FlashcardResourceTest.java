@@ -1,8 +1,14 @@
 package com.japaneselearning.flashcard.resource;
 
+import com.japaneselearning.security.JwksTestResource;
+import com.japaneselearning.security.JwtTestTokens;
+import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
+import org.jose4j.jwk.RsaJsonWebKey;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
@@ -16,12 +22,25 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @QuarkusTest
+@QuarkusTestResource(JwksTestResource.class)
 @TestProfile(FlashcardApiTestProfile.class)
 class FlashcardResourceTest {
 
+    RsaJsonWebKey signingKey;
+    private String accessToken;
+
+    @BeforeEach
+    void authenticateApplicationUser() throws Exception {
+        accessToken = new JwtTestTokens(signingKey).token("User");
+    }
+
+    private RequestSpecification authenticatedRequest() {
+        return given().auth().oauth2(accessToken);
+    }
+
     @Test
     void preservesTraceAndCorrelationIdsOnSuccess() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-success")
                 .header("X-Correlation-Id", "correlation-success")
                 .when().get("/api/v1/flashcards");
@@ -34,8 +53,8 @@ class FlashcardResourceTest {
 
     @Test
     void generatesIdsForSuccessAndErrorResponses() {
-        Response success = given().when().get("/api/v1/flashcards");
-        Response error = given().when().get("/api/v1/flashcards/999");
+        Response success = authenticatedRequest().when().get("/api/v1/flashcards");
+        Response error = authenticatedRequest().when().get("/api/v1/flashcards/999");
 
         success.then().statusCode(200);
         error.then().statusCode(404).body("error.code", equalTo("VOCABULARY_NOT_FOUND"));
@@ -46,7 +65,7 @@ class FlashcardResourceTest {
 
     @Test
     void returnsDetailedValidationErrorsWithCorrelationId() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-validation")
                 .header("X-Correlation-Id", "correlation-validation")
                 .queryParam("level", "N6")
@@ -64,7 +83,7 @@ class FlashcardResourceTest {
 
     @Test
     void rejectsNonPositiveVocabularyId() {
-        Response response = given().when().get("/api/v1/flashcards/0");
+        Response response = authenticatedRequest().when().get("/api/v1/flashcards/0");
 
         response.then().statusCode(400)
                 .body("error.code", equalTo("FLASHCARD_VALIDATION_ERROR"))
@@ -74,7 +93,7 @@ class FlashcardResourceTest {
 
     @Test
     void rejectsPaginationOverflow() {
-        given().queryParam("page", Integer.MAX_VALUE).queryParam("size", 100)
+        authenticatedRequest().queryParam("page", Integer.MAX_VALUE).queryParam("size", 100)
                 .when().get("/api/v1/flashcards")
                 .then().statusCode(400)
                 .body("error.details[0].field", equalTo("page"));
@@ -82,7 +101,7 @@ class FlashcardResourceTest {
 
     @Test
     void returnsVocabularyNotFoundWithCorrelationId() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-missing")
                 .header("X-Correlation-Id", "correlation-missing")
                 .when().get("/api/v1/flashcards/999");
@@ -96,7 +115,7 @@ class FlashcardResourceTest {
 
     @Test
     void hidesUnexpectedFailureDetailsAndPreservesCorrelationId() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-failure")
                 .header("X-Correlation-Id", "correlation-failure")
                 .when().get("/api/v1/flashcards/500");
@@ -110,7 +129,7 @@ class FlashcardResourceTest {
 
     @Test
     void tracesRoutingErrorsBeforeResourceMatching() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-routing")
                 .header("X-Correlation-Id", "correlation-routing")
                 .when().get("/api/v1/route-that-does-not-exist");
@@ -121,7 +140,7 @@ class FlashcardResourceTest {
 
     @Test
     void tracesMalformedQueryParameters() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-malformed")
                 .header("X-Correlation-Id", "correlation-malformed")
                 .queryParam("size", "invalid")
@@ -133,7 +152,7 @@ class FlashcardResourceTest {
 
     @Test
     void hidesServerWebExceptionDetailsAndPreservesStatus() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", "trace-unavailable")
                 .header("X-Correlation-Id", "correlation-unavailable")
                 .when().get("/api/v1/flashcards/503");
@@ -147,7 +166,7 @@ class FlashcardResourceTest {
 
     @Test
     void generatesIdsWhenIncomingHeadersAreBlank() {
-        Response response = given()
+        Response response = authenticatedRequest()
                 .header("X-Trace-Id", " ")
                 .header("X-Correlation-Id", " ")
                 .when().get("/api/v1/flashcards");
