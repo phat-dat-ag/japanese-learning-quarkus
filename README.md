@@ -28,6 +28,54 @@ Start the service with the Maven Wrapper:
 
 On Windows PowerShell, use `.\mvnw.cmd` instead of `./mvnw`. The default address is `http://localhost:8080`.
 
+## Docker
+
+Build from this service directory (only Docker is required on the host):
+
+```sh
+docker build -t japanese-learning-vocabulary:local .
+```
+
+The root Dockerfile builds the default Quarkus fast-jar with Java 17 and the
+pinned Maven Wrapper, then copies only `quarkus-app` into the UBI 9 OpenJDK 17
+runtime. It runs as non-root UID 185 on `0.0.0.0:8080`. Maven and the JDK are
+build-stage tools; the final image contains the Java runtime. Tests are run
+separately using the commands below and are skipped during image packaging.
+
+Supply these existing variables at runtime, for example through a local,
+untracked `.env.docker` passed with `--env-file`:
+
+| Variable | Container value |
+| --- | --- |
+| `DB_USERNAME` | Required MySQL application username |
+| `DB_PASSWORD` | Required MySQL application password |
+| `DB_REACTIVE_URL` | Required, e.g. `mysql://mysql:3306/japanese_learning` |
+| `AUTH_SERVER_URL` | Auth service's internal HTTP base URL, e.g. `http://user-service:8080`; use its actual service name and container port |
+| `AUTH_JWKS_URL` | Optional full public JWKS URL; defaults to `${AUTH_SERVER_URL}/.well-known/jwks.json` |
+| `AUTH_JWT_ISSUER` | Must match issued tokens; default `JapaneseLearning.User` |
+| `AUTH_JWT_AUDIENCE` | Must match issued tokens; default `JapaneseLearning` |
+
+Set `AUTH_SERVER_URL` or an absolute `AUTH_JWKS_URL` to the Docker-reachable Auth
+service; the local-development localhost default cannot reach another container.
+Only public JWKS is needed. Do not supply signing keys or client secrets.
+
+After MySQL, the separate root-owned Flyway service, and Auth are ready, run on
+their shared Docker network (replace `japanese-learning` with its actual name):
+
+```sh
+docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker -p 8080:8080 japanese-learning-vocabulary:local
+```
+
+MySQL remains reactive. Schema generation is disabled and this image does not
+execute Flyway; the orchestration repository owns migrations. TLS terminates at
+the future gateway/deployment layer.
+
+Existing SmallRye Health routes are `/q/health`, `/q/health/live`, and
+`/q/health/ready` on port 8080. Use liveness for process checks and readiness for
+traffic admission (including the reactive datasource check). No custom health
+service is added. Verify readiness, real .NET-issued User/Admin tokens, and the
+Admin import against the shared network during orchestration integration.
+
 ## API
 
 | Method | Endpoint | Purpose |

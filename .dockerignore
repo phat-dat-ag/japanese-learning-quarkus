@@ -1,5 +1,25 @@
-*
-!target/*-runner
-!target/*-runner.jar
-!target/lib/*
-!target/quarkus-app/*
+# Only build inputs enter the context. Excludes target, Git/IDE files, tests,
+# local development artifacts and documentation by default.
+**
+!pom.xml
+!mvnw
+!.mvn/
+!.mvn/wrapper/
+!.mvn/wrapper/maven-wrapper.properties
+!src/
+!src/main/
+!src/main/**
+
+# Never send local environment files or key material, even under src/main.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/.certs/**
+**/secrets/**
+**/application-local.properties
+**/application-local.yaml
+**/application-local.yml
