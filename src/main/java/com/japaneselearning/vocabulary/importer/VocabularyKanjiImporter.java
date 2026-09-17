@@ -63,41 +63,30 @@ public class VocabularyKanjiImporter {
                 .replaceWithVoid();
     }
 
-    private Uni<Kanji> getOrCreateKanji(
-            VocabularyKanjiImportItem item) {
+    private Uni<Kanji> getOrCreateKanji(VocabularyKanjiImportItem item) {
 
         return kanjiRepository
                 .findByCharacter(item.character)
                 .flatMap(existing -> {
-
                     if (existing != null) {
+                        existing.strokeCount = item.strokeCount;
 
-                        existing.strokeCount =
-                                item.strokeCount;
+                        existing.meaningVi = item.meaningVi;
 
-                        existing.meaningVi =
-                                item.meaningVi;
+                        existing.meaningEn = item.meaningEn;
 
-                        existing.meaningEn =
-                                item.meaningEn;
-
-                        return Uni.createFrom()
-                                .item(existing);
+                        return Uni.createFrom().item(existing);
                     }
 
                     Kanji kanji = new Kanji();
 
-                    kanji.character =
-                            item.character;
+                    kanji.character = item.character;
 
-                    kanji.strokeCount =
-                            item.strokeCount;
+                    kanji.strokeCount = item.strokeCount;
 
-                    kanji.meaningVi =
-                            item.meaningVi;
+                    kanji.meaningVi = item.meaningVi;
 
-                    kanji.meaningEn =
-                            item.meaningEn;
+                    kanji.meaningEn = item.meaningEn;
 
                     return kanjiRepository
                             .persist(kanji)
@@ -109,9 +98,7 @@ public class VocabularyKanjiImporter {
             Kanji kanji,
             VocabularyKanjiImportItem item) {
 
-        if (item.readings == null ||
-                item.readings.isEmpty()) {
-
+        if (item.readings == null || item.readings.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
@@ -120,10 +107,7 @@ public class VocabularyKanjiImporter {
                 .onItem()
                 .transformToUniAndConcatenate(
                         readingItem ->
-                                getOrCreateKanjiReading(
-                                        kanji,
-                                        readingItem
-                                )
+                                getOrCreateKanjiReading(kanji, readingItem)
                 )
                 .collect()
                 .asList()
@@ -141,30 +125,21 @@ public class VocabularyKanjiImporter {
                         readingItem.readingType
                 )
                 .flatMap(existing -> {
-
                     if (existing != null) {
+                        existing.displayOrder = readingItem.displayOrder;
 
-                        existing.displayOrder =
-                                readingItem.displayOrder;
-
-                        return Uni.createFrom()
-                                .item(existing);
+                        return Uni.createFrom().item(existing);
                     }
 
-                    KanjiReading reading =
-                            new KanjiReading();
+                    KanjiReading reading = new KanjiReading();
 
-                    reading.kanjiId =
-                            kanji.id;
+                    reading.kanjiId = kanji.id;
 
-                    reading.reading =
-                            readingItem.reading;
+                    reading.reading = readingItem.reading;
 
-                    reading.readingType =
-                            readingItem.readingType;
+                    reading.readingType = readingItem.readingType;
 
-                    reading.displayOrder =
-                            readingItem.displayOrder;
+                    reading.displayOrder = readingItem.displayOrder;
 
                     return kanjiReadingRepository
                             .persist(reading)

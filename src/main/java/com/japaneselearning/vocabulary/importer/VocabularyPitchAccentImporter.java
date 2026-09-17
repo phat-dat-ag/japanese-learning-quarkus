@@ -2,7 +2,6 @@ package com.japaneselearning.vocabulary.importer;
 
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.entity.VocabularyPitchAccent;
-import com.japaneselearning.vocabulary.entity.VocabularyReading;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import com.japaneselearning.vocabulary.repository.VocabularyPitchAccentRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyReadingRepository;
@@ -21,17 +20,14 @@ public class VocabularyPitchAccentImporter {
             VocabularyPitchAccentRepository pitchAccentRepository) {
 
         this.readingRepository = readingRepository;
-        this.pitchAccentRepository =
-                pitchAccentRepository;
+        this.pitchAccentRepository = pitchAccentRepository;
     }
 
     public Uni<Void> importPitchAccents(
             Vocabulary vocabulary,
             VocabularyImportItem item) {
 
-        if (item.pitchAccents == null ||
-                item.pitchAccents.isEmpty()) {
-
+        if (item.pitchAccents == null || item.pitchAccents.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
@@ -40,12 +36,8 @@ public class VocabularyPitchAccentImporter {
                 .onItem()
                 .transformToUniAndConcatenate(accent ->
                         readingRepository
-                                .findByVocabularyIdAndReading(
-                                        vocabulary.id,
-                                        accent.reading
-                                )
+                                .findByVocabularyIdAndReading(vocabulary.id, accent.reading)
                                 .flatMap(reading -> {
-
                                     if (reading == null) {
                                         return Uni.createFrom()
                                                 .failure(
@@ -56,17 +48,13 @@ public class VocabularyPitchAccentImporter {
                                                 );
                                     }
 
-                                    VocabularyPitchAccent entity =
-                                            new VocabularyPitchAccent();
+                                    VocabularyPitchAccent entity = new VocabularyPitchAccent();
 
-                                    entity.vocabularyReadingId =
-                                            reading.id;
+                                    entity.vocabularyReadingId = reading.id;
 
-                                    entity.accentPattern =
-                                            accent.accentPattern;
+                                    entity.accentPattern = accent.accentPattern;
 
-                                    return pitchAccentRepository
-                                            .persist(entity);
+                                    return pitchAccentRepository.persist(entity);
                                 })
                 )
                 .collect()

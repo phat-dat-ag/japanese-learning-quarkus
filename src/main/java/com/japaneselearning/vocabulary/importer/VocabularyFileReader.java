@@ -26,10 +26,9 @@ public class VocabularyFileReader {
 
     public List<VocabularyImportItem> read(String resourcePath) {
         try {
-            InputStream inputStream =
-                    Thread.currentThread()
-                            .getContextClassLoader()
-                            .getResourceAsStream(resourcePath);
+            InputStream inputStream = Thread.currentThread()
+                    .getContextClassLoader()
+                    .getResourceAsStream(resourcePath);
 
             if (inputStream == null) {
                 throw new IllegalArgumentException(
@@ -45,8 +44,7 @@ public class VocabularyFileReader {
 
         } catch (Exception e) {
             throw new IllegalStateException(
-                    "Failed to read vocabulary file: " + resourcePath,
-                    e
+                    "Failed to read vocabulary file: " + resourcePath, e
             );
         }
     }

@@ -23,18 +23,13 @@ public class JaxRsExceptionMapper
     }
 
     @Override
-    public Response toResponse(
-            WebApplicationException exception
-    ) {
+    public Response toResponse(WebApplicationException exception) {
 
-        Response originalResponse =
-                exception.getResponse();
+        Response originalResponse = exception.getResponse();
 
-        int statusCode =
-                originalResponse.getStatus();
+        int statusCode = originalResponse.getStatus();
 
-        Response.Status status =
-                Response.Status.fromStatusCode(statusCode);
+        Response.Status status = Response.Status.fromStatusCode(statusCode);
 
         String code = statusCode >= 500 ? "INTERNAL_SERVER_ERROR" : resolveCode(status);
 
@@ -79,9 +74,7 @@ public class JaxRsExceptionMapper
             Response.Status status
     ) {
 
-        if (exception.getMessage() != null
-                && !exception.getMessage().isBlank()) {
-
+        if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
             return exception.getMessage();
         }
 

@@ -35,18 +35,4 @@ public class VocabularyKanjiRepository {
                 )
                 .replaceWithVoid();
     }
-
-    public Uni<Void> deleteByVocabularyId(Long vocabularyId) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeMutationQuery("""
-                                        DELETE FROM vocabulary_kanji
-                                        WHERE vocabulary_id = :vocabularyId
-                                        """)
-                                .setParameter("vocabularyId", vocabularyId)
-                                .executeUpdate()
-                )
-                .replaceWithVoid();
-    }
 }

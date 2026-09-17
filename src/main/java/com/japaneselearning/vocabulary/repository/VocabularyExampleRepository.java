@@ -32,29 +32,9 @@ public class VocabularyExampleRepository {
                                             )
                                         """)
                                 .setParameter("vocabularyId", vocabularyId)
-                                .setParameter(
-                                        "exampleSentenceId",
-                                        exampleSentenceId
-                                )
+                                .setParameter("exampleSentenceId", exampleSentenceId)
                                 .setParameter("targetText", targetText)
-                                .setParameter(
-                                        "displayOrder",
-                                        displayOrder
-                                )
-                                .executeUpdate()
-                )
-                .replaceWithVoid();
-    }
-
-    public Uni<Void> deleteByVocabularyId(Long vocabularyId) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeMutationQuery("""
-                                        DELETE FROM vocabulary_examples
-                                        WHERE vocabulary_id = :vocabularyId
-                                        """)
-                                .setParameter("vocabularyId", vocabularyId)
+                                .setParameter("displayOrder", displayOrder)
                                 .executeUpdate()
                 )
                 .replaceWithVoid();

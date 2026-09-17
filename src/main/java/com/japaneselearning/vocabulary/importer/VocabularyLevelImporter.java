@@ -34,30 +34,22 @@ public class VocabularyLevelImporter {
                 .iterable(item.levels)
                 .onItem()
                 .transformToUniAndConcatenate(levelCode -> {
-
-                    int displayOrder =
-                            item.levels.indexOf(levelCode) + 1;
+                    int displayOrder = item.levels.indexOf(levelCode) + 1;
 
                     return jlptLevelRepository
                             .findByCode(levelCode)
                             .flatMap(level -> {
-
                                 if (level == null) {
                                     return Uni.createFrom()
                                             .failure(
                                                     new IllegalArgumentException(
-                                                            "Unknown JLPT level: "
-                                                                    + levelCode
+                                                            "Unknown JLPT level: " + levelCode
                                                     )
                                             );
                                 }
 
                                 return vocabularyLevelRepository
-                                        .insert(
-                                                vocabulary.id,
-                                                level.id,
-                                                displayOrder
-                                        );
+                                        .insert(vocabulary.id, level.id, displayOrder);
                             });
                 })
                 .collect()

@@ -13,8 +13,7 @@ import org.jboss.logging.Logger;
 import java.util.Objects;
 
 @Provider
-public class GlobalExceptionMapper
-        implements ExceptionMapper<Exception> {
+public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
 
     private static final Logger LOG =
             Logger.getLogger(GlobalExceptionMapper.class);
@@ -28,8 +27,7 @@ public class GlobalExceptionMapper
     @Override
     public Response toResponse(Exception exception) {
 
-        String traceId =
-                traceContext.getTraceId();
+        String traceId = traceContext.getTraceId();
 
         LOG.errorf(
                 exception,

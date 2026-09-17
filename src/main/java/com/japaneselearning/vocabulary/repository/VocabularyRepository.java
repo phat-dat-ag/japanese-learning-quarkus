@@ -8,10 +8,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class VocabularyRepository implements PanacheRepository<Vocabulary> {
 
-    public Uni<Vocabulary> findByNormalizedWord(
-            String normalizedWord) {
+    public Uni<Vocabulary> findByNormalizedWord(String normalizedWord) {
 
-        return find("normalizedWord", normalizedWord)
-                .firstResult();
+        return find("normalizedWord", normalizedWord).firstResult();
     }
 }
