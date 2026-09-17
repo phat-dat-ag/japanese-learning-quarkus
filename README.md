@@ -72,8 +72,20 @@ the future gateway/deployment layer.
 
 Existing SmallRye Health routes are `/q/health`, `/q/health/live`, and
 `/q/health/ready` on port 8080. Use liveness for process checks and readiness for
-traffic admission (including the reactive datasource check). No custom health
-service is added. Verify readiness, real .NET-issued User/Admin tokens, and the
+traffic admission (including the built-in reactive datasource check). The aggregate
+`/q/health` also reflects readiness and is not a liveness probe.
+`HealthResponseFilter` retains only overall status and each check's name/status,
+omitting raw datasource exception data without replacing or duplicating checks.
+HTTP status remains 200 for UP and 503 for DOWN. `HealthResponseFilterTest`
+verifies redaction and HTTP integration. No dependencies were added.
+A MySQL outage fails readiness while liveness stays UP; later successful probes
+restore readiness. The root Compose readiness probe discards response bodies.
+JWKS is fetched at initialization, after Compose waits for .NET readiness.
+Continuous JWKS availability is deliberately not a health dependency: known
+cached keys allow verification during an Auth outage, while unknown keys that
+require a refresh cannot be verified until JWKS is available again. Health probes
+do not contact Auth, and this is not whole-system readiness.
+Verify readiness, real .NET-issued User/Admin tokens, and the
 Admin import against the shared network during orchestration integration.
 
 ## API
