@@ -27,18 +27,4 @@ public class VocabularyLevelRepository {
                 )
                 .replaceWithVoid();
     }
-
-    public Uni<Void> deleteByVocabularyId(Long vocabularyId) {
-
-        return Panache.getSession()
-                .flatMap(session ->
-                        session.createNativeMutationQuery("""
-                                        DELETE FROM vocabulary_levels
-                                        WHERE vocabulary_id = :vocabularyId
-                                        """)
-                                .setParameter("vocabularyId", vocabularyId)
-                                .executeUpdate()
-                )
-                .replaceWithVoid();
-    }
 }

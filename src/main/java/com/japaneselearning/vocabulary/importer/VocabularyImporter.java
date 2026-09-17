@@ -32,6 +32,7 @@ public class VocabularyImporter {
 
     public Uni<ImportResult> importVocabulary(Path file) {
         final List<VocabularyImportItem> items;
+
         try {
             items = fileReader.read(file);
         } catch (IOException e) {
@@ -61,6 +62,7 @@ public class VocabularyImporter {
     private ImportResult summarize(int total, List<ImportStatus> results) {
         int created = (int) results.stream().filter(ImportStatus.CREATED::equals).count();
         int updated = (int) results.stream().filter(ImportStatus.UPDATED::equals).count();
+
         return new ImportResult(total, created, updated);
     }
 

@@ -23,8 +23,7 @@ public class VocabularyReadingImporter {
             Vocabulary vocabulary,
             VocabularyImportItem item) {
 
-        if (item.readings == null ||
-                item.readings.isEmpty()) {
+        if (item.readings == null || item.readings.isEmpty()) {
 
             return Uni.createFrom().voidItem();
         }
@@ -33,21 +32,15 @@ public class VocabularyReadingImporter {
                 .iterable(item.readings)
                 .onItem()
                 .transformToUniAndConcatenate(readingItem -> {
+                    VocabularyReading reading = new VocabularyReading();
 
-                    VocabularyReading reading =
-                            new VocabularyReading();
+                    reading.vocabularyId = vocabulary.id;
 
-                    reading.vocabularyId =
-                            vocabulary.id;
+                    reading.reading = readingItem.reading;
 
-                    reading.reading =
-                            readingItem.reading;
+                    reading.isPrimary = readingItem.isPrimary;
 
-                    reading.isPrimary =
-                            readingItem.isPrimary;
-
-                    reading.displayOrder =
-                            readingItem.displayOrder;
+                    reading.displayOrder = readingItem.displayOrder;
 
                     return repository
                             .persist(reading)

@@ -6,8 +6,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
-public class KanjiRepository
-        implements PanacheRepository<Kanji> {
+public class KanjiRepository implements PanacheRepository<Kanji> {
 
     public Uni<Kanji> findByCharacter(String character) {
         return find("character", character).firstResult();

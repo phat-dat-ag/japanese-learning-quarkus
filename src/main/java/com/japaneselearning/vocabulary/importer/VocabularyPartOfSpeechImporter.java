@@ -18,20 +18,16 @@ public class VocabularyPartOfSpeechImporter {
             PartOfSpeechRepository partOfSpeechRepository,
             VocabularyPartOfSpeechRepository vocabularyPartOfSpeechRepository) {
 
-        this.partOfSpeechRepository =
-                partOfSpeechRepository;
+        this.partOfSpeechRepository = partOfSpeechRepository;
 
-        this.vocabularyPartOfSpeechRepository =
-                vocabularyPartOfSpeechRepository;
+        this.vocabularyPartOfSpeechRepository = vocabularyPartOfSpeechRepository;
     }
 
     public Uni<Void> importPartsOfSpeech(
             Vocabulary vocabulary,
             VocabularyImportItem item) {
 
-        if (item.partsOfSpeech == null ||
-                item.partsOfSpeech.isEmpty()) {
-
+        if (item.partsOfSpeech == null || item.partsOfSpeech.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
@@ -42,22 +38,17 @@ public class VocabularyPartOfSpeechImporter {
                         partOfSpeechRepository
                                 .findByCode(code)
                                 .flatMap(pos -> {
-
                                     if (pos == null) {
                                         return Uni.createFrom()
                                                 .failure(
                                                         new IllegalArgumentException(
-                                                                "Unknown part of speech: "
-                                                                        + code
+                                                                "Unknown part of speech: " + code
                                                         )
                                                 );
                                     }
 
                                     return vocabularyPartOfSpeechRepository
-                                            .insert(
-                                                    vocabulary.id,
-                                                    pos.id
-                                            );
+                                            .insert(vocabulary.id, pos.id);
                                 })
                 )
                 .collect()

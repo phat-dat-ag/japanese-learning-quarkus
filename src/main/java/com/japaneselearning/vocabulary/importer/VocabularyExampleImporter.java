@@ -19,11 +19,9 @@ public class VocabularyExampleImporter {
             ExampleSentenceRepository exampleSentenceRepository,
             VocabularyExampleRepository vocabularyExampleRepository) {
 
-        this.exampleSentenceRepository =
-                exampleSentenceRepository;
+        this.exampleSentenceRepository = exampleSentenceRepository;
 
-        this.vocabularyExampleRepository =
-                vocabularyExampleRepository;
+        this.vocabularyExampleRepository = vocabularyExampleRepository;
     }
 
     public Uni<Void> importExamples(
@@ -41,20 +39,15 @@ public class VocabularyExampleImporter {
                 .onItem()
                 .transformToUniAndConcatenate(exampleItem -> {
 
-                    ExampleSentence example =
-                            new ExampleSentence();
+                    ExampleSentence example = new ExampleSentence();
 
-                    example.japaneseText =
-                            exampleItem.japaneseText;
+                    example.japaneseText = exampleItem.japaneseText;
 
-                    example.japaneseReading =
-                            exampleItem.japaneseReading;
+                    example.japaneseReading = exampleItem.japaneseReading;
 
-                    example.meaningVi =
-                            exampleItem.meaningVi;
+                    example.meaningVi = exampleItem.meaningVi;
 
-                    example.meaningEn =
-                            exampleItem.meaningEn;
+                    example.meaningEn = exampleItem.meaningEn;
 
                     return exampleSentenceRepository
                             .persist(example)

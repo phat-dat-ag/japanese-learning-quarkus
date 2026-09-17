@@ -13,8 +13,7 @@ public class VocabularyMeaningImporter {
 
     private final VocabularyMeaningRepository repository;
 
-    public VocabularyMeaningImporter(
-            VocabularyMeaningRepository repository) {
+    public VocabularyMeaningImporter(VocabularyMeaningRepository repository) {
 
         this.repository = repository;
     }
@@ -23,9 +22,7 @@ public class VocabularyMeaningImporter {
             Vocabulary vocabulary,
             VocabularyImportItem item) {
 
-        if (item.meanings == null ||
-                item.meanings.isEmpty()) {
-
+        if (item.meanings == null || item.meanings.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
 
@@ -33,24 +30,17 @@ public class VocabularyMeaningImporter {
                 .iterable(item.meanings)
                 .onItem()
                 .transformToUniAndConcatenate(meaningItem -> {
+                    VocabularyMeaning meaning = new VocabularyMeaning();
 
-                    VocabularyMeaning meaning =
-                            new VocabularyMeaning();
+                    meaning.vocabularyId = vocabulary.id;
 
-                    meaning.vocabularyId =
-                            vocabulary.id;
+                    meaning.languageCode = meaningItem.language;
 
-                    meaning.languageCode =
-                            meaningItem.language;
+                    meaning.meaning = meaningItem.meaning;
 
-                    meaning.meaning =
-                            meaningItem.meaning;
+                    meaning.isPrimary = meaningItem.isPrimary;
 
-                    meaning.isPrimary =
-                            meaningItem.isPrimary;
-
-                    meaning.displayOrder =
-                            meaningItem.displayOrder;
+                    meaning.displayOrder = meaningItem.displayOrder;
 
                     return repository
                             .persist(meaning)

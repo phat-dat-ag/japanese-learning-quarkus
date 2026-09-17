@@ -28,16 +28,13 @@ public class VocabularyCoreImporter {
                         existing.word = item.word;
                         existing.normalizedWord = item.normalizedWord;
 
-                        return Uni.createFrom()
-                                .item(existing);
+                        return Uni.createFrom().item(existing);
                     }
 
-                    Vocabulary vocabulary =
-                            new Vocabulary();
+                    Vocabulary vocabulary = new Vocabulary();
 
                     vocabulary.word = item.word;
-                    vocabulary.normalizedWord =
-                            item.normalizedWord;
+                    vocabulary.normalizedWord = item.normalizedWord;
 
                     return vocabularyRepository
                             .persist(vocabulary)

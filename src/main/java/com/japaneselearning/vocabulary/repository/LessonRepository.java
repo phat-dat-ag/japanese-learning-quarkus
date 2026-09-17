@@ -8,13 +8,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
 
 @ApplicationScoped
-public class LessonRepository
-        implements PanacheRepository<Lesson> {
+public class LessonRepository implements PanacheRepository<Lesson> {
 
-    public Uni<Lesson> findByLevelIdAndLessonNumber(
-            Long levelId,
-            Integer lessonNumber) {
-
+    public Uni<Lesson> findByLevelIdAndLessonNumber(Long levelId, Integer lessonNumber) {
         return find(
                 "levelId = ?1 and lessonNumber = ?2",
                 levelId,

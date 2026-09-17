@@ -17,8 +17,7 @@ import jakarta.ws.rs.ext.Provider;
 import java.util.List;
 
 @Provider
-public class BusinessExceptionMapper
-        implements ExceptionMapper<BusinessException> {
+public class BusinessExceptionMapper implements ExceptionMapper<BusinessException> {
 
     private final RequestTraceContext traceContext;
 

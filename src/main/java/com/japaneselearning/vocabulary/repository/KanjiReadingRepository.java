@@ -6,8 +6,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
-public class KanjiReadingRepository
-        implements PanacheRepository<KanjiReading> {
+public class KanjiReadingRepository implements PanacheRepository<KanjiReading> {
 
     public Uni<KanjiReading> findByKanjiIdAndReadingAndType(
             Long kanjiId,

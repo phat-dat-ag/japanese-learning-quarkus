@@ -37,10 +37,7 @@ public class VocabularyLessonImporter {
                 .onItem()
                 .transformToUniAndConcatenate(
                         lessonItem ->
-                                importLesson(
-                                        vocabulary,
-                                        lessonItem
-                                )
+                                importLesson(vocabulary, lessonItem)
                 )
                 .collect()
                 .asList()
@@ -54,7 +51,6 @@ public class VocabularyLessonImporter {
         return jlptLevelRepository
                 .findByCode(lessonItem.level)
                 .flatMap(level -> {
-
                     if (level == null) {
                         return Uni.createFrom()
                                 .failure(
@@ -68,12 +64,8 @@ public class VocabularyLessonImporter {
                     }
 
                     return lessonRepository
-                            .findByLevelIdAndLessonNumber(
-                                    level.id,
-                                    lessonItem.lessonNumber
-                            )
+                            .findByLevelIdAndLessonNumber(level.id, lessonItem.lessonNumber)
                             .flatMap(lesson -> {
-
                                 if (lesson == null) {
                                     return Uni.createFrom()
                                             .failure(
@@ -89,11 +81,7 @@ public class VocabularyLessonImporter {
                                 }
 
                                 return lessonVocabularyRepository
-                                        .insert(
-                                                lesson.id,
-                                                vocabulary.id,
-                                                lessonItem.displayOrder
-                                        );
+                                        .insert(lesson.id, vocabulary.id, lessonItem.displayOrder);
                             });
                 });
     }
