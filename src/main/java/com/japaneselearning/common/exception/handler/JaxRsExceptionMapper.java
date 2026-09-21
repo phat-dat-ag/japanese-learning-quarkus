@@ -29,14 +29,10 @@ public class JaxRsExceptionMapper
 
         int statusCode = originalResponse.getStatus();
 
-        Response.Status status = Response.Status.fromStatusCode(statusCode);
-
-        String code = statusCode >= 500 ? "INTERNAL_SERVER_ERROR" : resolveCode(status);
-
-        ErrorResponse errorResponse = ErrorResponse.of(
-                code,
-                statusCode >= 500 ? "An unexpected error occurred" : resolveMessage(exception, status)
-        );
+        ErrorResponse errorResponse = HttpErrors.forStatus(statusCode);
+        if (statusCode >= 500) {
+            SafeExceptionLog.unexpected(exception, traceContext.getTraceId());
+        }
 
         ResponseMeta responseMeta = ResponseMeta.create(
                 traceContext.getTraceId(),
@@ -45,39 +41,14 @@ public class JaxRsExceptionMapper
 
         ApiResponse<Objects> response = ApiResponse.error(errorResponse, responseMeta);
 
-        return Response
-                .status(statusCode)
-                .type(MediaType.APPLICATION_JSON)
-                .entity(response)
-                .build();
-    }
-
-    private String resolveCode(Response.Status status) {
-
-        if (status == null) {
-            return "HTTP_ERROR";
+        Response.ResponseBuilder builder = Response.status(statusCode)
+                .type(MediaType.APPLICATION_JSON).entity(response);
+        // Preserve protocol semantics without copying arbitrary exception headers or entities.
+        for (String name : new String[]{"Allow", "WWW-Authenticate", "Retry-After"}) {
+            if (originalResponse.getHeaders().containsKey(name)) {
+                originalResponse.getHeaders().get(name).forEach(value -> builder.header(name, value));
+            }
         }
-
-        return switch (status) {
-            case BAD_REQUEST -> "BAD_REQUEST";
-            case UNAUTHORIZED -> "UNAUTHORIZED";
-            case FORBIDDEN -> "FORBIDDEN";
-            case NOT_FOUND -> "NOT_FOUND";
-            case CONFLICT -> "CONFLICT";
-            case METHOD_NOT_ALLOWED -> "METHOD_NOT_ALLOWED";
-            default -> "HTTP_ERROR";
-        };
-    }
-
-    private String resolveMessage(
-            WebApplicationException exception,
-            Response.Status status
-    ) {
-
-        if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
-            return exception.getMessage();
-        }
-
-        return status == null ? "HTTP request failed" : status.getReasonPhrase();
+        return builder.build();
     }
 }

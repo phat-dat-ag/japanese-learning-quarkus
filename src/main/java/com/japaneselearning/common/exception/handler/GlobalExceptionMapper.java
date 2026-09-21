@@ -8,15 +8,11 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import org.jboss.logging.Logger;
 
 import java.util.Objects;
 
 @Provider
 public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
-
-    private static final Logger LOG =
-            Logger.getLogger(GlobalExceptionMapper.class);
 
     private final RequestTraceContext traceContext;
 
@@ -29,10 +25,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
 
         String traceId = traceContext.getTraceId();
 
-        LOG.errorf(
-                "Unhandled exception type=%s traceId=%s",
-                exception.getClass().getSimpleName(), traceId
-        );
+        SafeExceptionLog.unexpected(exception, traceId);
 
         ErrorResponse errorResponse = ErrorResponse.of(
                 "INTERNAL_SERVER_ERROR",

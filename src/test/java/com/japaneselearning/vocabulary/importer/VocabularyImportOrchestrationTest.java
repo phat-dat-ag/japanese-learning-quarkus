@@ -1,6 +1,7 @@
 package com.japaneselearning.vocabulary.importer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.importer.dto.ImportResult;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
@@ -75,39 +76,35 @@ class VocabularyImportOrchestrationTest {
     }
 
     @Test
-    void preservesValidationFailureWithoutWritingData() throws IOException {
+    void mapsValidationFailureWithoutWritingData() throws IOException {
         validationFailure = new IllegalArgumentException("Invalid vocabulary");
         Path file = inputFile();
 
-        assertSame(validationFailure, assertThrows(
-                IllegalArgumentException.class,
-                () -> importer().importVocabulary(file).await().atMost(Duration.ofSeconds(1))
-        ));
+        ValidationException failure = assertThrows(ValidationException.class,
+                () -> importer().importVocabulary(file).await().atMost(Duration.ofSeconds(1)));
+        assertEquals("VALIDATION_ERROR", failure.getCode());
+        assertEquals("Vocabulary file contains invalid data", failure.getErrors().get(0).message());
         assertEquals(List.of("validate"), calls);
     }
 
     @Test
-    void preservesMalformedJsonFailure() throws IOException {
+    void mapsMalformedJsonWithoutExposingParserDetails() throws IOException {
         Path file = directory.resolve("invalid.json");
         Files.writeString(file, "invalid JSON");
 
-        IllegalArgumentException failure = assertThrows(
-                IllegalArgumentException.class,
-                () -> importer().importVocabulary(file).await().atMost(Duration.ofSeconds(1))
-        );
-        assertEquals("Invalid vocabulary JSON file", failure.getMessage());
-        assertInstanceOf(IOException.class, failure.getCause());
+        ValidationException failure = assertThrows(ValidationException.class,
+                () -> importer().importVocabulary(file).await().atMost(Duration.ofSeconds(1)));
+        assertEquals("VALIDATION_ERROR", failure.getCode());
+        assertEquals("File must contain valid vocabulary JSON", failure.getErrors().get(0).message());
+        org.junit.jupiter.api.Assertions.assertNull(failure.getCause());
         assertEquals(List.of(), calls);
     }
 
     @Test
     void preservesMissingFileFailure() {
-        IllegalArgumentException failure = assertThrows(
-                IllegalArgumentException.class,
+        RuntimeException failure = assertThrows(RuntimeException.class,
                 () -> importer().importVocabulary(directory.resolve("missing.json"))
-                        .await().atMost(Duration.ofSeconds(1))
-        );
-        assertEquals("Invalid vocabulary JSON file", failure.getMessage());
+                        .await().atMost(Duration.ofSeconds(1)));
         assertInstanceOf(IOException.class, failure.getCause());
         assertEquals(List.of(), calls);
     }
