@@ -36,7 +36,7 @@ public class LessonService {
                 .failWith(() ->
                         new ResourceNotFoundException(
                                 "JLPT_LEVEL_NOT_FOUND",
-                                "JLPT level " + level + " not found"
+                                "JLPT level not found"
                         )
                 )
                 .chain(jlptLevel ->

@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import org.jetbrains.annotations.NotNull;
 
 @Path("/api/vocabularies")
 @Produces(MediaType.APPLICATION_JSON)
@@ -28,6 +29,7 @@ public class VocabularyResource extends BaseResource {
     @Path("/import")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Uni<Response> importVocabularies(
+            @NotNull
             @RestForm("file")
             FileUpload file
     ) {

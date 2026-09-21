@@ -1,5 +1,8 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.japaneselearning.common.exception.ValidationException;
+import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.vocabulary.importer.dto.ImportResult;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import io.smallrye.mutiny.Multi;
@@ -35,22 +38,27 @@ public class VocabularyImporter {
 
         try {
             items = fileReader.read(file);
+        } catch (JsonProcessingException e) {
+            return invalidInput("File must contain valid vocabulary JSON");
         } catch (IOException e) {
-            return Uni.createFrom().failure(
-                    new IllegalArgumentException("Invalid vocabulary JSON file", e)
-            );
+            return Uni.createFrom().failure(e);
         }
 
         try {
             validator.validate(items);
         } catch (IllegalArgumentException e) {
-            return Uni.createFrom().failure(e);
+            return invalidInput("Vocabulary file contains invalid data");
         }
 
         return Multi.createFrom().iterable(items)
                 .onItem().transformToUniAndConcatenate(this::importItem)
                 .collect().asList()
                 .map(results -> summarize(items.size(), results));
+    }
+
+    private Uni<ImportResult> invalidInput(String message) {
+        return Uni.createFrom().failure(new ValidationException("VALIDATION_ERROR",
+                "Invalid vocabulary import", List.of(new ValidationError("file", message))));
     }
 
     private Uni<ImportStatus> importItem(VocabularyImportItem item) {
