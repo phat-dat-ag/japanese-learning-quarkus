@@ -30,9 +30,8 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
         String traceId = traceContext.getTraceId();
 
         LOG.errorf(
-                exception,
-                "Unhandled exception. traceId=%s",
-                traceId
+                "Unhandled exception type=%s traceId=%s",
+                exception.getClass().getSimpleName(), traceId
         );
 
         ErrorResponse errorResponse = ErrorResponse.of(
