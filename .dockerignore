@@ -13,11 +13,11 @@
 # Never send local environment files or key material, even under src/main.
 **/.env
 **/.env.*
-**/*.pem
-**/*.key
-**/*.p12
-**/*.pfx
-**/*.jks
+**/*.[pP][eE][mM]
+**/*.[kK][eE][yY]
+**/*.[pP]12
+**/*.[pP][fF][xX]
+**/*.[jJ][kK][sS]
 **/.certs/**
 **/secrets/**
 **/application-local.properties
