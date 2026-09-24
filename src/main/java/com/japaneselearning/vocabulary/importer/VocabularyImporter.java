@@ -50,10 +50,16 @@ public class VocabularyImporter {
             return invalidInput("Vocabulary file contains invalid data");
         }
 
-        return Multi.createFrom().iterable(items)
+        Uni<Void> validation = relationImporter.validateLessons(items);
+
+        if (validation == null) {
+            validation = Uni.createFrom().voidItem();
+        }
+
+        return validation.chain(() -> Multi.createFrom().iterable(items)
                 .onItem().transformToUniAndConcatenate(this::importItem)
                 .collect().asList()
-                .map(results -> summarize(items.size(), results));
+                .map(results -> summarize(items.size(), results)));
     }
 
     private Uni<ImportResult> invalidInput(String message) {

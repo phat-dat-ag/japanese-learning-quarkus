@@ -1,6 +1,8 @@
 package com.japaneselearning.vocabulary.importer;
 
 import com.japaneselearning.vocabulary.entity.Vocabulary;
+import com.japaneselearning.common.exception.ValidationError;
+import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.vocabulary.importer.dto.LessonImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
@@ -9,6 +11,8 @@ import com.japaneselearning.vocabulary.repository.LessonVocabularyRepository;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+
+import java.util.List;
 
 @ApplicationScoped
 public class VocabularyLessonImporter {
@@ -44,6 +48,27 @@ public class VocabularyLessonImporter {
                 .replaceWithVoid();
     }
 
+    public Uni<Void> validateLessons(VocabularyImportItem item) {
+        return Multi.createFrom().iterable(item.lessons)
+                .onItem().transformToUniAndConcatenate(lessonItem ->
+                        jlptLevelRepository.findByCode(lessonItem.level)
+                                .flatMap(level -> lessonRepository
+                                        .findByLevelIdAndLessonNumber(level.id, lessonItem.lessonNumber)
+                                        .flatMap(lesson -> lesson == null
+                                                ? Uni.createFrom().failure(missingLesson(lessonItem))
+                                                : Uni.createFrom().voidItem())))
+                .collect().asList()
+                .replaceWithVoid();
+    }
+
+    private ValidationException missingLesson(LessonImportItem lessonItem) {
+        return new ValidationException(
+                "VALIDATION_ERROR",
+                "Invalid vocabulary import",
+                List.of(new ValidationError("lessons", "Unknown lesson "
+                        + lessonItem.lessonNumber + " for JLPT level " + lessonItem.level)));
+    }
+
     private Uni<Void> importLesson(
             Vocabulary vocabulary,
             LessonImportItem lessonItem) {
@@ -69,14 +94,7 @@ public class VocabularyLessonImporter {
                                 if (lesson == null) {
                                     return Uni.createFrom()
                                             .failure(
-                                                    new IllegalArgumentException(
-                                                            "Unknown lesson "
-                                                                    + lessonItem.lessonNumber
-                                                                    + " for JLPT level "
-                                                                    + lessonItem.level
-                                                                    + " and vocabulary: "
-                                                                    + vocabulary.word
-                                                    )
+                                                    missingLesson(lessonItem)
                                             );
                                 }
 

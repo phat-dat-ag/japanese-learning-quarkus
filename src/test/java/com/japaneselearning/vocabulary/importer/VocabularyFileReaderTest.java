@@ -21,7 +21,7 @@ class VocabularyFileReaderTest {
 
         List<VocabularyImportItem> vocabulary =
                 vocabularyFileReader.read(
-                        "data/vocabulary/n5.json"
+                        "data/vocabulary/reader-fixture.json"
                 );
 
         assertNotNull(vocabulary);

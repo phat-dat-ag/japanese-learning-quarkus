@@ -4,6 +4,7 @@ import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.vocabulary.service.VocabularyService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -12,7 +13,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
-import org.jetbrains.annotations.NotNull;
 
 @Path("/api/vocabularies")
 @Produces(MediaType.APPLICATION_JSON)
