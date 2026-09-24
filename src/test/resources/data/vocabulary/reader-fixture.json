@@ -1,0 +1,34 @@
+[
+  {
+    "word": "学生",
+    "normalizedWord": "学生",
+    "levels": [
+      "N5"
+    ],
+    "lessons": [
+      {
+        "level": "N5",
+        "lessonNumber": 1,
+        "displayOrder": 1
+      }
+    ],
+    "readings": [
+      {
+        "reading": "がくせい",
+        "isPrimary": true,
+        "displayOrder": 1
+      }
+    ],
+    "meanings": [
+      {
+        "language": "en",
+        "meaning": "student",
+        "isPrimary": true,
+        "displayOrder": 1
+      }
+    ],
+    "partsOfSpeech": [
+      "NOUN"
+    ]
+  }
+]

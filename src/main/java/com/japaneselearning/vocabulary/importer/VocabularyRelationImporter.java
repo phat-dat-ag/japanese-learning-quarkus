@@ -3,7 +3,10 @@ package com.japaneselearning.vocabulary.importer;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
+
+import java.util.List;
 
 @ApplicationScoped
 public class VocabularyRelationImporter {
@@ -47,4 +50,12 @@ public class VocabularyRelationImporter {
                 .chain(() -> pitchAccentImporter.importPitchAccents(vocabulary, item))
                 .chain(() -> exampleImporter.importExamples(vocabulary, item));
     }
+
+    public Uni<Void> validateLessons(List<VocabularyImportItem> items) {
+        return Multi.createFrom().iterable(items)
+                .onItem().transformToUniAndConcatenate(lessonImporter::validateLessons)
+                .collect().asList()
+                .replaceWithVoid();
+    }
+
 }

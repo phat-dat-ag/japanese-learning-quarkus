@@ -196,6 +196,11 @@ class VocabularyImportOrchestrationTest {
                 },
                 new VocabularyLessonImporter(null, null, null) {
                     @Override
+                    public Uni<Void> validateLessons(VocabularyImportItem item) {
+                        return Uni.createFrom().voidItem();
+                    }
+
+                    @Override
                     public Uni<Void> importLessons(Vocabulary vocabulary, VocabularyImportItem item) {
                         return stage("lessons");
                     }

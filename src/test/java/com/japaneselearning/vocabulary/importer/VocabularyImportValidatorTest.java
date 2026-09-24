@@ -7,6 +7,7 @@ import com.japaneselearning.vocabulary.importer.dto.VocabularyMeaningImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyPitchAccentImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImportItem;
 import com.japaneselearning.vocabulary.importer.dto.KanjiReadingImportItem;
+import com.japaneselearning.vocabulary.importer.dto.LessonImportItem;
 
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,11 @@ class VocabularyImportValidatorTest {
         item.normalizedWord = "学生";
 
         item.levels = List.of("N5");
+        LessonImportItem lesson = new LessonImportItem();
+        lesson.level = "N5";
+        lesson.lessonNumber = 1;
+        lesson.displayOrder = 1;
+        item.lessons = List.of(lesson);
 
         // =========================
         // Readings

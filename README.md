@@ -206,13 +206,16 @@ Commands used for verification (PowerShell, from this repository):
 git diff --check
 ```
 
-Latest validation: JWT/authorization 19/19, OpenAPI/infrastructure 4/4, and flashcard HTTP 11/11 passed. The full suite passed 55/57; packaging with tests skipped passed. `git diff --check` passed.
-
-The existing unrelated fixture failures are `VocabularyFileReaderTest`, which
-expects a student while `n5.json` contains a fish, and
-`VocabularyImportValidatorTest`, whose valid-item fixture lacks the required
-lesson. Those tests, the data, and validator are unchanged. No formatter or
-static-analysis plugin is configured in the existing Maven build.
+Step 8.10 validation: the complete suite and packaging passed (80 tests, zero
+failures/errors/skips) using `./mvnw verify -Dquarkus.http.test-port=0`
+(`.\mvnw.cmd` on Windows). The ephemeral test port avoids conflicting with a
+running development API on port 8081. The reader test now uses its own fixture,
+and the validator's valid fixture includes the required lesson. Missing multipart
+uploads now use Jakarta Bean Validation and return 400 after authorization.
+Fresh migrations do not create lessons. Lesson rows are application/domain data
+and must be provisioned through the lesson-management workflow before imports
+reference them.
+No formatter or static-analysis plugin is configured in the existing Maven build.
 
 ### Manual .NET integration (PowerShell)
 
