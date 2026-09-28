@@ -35,11 +35,11 @@ class VocabularyImportOrchestrationTest {
     private CompletableFuture<Void> levelGate;
 
     @Test
-    void preservesImportOrderAndExistingResultCounts() throws IOException {
+    void createsAllRelationsInOrderAndCountsNewVocabulary() throws IOException {
         ImportResult result = importer().importVocabulary(inputFile())
                 .await().atMost(Duration.ofSeconds(1));
 
-        assertEquals(new ImportResult(2, 0, 2), result);
+        assertEquals(new ImportResult(2, 2, 0), result);
         assertEquals(List.of(
                 "validate", "core:first", "levels", "lessons", "readings", "meanings",
                 "partsOfSpeech", "kanji", "pitchAccents", "examples",
@@ -59,7 +59,7 @@ class VocabularyImportOrchestrationTest {
 
         levelGate.complete(null);
 
-        assertEquals(new ImportResult(2, 0, 2), result.join());
+        assertEquals(new ImportResult(2, 2, 0), result.join());
         assertEquals("examples", calls.get(calls.size() - 1));
     }
 
@@ -143,7 +143,12 @@ class VocabularyImportOrchestrationTest {
         };
         VocabularyCoreImporter core = new VocabularyCoreImporter(null) {
             @Override
-            public Uni<Vocabulary> getOrCreate(VocabularyImportItem item) {
+            public Uni<Vocabulary> findExisting(String normalizedWord) {
+                return Uni.createFrom().nullItem();
+            }
+
+            @Override
+            public Uni<Vocabulary> create(VocabularyImportItem item) {
                 calls.add("core:" + item.word);
                 Vocabulary vocabulary = new Vocabulary();
                 vocabulary.word = item.word;
@@ -207,7 +212,8 @@ class VocabularyImportOrchestrationTest {
                 }
         );
         return new VocabularyImporter(
-                new VocabularyFileReader(new ObjectMapper()), validator, core, relations
+                new VocabularyFileReader(new ObjectMapper()), validator, core, relations, new VocabularyAssignmentValidator(null, null),
+                new VocabularyExampleImporter(null, null), 500
         );
     }
 }

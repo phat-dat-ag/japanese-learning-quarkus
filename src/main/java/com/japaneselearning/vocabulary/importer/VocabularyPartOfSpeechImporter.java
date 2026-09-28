@@ -1,5 +1,7 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.exception.ValidationError;
+import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import com.japaneselearning.vocabulary.repository.PartOfSpeechRepository;
@@ -7,6 +9,8 @@ import com.japaneselearning.vocabulary.repository.VocabularyPartOfSpeechReposito
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+
+import java.util.List;
 
 @ApplicationScoped
 public class VocabularyPartOfSpeechImporter {
@@ -41,9 +45,8 @@ public class VocabularyPartOfSpeechImporter {
                                     if (pos == null) {
                                         return Uni.createFrom()
                                                 .failure(
-                                                        new IllegalArgumentException(
-                                                                "Unknown part of speech: " + code
-                                                        )
+                                                        new ValidationException("VALIDATION_ERROR", "Invalid vocabulary import",
+                                                                List.of(new ValidationError("partsOfSpeech", "Unknown part of speech")))
                                                 );
                                     }
 

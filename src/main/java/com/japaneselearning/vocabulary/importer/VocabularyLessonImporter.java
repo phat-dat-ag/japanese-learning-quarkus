@@ -52,7 +52,9 @@ public class VocabularyLessonImporter {
         return Multi.createFrom().iterable(item.lessons)
                 .onItem().transformToUniAndConcatenate(lessonItem ->
                         jlptLevelRepository.findByCode(lessonItem.level)
-                                .flatMap(level -> lessonRepository
+                                .flatMap(level -> level == null
+                                        ? Uni.createFrom().failure(missingLesson(lessonItem))
+                                        : lessonRepository
                                         .findByLevelIdAndLessonNumber(level.id, lessonItem.lessonNumber)
                                         .flatMap(lesson -> lesson == null
                                                 ? Uni.createFrom().failure(missingLesson(lessonItem))

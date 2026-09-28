@@ -4,8 +4,20 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.List;
+
 @ApplicationScoped
 public class VocabularyLevelRepository {
+
+    public Uni<List<String>> findLevelCodes(Long vocabularyId) {
+        return Panache.getSession().flatMap(session -> session.createQuery("""
+                        SELECT l.code FROM VocabularyLevel vl
+                        JOIN JlptLevel l ON l.id = vl.levelId
+                        WHERE vl.vocabularyId = :vocabularyId
+                        """, String.class)
+                .setParameter("vocabularyId", vocabularyId)
+                .getResultList());
+    }
 
     public Uni<Void> insert(
             Long vocabularyId,
