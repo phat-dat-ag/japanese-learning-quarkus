@@ -18,4 +18,12 @@ public class VocabularyReadingRepository implements PanacheRepository<Vocabulary
                 reading
         ).firstResult();
     }
+
+    public Uni<VocabularyReading> findReadingForVocabulary(Long vocabularyId, Long readingId) {
+        return find("vocabularyId = ?1 and id = ?2", vocabularyId, readingId).firstResult();
+    }
+
+    public Uni<Long> countPrimaryReadingsExcluding(Long vocabularyId, Long excludedReadingId) {
+        return count("vocabularyId = ?1 and isPrimary = true and id <> ?2", vocabularyId, excludedReadingId);
+    }
 }

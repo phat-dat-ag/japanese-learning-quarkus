@@ -23,4 +23,17 @@ public class VocabularyPartOfSpeechRepository {
                 )
                 .replaceWithVoid();
     }
+
+    public Uni<Boolean> existsPartOfSpeechAssignment(Long vocabularyId, Long partOfSpeechId) {
+        return Panache.getSession()
+                .flatMap(session -> session.createQuery("""
+                                select count(assignment) from VocabularyPartOfSpeech assignment
+                                where assignment.vocabularyId = :vocabularyId
+                                  and assignment.partOfSpeechId = :partOfSpeechId
+                                """, Long.class)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("partOfSpeechId", partOfSpeechId)
+                        .getSingleResult())
+                .map(assignmentCount -> assignmentCount > 0);
+    }
 }

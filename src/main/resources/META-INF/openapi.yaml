@@ -24,6 +24,276 @@ paths:
           description: Bearer token required
         '403':
           description: Admin role required
+  /api/v1/admin/vocabularies/{vocabularyId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/readings:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/readings/{readingId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/meanings:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/meanings/{meaningId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/pitch-accents:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/pitch-accents/{pitchAccentId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/examples:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/examples/{exampleId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/levels:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/levels/{levelId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/lessons:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/lessons/{lessonId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/parts-of-speech:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/kanji:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings:
+    post:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+  /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings/{readingId}:
+    put:
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminEditResponseStatus200'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus404'
+        '409':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
 components:
   schemas:
     ImportResult:
@@ -50,3 +320,96 @@ components:
           type: string
         correlationId:
           type: string
+    AdminEditResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/EditResult'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    AdminEditBatchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EditResult'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    EditResult:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Child ID; for assignments this is the referenced master ID
+    AdminEditErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+  responses:
+    AdminEditResponseStatus200:
+      description: Operation completed atomically
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditResponse'
+    AdminEditErrorResponseStatus400:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus401:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus403:
+      description: Admin role required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus404:
+      description: Vocabulary, child, assignment or referenced master data not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus409:
+      description: Duplicate value or shared-data edit conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditBatchResponseStatus200:
+      description: Operation completed atomically
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditBatchResponse'

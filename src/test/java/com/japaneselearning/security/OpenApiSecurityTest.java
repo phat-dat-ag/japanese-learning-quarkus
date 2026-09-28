@@ -38,14 +38,32 @@ class OpenApiSecurityTest {
         List<Map<String, Object>> expectedSecurity = List.of(Map.of("bearerAuth", List.of()));
         assertEquals(expectedSecurity, globalSecurity);
         Map<String, Map<String, Object>> paths = document.getMap("paths");
-        Map<String, String> operations = Map.of(
+        Map<String, String> operations = new java.util.HashMap<>(Map.of(
                 "/api/v1/flashcards", "get",
                 "/api/v1/flashcards/{id}", "get",
                 "/api/v1/jlpt-levels", "get",
                 "/api/v1/lessons", "get",
                 "/api/vocabularies/import", "post",
                 "/api/vocabularies", "post"
-        );
+        ));
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/readings", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/readings/{readingId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/meanings", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/meanings/{meaningId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/pitch-accents", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/pitch-accents/{pitchAccentId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/examples", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/examples/{exampleId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/levels", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/levels/{levelId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/lessons", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/lessons/{lessonId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/parts-of-speech", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}", "put");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings", "post");
+        operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings/{readingId}", "put");
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach((path, method) -> {
             Map<?, ?> operation = (Map<?, ?>) paths.get(path).get(method);

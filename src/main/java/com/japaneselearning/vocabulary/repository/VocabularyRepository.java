@@ -4,6 +4,7 @@ import com.japaneselearning.vocabulary.entity.Vocabulary;
 import io.quarkus.hibernate.reactive.panache.PanacheRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.LockModeType;
 
 @ApplicationScoped
 public class VocabularyRepository implements PanacheRepository<Vocabulary> {
@@ -11,5 +12,9 @@ public class VocabularyRepository implements PanacheRepository<Vocabulary> {
     public Uni<Vocabulary> findByNormalizedWord(String normalizedWord) {
 
         return find("normalizedWord", normalizedWord).firstResult();
+    }
+
+    public Uni<Vocabulary> findVocabularyByIdForUpdate(Long vocabularyId) {
+        return find("id", vocabularyId).withLock(LockModeType.PESSIMISTIC_WRITE).firstResult();
     }
 }

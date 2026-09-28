@@ -39,4 +39,30 @@ public class VocabularyLevelRepository {
                 )
                 .replaceWithVoid();
     }
+
+    public Uni<Boolean> existsLevelAssignment(Long vocabularyId, Long levelId) {
+        return Panache.getSession()
+                .flatMap(session -> session.createQuery("""
+                                select count(assignment) from VocabularyLevel assignment
+                                where assignment.vocabularyId = :vocabularyId
+                                  and assignment.levelId = :levelId
+                                """, Long.class)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("levelId", levelId)
+                        .getSingleResult())
+                .map(assignmentCount -> assignmentCount > 0);
+    }
+
+    public Uni<Void> updateLevelAssignmentOrder(Long vocabularyId, Long levelId, Integer displayOrder) {
+        return Panache.getSession()
+                .flatMap(session -> session.createMutationQuery("""
+                                update VocabularyLevel set displayOrder = :displayOrder
+                                where vocabularyId = :vocabularyId and levelId = :levelId
+                                """)
+                        .setParameter("displayOrder", displayOrder)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("levelId", levelId)
+                        .executeUpdate())
+                .replaceWithVoid();
+    }
 }
