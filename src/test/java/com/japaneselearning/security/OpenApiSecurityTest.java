@@ -43,7 +43,8 @@ class OpenApiSecurityTest {
                 "/api/v1/flashcards/{id}", "get",
                 "/api/v1/jlpt-levels", "get",
                 "/api/v1/lessons", "get",
-                "/api/vocabularies/import", "post"
+                "/api/vocabularies/import", "post",
+                "/api/vocabularies", "post"
         );
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach((path, method) -> {

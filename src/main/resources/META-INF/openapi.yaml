@@ -1,3 +1,52 @@
 openapi: 3.1.0
 security:
-  - bearerAuth: []
+  - bearerAuth: [ ]
+paths:
+  /api/vocabularies:
+    post:
+      responses:
+        '200':
+          description: Batch processed atomically. New vocabulary is fully created; matching existing vocabulary receives only new examples.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ImportResult'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          description: Invalid vocabulary batch, assignment mismatch, missing lesson, or configured batch limit exceeded
+        '401':
+          description: Bearer token required
+        '403':
+          description: Admin role required
+components:
+  schemas:
+    ImportResult:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int32
+        created:
+          description: Number of newly created vocabularies
+          type: integer
+          format: int32
+        updated:
+          description: Existing vocabularies with matching assignments processed for examples, including unchanged repeats
+          type: integer
+          format: int32
+    ResponseMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        traceId:
+          type: string
+        correlationId:
+          type: string

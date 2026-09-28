@@ -311,3 +311,57 @@ with the existing schema and seeds for successful business responses.
 
 The Swagger browser interaction must be checked manually; automated HTTP tests
 verify its availability, the generated scheme, and the authorization matrix.
+
+
+### Vocabulary batch import rules
+
+Admin clients may submit a JSON array of the existing vocabulary import objects to
+`POST /api/vocabularies` (`application/json`) or upload that array as the `file`
+part of `POST /api/vocabularies/import`. Both use one shared, atomic operation.
+The default maximum is 500 items; override `VOCABULARY_IMPORT_MAX_BATCH_SIZE` when needed.
+
+Vocabulary identity is the existing database lookup by `normalizedWord` (including
+its database collation semantics), protected by the unique `normalized_word` constraint.
+New vocabulary is fully created. Existing vocabulary must have exactly the same
+sets of level codes and `(level, lessonNumber)` assignments, regardless of order.
+Only examples are processed for matching existing vocabulary; core fields and all
+other relations remain unchanged, even when the payload supplies different metadata.
+Referenced lessons must already exist. Duplicate words within a batch are rejected.
+
+Assignment mismatches return HTTP 400 through the normal `ApiResponse` error wrapper,
+with code `VALIDATION_ERROR` and `levels`/`lessons` details showing existing and requested
+assignments. Known assignment conflicts are checked before writes. Every batch uses
+one reactive transaction, so later persistence failures also roll back earlier writes.
+
+Examples are appended only when their exact `(japaneseText, japaneseReading, targetText)`
+combination is new for that vocabulary. Translations and display order do not participate
+in identity, and existing examples are never rewritten. Duplicates within one payload
+are also ignored. The response remains `data: {total, created, updated}`: `created`
+counts new vocabulary; `updated` counts matching existing vocabulary processed for
+examples, even when all examples already existed.
+
+The database still protects concurrent creation of the same normalized word. When
+Hibernate identifies that specific unique constraint, the API returns HTTP 409 with
+`VOCABULARY_ALREADY_EXISTS`; unrelated failures are not swallowed. Example identity
+has no database unique constraint: simultaneous example additions to the same vocabulary
+can still race. Concurrent imports and external assignment edits are not serialized.
+
+### Optional MySQL import regression tests
+
+The default suite uses database doubles. `VocabularyMysqlImportTest` additionally
+exercises the real repositories and transaction interceptor for both transports,
+including repeated imports, untouched metadata, assignment matching, example identity,
+and rollback after an example insert fails. No production database is needed.
+
+Initialize a disposable MySQL 8.0 database named `vocabulary_import_test` using the
+existing migrations V1 through V5. The tests create their own lesson and vocabulary
+fixtures. Set the local port and test root password, then run from PowerShell:
+
+```powershell
+.\mvnw.cmd verify "-Dvocabulary.mysql.tests=true" `
+  "-Dvocabulary.mysql.url=mysql://127.0.0.1:3306/vocabulary_import_test" `
+  "-Dvocabulary.mysql.password=<test-root-password>"
+```
+
+Without the opt-in property, the MySQL test class is skipped. Remove the disposable
+database/container after testing.

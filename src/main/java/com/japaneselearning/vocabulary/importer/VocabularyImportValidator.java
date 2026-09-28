@@ -94,7 +94,7 @@ public class VocabularyImportValidator {
 
         for (String level : item.levels) {
 
-            if (!SUPPORTED_LEVELS.contains(level)) {
+            if (level == null || !SUPPORTED_LEVELS.contains(level)) {
                 throw new IllegalArgumentException(
                         "Unsupported JLPT level '" + level + "' for vocabulary: " + item.word
                 );
@@ -205,7 +205,7 @@ public class VocabularyImportValidator {
                 throw new IllegalArgumentException("Meaning must not be null: " + item.word);
             }
 
-            if (!SUPPORTED_LANGUAGES.contains(meaning.language)) {
+            if (meaning.language == null || !SUPPORTED_LANGUAGES.contains(meaning.language)) {
                 throw new IllegalArgumentException(
                         "Unsupported meaning language '" + meaning.language + "' for vocabulary: " + item.word
                 );
@@ -253,6 +253,12 @@ public class VocabularyImportValidator {
                 throw new IllegalArgumentException(
                         "Kanji must have at least one reading: " + kanji.character
                 );
+            }
+
+            for (var reading : kanji.readings) {
+                if (reading == null || isBlank(reading.reading) || isBlank(reading.readingType)) {
+                    throw new IllegalArgumentException("Kanji reading and type must not be blank");
+                }
             }
         }
     }

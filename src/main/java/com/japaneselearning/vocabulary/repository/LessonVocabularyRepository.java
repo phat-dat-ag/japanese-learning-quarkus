@@ -1,11 +1,25 @@
 package com.japaneselearning.vocabulary.repository;
 
+import com.japaneselearning.vocabulary.entity.Lesson;
 import io.quarkus.hibernate.reactive.panache.Panache;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.List;
+
 @ApplicationScoped
 public class LessonVocabularyRepository {
+
+    public Uni<List<Lesson>> findLessons(Long vocabularyId) {
+        return Panache.getSession().flatMap(session -> session.createQuery("""
+                        SELECT l FROM LessonVocabulary lv
+                        JOIN Lesson l ON l.id = lv.lessonId
+                        JOIN FETCH l.level
+                        WHERE lv.vocabularyId = :vocabularyId
+                        """, Lesson.class)
+                .setParameter("vocabularyId", vocabularyId)
+                .getResultList());
+    }
 
     public Uni<Void> insert(Long lessonId, Long vocabularyId, Integer displayOrder) {
 
