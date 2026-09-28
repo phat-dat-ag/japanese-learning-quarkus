@@ -43,12 +43,15 @@ public class AdminVocabularyKanjiResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> add(
+    public Uni<Response> addVocabularyKanji(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiEdit> request) {
-        return kanjiService.add(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiEdit> request
+    ) {
+        return kanjiService
+                .addVocabularyKanji(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -58,15 +61,18 @@ public class AdminVocabularyKanjiResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> update(
+    public Uni<Response> updateVocabularyKanji(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("kanjiId") @Positive
             @Parameter(description = "Existing kanjiId", required = true)
             Long kanjiId,
-            @NotNull @Valid KanjiEdit request) {
-        return kanjiService.update(vocabularyId, kanjiId, request).map(this::success);
+            @NotNull @Valid KanjiEdit request
+    ) {
+        return kanjiService
+                .updateVocabularyKanji(vocabularyId, kanjiId, request)
+                .map(this::success);
     }
 
     @POST
@@ -76,15 +82,18 @@ public class AdminVocabularyKanjiResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> addReadings(
+    public Uni<Response> addKanjiReadings(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("kanjiId") @Positive
             @Parameter(description = "Existing kanjiId", required = true)
             Long kanjiId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiReadingEdit> request) {
-        return kanjiService.addReadings(vocabularyId, kanjiId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiReadingEdit> request
+    ) {
+        return kanjiService
+                .addKanjiReadings(vocabularyId, kanjiId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -94,7 +103,7 @@ public class AdminVocabularyKanjiResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> updateReading(
+    public Uni<Response> updateKanjiReading(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
@@ -104,7 +113,10 @@ public class AdminVocabularyKanjiResource extends BaseResource {
             @PathParam("readingId") @Positive
             @Parameter(description = "Existing readingId", required = true)
             Long readingId,
-            @NotNull @Valid KanjiReadingEdit request) {
-        return kanjiService.updateReading(vocabularyId, kanjiId, readingId, request).map(this::success);
+            @NotNull @Valid KanjiReadingEdit request
+    ) {
+        return kanjiService
+                .updateKanjiReading(vocabularyId, kanjiId, readingId, request)
+                .map(this::success);
     }
 }

@@ -17,7 +17,7 @@ public class KanjiRepository implements PanacheRepository<Kanji> {
         return find("id", kanjiId).withLock(LockModeType.PESSIMISTIC_WRITE).firstResult();
     }
 
-    public Uni<Kanji> findByCharacterForUpdate(String character) {
+    public Uni<Kanji> findKanjiByCharacterForUpdate(String character) {
         return find("character", character).withLock(LockModeType.PESSIMISTIC_WRITE).firstResult();
     }
 }

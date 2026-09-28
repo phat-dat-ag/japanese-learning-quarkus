@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.MeaningEdit;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyEditResult;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningResult;
 import com.japaneselearning.vocabulary.entity.VocabularyMeaning;
 import com.japaneselearning.vocabulary.repository.VocabularyMeaningRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
@@ -14,17 +14,20 @@ import java.util.List;
 @ApplicationScoped
 public class VocabularyMeaningEditService {
     private final VocabularyEditPersistence persistence;
-    private final VocabularyMeaningRepository repository;
+    private final VocabularyMeaningRepository vocabularyMeanings;
 
     public VocabularyMeaningEditService(
             VocabularyEditPersistence persistence,
-            VocabularyMeaningRepository repository) {
+            VocabularyMeaningRepository vocabularyMeanings) {
         this.persistence = persistence;
-        this.repository = repository;
+        this.vocabularyMeanings = vocabularyMeanings;
     }
 
     @WithTransaction
-    public Uni<List<VocabularyEditResult>> add(Long vocabularyId, List<MeaningEdit> requests) {
+    public Uni<List<VocabularyMeaningResult>> addVocabularyMeanings(
+            Long vocabularyId,
+            List<VocabularyMeaningEdit> requests
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> Multi.createFrom().iterable(requests)
                         .onItem().transformToUniAndConcatenate(request -> addMeaning(vocabularyId, request))
@@ -32,30 +35,35 @@ public class VocabularyMeaningEditService {
     }
 
     @WithTransaction
-    public Uni<VocabularyEditResult> update(Long vocabularyId, Long meaningId, MeaningEdit request) {
+    public Uni<VocabularyMeaningResult> updateVocabularyMeaning(
+            Long vocabularyId,
+            Long meaningId,
+            VocabularyMeaningEdit request
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        repository.findMeaningForVocabulary(vocabularyId, meaningId), "Meaning"))
+                        vocabularyMeanings.findMeaningForVocabulary(vocabularyId, meaningId), "Meaning"))
                 .flatMap(meaning -> requireUniqueMeaning(vocabularyId, meaningId, request)
                         .map(ignored -> {
                             applyMeaningChanges(meaning, request);
-                            return new VocabularyEditResult(meaningId);
+                            return new VocabularyMeaningResult(meaningId);
                         })));
     }
 
-    private Uni<VocabularyEditResult> addMeaning(Long vocabularyId, MeaningEdit request) {
+    private Uni<VocabularyMeaningResult> addMeaning(Long vocabularyId, VocabularyMeaningEdit request) {
         return requireUniqueMeaning(vocabularyId, null, request)
                 .chain(() -> {
                     VocabularyMeaning meaning = new VocabularyMeaning();
                     meaning.vocabularyId = vocabularyId;
                     applyMeaningChanges(meaning, request);
-                    return repository.persistAndFlush(meaning)
-                            .map(savedMeaning -> new VocabularyEditResult(savedMeaning.id));
+                    return vocabularyMeanings.persistAndFlush(meaning)
+                            .map(savedMeaning -> new VocabularyMeaningResult(savedMeaning.id));
                 });
     }
 
-    private Uni<Void> requireUniqueMeaning(Long vocabularyId, Long meaningId, MeaningEdit request) {
-        return repository.findByVocabularyAndLanguageAndMeaning(vocabularyId, request.language(), request.meaning())
+    private Uni<Void> requireUniqueMeaning(Long vocabularyId, Long meaningId, VocabularyMeaningEdit request) {
+        return vocabularyMeanings.findByVocabularyAndLanguageAndMeaning(
+                        vocabularyId, request.language(), request.meaning())
                 .invoke(existingMeaning -> {
                     if (existingMeaning != null && !existingMeaning.id.equals(meaningId)) {
                         throw VocabularyEditPersistence.conflict("Meaning already exists for this vocabulary");
@@ -63,7 +71,7 @@ public class VocabularyMeaningEditService {
                 }).replaceWithVoid();
     }
 
-    private void applyMeaningChanges(VocabularyMeaning meaning, MeaningEdit request) {
+    private void applyMeaningChanges(VocabularyMeaning meaning, VocabularyMeaningEdit request) {
         meaning.languageCode = request.language();
         meaning.meaning = request.meaning();
         meaning.isPrimary = request.isPrimary();

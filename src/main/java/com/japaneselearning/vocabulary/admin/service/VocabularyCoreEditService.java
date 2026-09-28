@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.CoreEdit;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyEditResult;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreResult;
 import com.japaneselearning.vocabulary.repository.VocabularyRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
@@ -10,25 +10,34 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class VocabularyCoreEditService {
     private final VocabularyEditPersistence persistence;
-    private final VocabularyRepository repository;
+    private final VocabularyRepository vocabularies;
 
-    public VocabularyCoreEditService(VocabularyEditPersistence persistence, VocabularyRepository repository) {
+    public VocabularyCoreEditService(
+            VocabularyEditPersistence persistence,
+            VocabularyRepository vocabularies
+    ) {
         this.persistence = persistence;
-        this.repository = repository;
+        this.vocabularies = vocabularies;
     }
 
     @WithTransaction
-    public Uni<VocabularyEditResult> update(Long vocabularyId, CoreEdit request) {
+    public Uni<VocabularyCoreResult> updateVocabularyCore(Long vocabularyId, VocabularyCoreEdit request) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
-                .flatMap(vocabulary -> repository.findByNormalizedWord(request.normalizedWord())
-                        .map(existingVocabulary -> {
-                            if (existingVocabulary != null && !existingVocabulary.id.equals(vocabularyId)) {
-                                throw VocabularyEditPersistence.conflict(
-                                        "Normalized word already belongs to another vocabulary");
-                            }
-                            vocabulary.word = request.word();
-                            vocabulary.normalizedWord = request.normalizedWord();
-                            return new VocabularyEditResult(vocabularyId);
-                        })));
+                .call(() -> requireUniqueNormalizedWord(vocabularyId, request.normalizedWord()))
+                .map(vocabulary -> {
+                    vocabulary.word = request.word();
+                    vocabulary.normalizedWord = request.normalizedWord();
+                    return new VocabularyCoreResult(vocabularyId);
+                }));
+    }
+
+    private Uni<Void> requireUniqueNormalizedWord(Long vocabularyId, String normalizedWord) {
+        return vocabularies.findByNormalizedWord(normalizedWord)
+                .invoke(existingVocabulary -> {
+                    if (existingVocabulary != null && !existingVocabulary.id.equals(vocabularyId)) {
+                        throw VocabularyEditPersistence.conflict(
+                                "Normalized word already belongs to another vocabulary");
+                    }
+                }).replaceWithVoid();
     }
 }

@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.PitchAccentEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyPitchAccentEdit;
 import com.japaneselearning.vocabulary.admin.service.VocabularyPitchAccentEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -42,12 +42,15 @@ public class AdminVocabularyPitchAccentResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> add(
+    public Uni<Response> addVocabularyPitchAccents(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid PitchAccentEdit> request) {
-        return pitchAccentService.add(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyPitchAccentEdit> request
+    ) {
+        return pitchAccentService
+                .addVocabularyPitchAccents(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -57,14 +60,17 @@ public class AdminVocabularyPitchAccentResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> update(
+    public Uni<Response> updateVocabularyPitchAccent(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("pitchAccentId") @Positive
             @Parameter(description = "Existing pitchAccentId", required = true)
             Long pitchAccentId,
-            @NotNull @Valid PitchAccentEdit request) {
-        return pitchAccentService.update(vocabularyId, pitchAccentId, request).map(this::success);
+            @NotNull @Valid VocabularyPitchAccentEdit request
+    ) {
+        return pitchAccentService
+                .updateVocabularyPitchAccent(vocabularyId, pitchAccentId, request)
+                .map(this::success);
     }
 }

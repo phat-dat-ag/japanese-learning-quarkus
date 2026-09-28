@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record ExampleEdit(
+public record VocabularyExampleEdit(
         @NotBlank @Size(max = 1000) String japaneseText,
         @NotBlank @Size(max = 1000) String japaneseReading,
         @NotBlank @Size(max = 1000) String meaningVi,

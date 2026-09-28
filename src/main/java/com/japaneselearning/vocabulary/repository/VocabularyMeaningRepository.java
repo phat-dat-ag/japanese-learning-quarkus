@@ -11,7 +11,13 @@ public class VocabularyMeaningRepository implements PanacheRepository<Vocabulary
         return find("vocabularyId = ?1 and id = ?2", vocabularyId, meaningId).firstResult();
     }
 
-    public Uni<VocabularyMeaning> findByVocabularyAndLanguageAndMeaning(Long vocabularyId, String languageCode, String meaning) {
-        return find("vocabularyId = ?1 and languageCode = ?2 and meaning = ?3", vocabularyId, languageCode, meaning).firstResult();
+    public Uni<VocabularyMeaning> findByVocabularyAndLanguageAndMeaning(
+            Long vocabularyId,
+            String languageCode,
+            String meaning
+    ) {
+        return find(
+                "vocabularyId = ?1 and languageCode = ?2 and meaning = ?3",
+                vocabularyId, languageCode, meaning).firstResult();
     }
 }

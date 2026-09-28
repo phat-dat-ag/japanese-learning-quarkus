@@ -28,7 +28,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyCoreResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -43,7 +52,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyReadingResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -58,7 +78,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyReadingResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -73,7 +102,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyMeaningResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -88,7 +128,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyMeaningResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -103,7 +152,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyPitchAccentResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -118,7 +178,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyPitchAccentResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -133,7 +202,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyExampleResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -148,7 +228,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyExampleResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -163,7 +252,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyLevelResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -178,7 +278,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyLevelResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -193,7 +302,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyLessonResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -208,7 +328,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyLessonResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -223,7 +352,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyPartOfSpeechResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -238,7 +378,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VocabularyKanjiResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -253,7 +404,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/VocabularyKanjiResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -268,7 +428,18 @@ paths:
     post:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditBatchResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/KanjiReadingResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -283,7 +454,16 @@ paths:
     put:
       responses:
         '200':
-          $ref: '#/components/responses/AdminEditResponseStatus200'
+          description: Operation completed atomically
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KanjiReadingResult'
         '400':
           $ref: '#/components/responses/AdminEditErrorResponseStatus400'
         '401':
@@ -325,28 +505,78 @@ components:
       properties:
         success:
           type: boolean
-        data:
-          $ref: '#/components/schemas/EditResult'
         meta:
           $ref: '#/components/schemas/ResponseMeta'
-    AdminEditBatchResponse:
+    VocabularyCoreResult:
       type: object
+      required: [ vocabularyId ]
       properties:
-        success:
-          type: boolean
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/EditResult'
-        meta:
-          $ref: '#/components/schemas/ResponseMeta'
-    EditResult:
-      type: object
-      properties:
-        id:
+        vocabularyId:
           type: integer
           format: int64
-          description: Child ID; for assignments this is the referenced master ID
+    VocabularyReadingResult:
+      type: object
+      required: [ readingId ]
+      properties:
+        readingId:
+          type: integer
+          format: int64
+    VocabularyMeaningResult:
+      type: object
+      required: [ meaningId ]
+      properties:
+        meaningId:
+          type: integer
+          format: int64
+    VocabularyPitchAccentResult:
+      type: object
+      required: [ pitchAccentId ]
+      properties:
+        pitchAccentId:
+          type: integer
+          format: int64
+    VocabularyExampleResult:
+      type: object
+      required: [ exampleId ]
+      properties:
+        exampleId:
+          type: integer
+          format: int64
+    VocabularyLevelResult:
+      type: object
+      required: [ levelId ]
+      properties:
+        levelId:
+          type: integer
+          format: int64
+    VocabularyLessonResult:
+      type: object
+      required: [ lessonId ]
+      properties:
+        lessonId:
+          type: integer
+          format: int64
+    VocabularyPartOfSpeechResult:
+      type: object
+      required: [ partOfSpeechId ]
+      properties:
+        partOfSpeechId:
+          type: integer
+          format: int64
+    VocabularyKanjiResult:
+      type: object
+      required: [ kanjiId ]
+      properties:
+        kanjiId:
+          type: integer
+          format: int64
+    KanjiReadingResult:
+      type: object
+      required: [ kanjiReadingId ]
+      properties:
+        kanjiReadingId:
+          type: integer
+          format: int64
     AdminEditErrorResponse:
       type: object
       properties:
@@ -371,12 +601,6 @@ components:
         meta:
           $ref: '#/components/schemas/ResponseMeta'
   responses:
-    AdminEditResponseStatus200:
-      description: Operation completed atomically
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AdminEditResponse'
     AdminEditErrorResponseStatus400:
       description: Invalid request
       content:
@@ -407,9 +631,3 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
-    AdminEditBatchResponseStatus200:
-      description: Operation completed atomically
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AdminEditBatchResponse'

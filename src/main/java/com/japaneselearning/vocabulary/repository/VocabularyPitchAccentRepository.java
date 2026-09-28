@@ -8,7 +8,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class VocabularyPitchAccentRepository implements PanacheRepository<VocabularyPitchAccent> {
     public Uni<VocabularyPitchAccent> findPitchAccentForVocabulary(Long vocabularyId, Long pitchAccentId) {
-        return find("id = ?1 and vocabularyReadingId in (select r.id from VocabularyReading r where r.vocabularyId = ?2)",
+        return find(
+                "id = ?1 and vocabularyReadingId in ("
+                        + "select reading.id from VocabularyReading reading where reading.vocabularyId = ?2)",
                 pitchAccentId, vocabularyId).firstResult();
     }
 

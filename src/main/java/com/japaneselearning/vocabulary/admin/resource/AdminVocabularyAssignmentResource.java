@@ -1,10 +1,10 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.LessonAdd;
-import com.japaneselearning.vocabulary.admin.dto.LevelAdd;
-import com.japaneselearning.vocabulary.admin.dto.OrderEdit;
-import com.japaneselearning.vocabulary.admin.dto.PosAdd;
+import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAdd;
+import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAdd;
+import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderEdit;
+import com.japaneselearning.vocabulary.admin.dto.PartOfSpeechAssignmentAdd;
 import com.japaneselearning.vocabulary.admin.service.VocabularyAssignmentEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -45,12 +45,15 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> addLevels(
+    public Uni<Response> addLevelAssignments(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid LevelAdd> request) {
-        return assignmentService.addLevels(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid LevelAssignmentAdd> request
+    ) {
+        return assignmentService
+                .addLevelAssignments(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -60,15 +63,18 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> updateLevel(
+    public Uni<Response> updateLevelAssignmentOrder(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("levelId") @Positive
             @Parameter(description = "Existing levelId", required = true)
             Long levelId,
-            @NotNull @Valid OrderEdit request) {
-        return assignmentService.updateLevel(vocabularyId, levelId, request).map(this::success);
+            @NotNull @Valid AssignmentOrderEdit request
+    ) {
+        return assignmentService
+                .updateLevelAssignmentOrder(vocabularyId, levelId, request)
+                .map(this::success);
     }
 
     @POST
@@ -78,12 +84,15 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> addLessons(
+    public Uni<Response> addLessonAssignments(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid LessonAdd> request) {
-        return assignmentService.addLessons(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid LessonAssignmentAdd> request
+    ) {
+        return assignmentService
+                .addLessonAssignments(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -93,15 +102,18 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> updateLesson(
+    public Uni<Response> updateLessonAssignmentOrder(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("lessonId") @Positive
             @Parameter(description = "Existing lessonId", required = true)
             Long lessonId,
-            @NotNull @Valid OrderEdit request) {
-        return assignmentService.updateLesson(vocabularyId, lessonId, request).map(this::success);
+            @NotNull @Valid AssignmentOrderEdit request
+    ) {
+        return assignmentService
+                .updateLessonAssignmentOrder(vocabularyId, lessonId, request)
+                .map(this::success);
     }
 
     @POST
@@ -111,11 +123,14 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> addPartsOfSpeech(
+    public Uni<Response> addPartOfSpeechAssignments(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid PosAdd> request) {
-        return assignmentService.addPartsOfSpeech(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid PartOfSpeechAssignmentAdd> request
+    ) {
+        return assignmentService
+                .addPartOfSpeechAssignments(vocabularyId, request)
+                .map(this::success);
     }
 }

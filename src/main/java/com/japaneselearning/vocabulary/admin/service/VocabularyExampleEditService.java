@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.ExampleEdit;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyEditResult;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleResult;
 import com.japaneselearning.vocabulary.entity.ExampleSentence;
 import com.japaneselearning.vocabulary.entity.VocabularyExample;
 import com.japaneselearning.vocabulary.repository.ExampleSentenceRepository;
@@ -28,7 +28,10 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
-    public Uni<List<VocabularyEditResult>> add(Long vocabularyId, List<ExampleEdit> requests) {
+    public Uni<List<VocabularyExampleResult>> addVocabularyExamples(
+            Long vocabularyId,
+            List<VocabularyExampleEdit> requests
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> Multi.createFrom().iterable(requests)
                         .onItem().transformToUniAndConcatenate(request -> addExample(vocabularyId, request))
@@ -36,14 +39,18 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
-    public Uni<VocabularyEditResult> update(Long vocabularyId, Long exampleId, ExampleEdit request) {
+    public Uni<VocabularyExampleResult> updateVocabularyExample(
+            Long vocabularyId,
+            Long exampleId,
+            VocabularyExampleEdit request
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
                         exampleAssignments.findExampleAssignment(vocabularyId, exampleId), "Example"))
                 .flatMap(assignment -> updateAssignedExample(vocabularyId, exampleId, assignment, request)));
     }
 
-    private Uni<VocabularyEditResult> addExample(Long vocabularyId, ExampleEdit request) {
+    private Uni<VocabularyExampleResult> addExample(Long vocabularyId, VocabularyExampleEdit request) {
         return requireUniqueExample(vocabularyId, null, request)
                 .chain(() -> {
                     ExampleSentence sentence = new ExampleSentence();
@@ -51,15 +58,16 @@ public class VocabularyExampleEditService {
                     return sentences.persistAndFlush(sentence)
                             .call(savedSentence -> exampleAssignments.insert(
                                     vocabularyId, savedSentence.id, request.targetText(), request.displayOrder()))
-                            .map(savedSentence -> new VocabularyEditResult(savedSentence.id));
+                            .map(savedSentence -> new VocabularyExampleResult(savedSentence.id));
                 });
     }
 
-    private Uni<VocabularyEditResult> updateAssignedExample(
+    private Uni<VocabularyExampleResult> updateAssignedExample(
             Long vocabularyId,
             Long exampleId,
             VocabularyExample assignment,
-            ExampleEdit request) {
+            VocabularyExampleEdit request
+    ) {
         return sentences.findSentenceByIdForUpdate(exampleId)
                 .flatMap(sentence -> requireUniqueExample(vocabularyId, exampleId, request)
                         .chain(() -> exampleAssignments.countOtherVocabularyAssignments(exampleId, vocabularyId))
@@ -71,11 +79,15 @@ public class VocabularyExampleEditService {
                             applyExampleChanges(sentence, request);
                             assignment.targetText = request.targetText();
                             assignment.displayOrder = request.displayOrder();
-                            return new VocabularyEditResult(exampleId);
+                            return new VocabularyExampleResult(exampleId);
                         }));
     }
 
-    private Uni<Void> requireUniqueExample(Long vocabularyId, Long excludedExampleId, ExampleEdit request) {
+    private Uni<Void> requireUniqueExample(
+            Long vocabularyId,
+            Long excludedExampleId,
+            VocabularyExampleEdit request
+    ) {
         return exampleAssignments.findByVocabularyId(vocabularyId).invoke(existing -> {
             boolean duplicate = existing.stream().anyMatch(link -> !link.exampleSentenceId.equals(excludedExampleId)
                     && Objects.equals(link.exampleSentence.japaneseText, request.japaneseText())
@@ -87,14 +99,14 @@ public class VocabularyExampleEditService {
         }).replaceWithVoid();
     }
 
-    private boolean sentenceContentChanged(ExampleSentence sentence, ExampleEdit request) {
+    private boolean sentenceContentChanged(ExampleSentence sentence, VocabularyExampleEdit request) {
         return !Objects.equals(sentence.japaneseText, request.japaneseText())
                 || !Objects.equals(sentence.japaneseReading, request.japaneseReading())
                 || !Objects.equals(sentence.meaningVi, request.meaningVi())
                 || !Objects.equals(sentence.meaningEn, request.meaningEn());
     }
 
-    private void applyExampleChanges(ExampleSentence sentence, ExampleEdit request) {
+    private void applyExampleChanges(ExampleSentence sentence, VocabularyExampleEdit request) {
         sentence.japaneseText = request.japaneseText();
         sentence.japaneseReading = request.japaneseReading();
         sentence.meaningVi = request.meaningVi();

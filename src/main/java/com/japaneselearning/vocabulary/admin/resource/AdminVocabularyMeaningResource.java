@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.MeaningEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningEdit;
 import com.japaneselearning.vocabulary.admin.service.VocabularyMeaningEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -42,12 +42,15 @@ public class AdminVocabularyMeaningResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> add(
+    public Uni<Response> addVocabularyMeanings(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid MeaningEdit> request) {
-        return meaningService.add(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyMeaningEdit> request
+    ) {
+        return meaningService
+                .addVocabularyMeanings(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -57,14 +60,17 @@ public class AdminVocabularyMeaningResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> update(
+    public Uni<Response> updateVocabularyMeaning(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("meaningId") @Positive
             @Parameter(description = "Existing meaningId", required = true)
             Long meaningId,
-            @NotNull @Valid MeaningEdit request) {
-        return meaningService.update(vocabularyId, meaningId, request).map(this::success);
+            @NotNull @Valid VocabularyMeaningEdit request
+    ) {
+        return meaningService
+                .updateVocabularyMeaning(vocabularyId, meaningId, request)
+                .map(this::success);
     }
 }

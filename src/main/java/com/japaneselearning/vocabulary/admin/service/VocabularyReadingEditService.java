@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.ReadingEdit;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyEditResult;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingResult;
 import com.japaneselearning.vocabulary.entity.VocabularyReading;
 import com.japaneselearning.vocabulary.repository.VocabularyReadingRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
@@ -16,67 +16,86 @@ public class VocabularyReadingEditService {
     private static final long NO_READING_EXCLUDED = -1L;
 
     private final VocabularyEditPersistence persistence;
-    private final VocabularyReadingRepository repository;
+    private final VocabularyReadingRepository vocabularyReadings;
 
     public VocabularyReadingEditService(
             VocabularyEditPersistence persistence,
-            VocabularyReadingRepository repository) {
+            VocabularyReadingRepository vocabularyReadings) {
         this.persistence = persistence;
-        this.repository = repository;
+        this.vocabularyReadings = vocabularyReadings;
     }
 
     @WithTransaction
-    public Uni<List<VocabularyEditResult>> add(Long vocabularyId, List<ReadingEdit> requests) {
+    public Uni<List<VocabularyReadingResult>> addVocabularyReadings(
+            Long vocabularyId,
+            List<VocabularyReadingEdit> requests
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
-                .call(() -> repository.countPrimaryReadingsExcluding(vocabularyId, NO_READING_EXCLUDED).invoke(count -> {
-                    if (count == 0 && requests.stream().noneMatch(request -> request.isPrimary())) {
-                        throw VocabularyEditPersistence.invalidRequest(
-                                "isPrimary", "Vocabulary must retain at least one primary reading");
-                    }
-                }))
+                .call(() -> requirePrimaryReading(vocabularyId, NO_READING_EXCLUDED,
+                        requests.stream().anyMatch(VocabularyReadingEdit::isPrimary)))
                 .chain(() -> Multi.createFrom().iterable(requests)
                         .onItem().transformToUniAndConcatenate(request -> addReading(vocabularyId, request))
                         .collect().asList()));
     }
 
     @WithTransaction
-    public Uni<VocabularyEditResult> update(Long vocabularyId, Long readingId, ReadingEdit request) {
+    public Uni<VocabularyReadingResult> updateVocabularyReading(
+            Long vocabularyId,
+            Long readingId,
+            VocabularyReadingEdit request
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        repository.findReadingForVocabulary(vocabularyId, readingId), "Reading"))
+                        vocabularyReadings.findReadingForVocabulary(vocabularyId, readingId), "Reading"))
                 .flatMap(reading -> requireUniqueReading(vocabularyId, readingId, request)
-                        .call(() -> repository.countPrimaryReadingsExcluding(vocabularyId, readingId).invoke(count -> {
-                            if (!request.isPrimary() && count == 0) {
-                                throw VocabularyEditPersistence.invalidRequest(
-                                        "isPrimary", "Vocabulary must retain at least one primary reading");
-                            }
-                        }))
+                        .call(() -> requirePrimaryReading(vocabularyId, readingId, request.isPrimary()))
                         .map(ignored -> {
                             applyReadingChanges(reading, request);
-                            return new VocabularyEditResult(readingId);
+                            return new VocabularyReadingResult(readingId);
                         })));
     }
 
-    private Uni<VocabularyEditResult> addReading(Long vocabularyId, ReadingEdit request) {
+    private Uni<Void> requirePrimaryReading(
+            Long vocabularyId,
+            Long excludedReadingId,
+            boolean requestIncludesPrimary
+    ) {
+        if (requestIncludesPrimary) {
+            return Uni.createFrom().voidItem();
+        }
+        return vocabularyReadings.countPrimaryReadingsExcluding(vocabularyId, excludedReadingId)
+                .invoke(primaryCount -> {
+                    if (primaryCount == 0) {
+                        throw VocabularyEditPersistence.invalidRequest(
+                                "isPrimary", "Vocabulary must retain at least one primary reading");
+                    }
+                }).replaceWithVoid();
+    }
+
+    private Uni<VocabularyReadingResult> addReading(Long vocabularyId, VocabularyReadingEdit request) {
         return requireUniqueReading(vocabularyId, null, request)
                 .chain(() -> {
                     VocabularyReading reading = new VocabularyReading();
                     reading.vocabularyId = vocabularyId;
                     applyReadingChanges(reading, request);
-                    return repository.persistAndFlush(reading)
-                            .map(savedReading -> new VocabularyEditResult(savedReading.id));
+                    return vocabularyReadings.persistAndFlush(reading)
+                            .map(savedReading -> new VocabularyReadingResult(savedReading.id));
                 });
     }
 
-    private Uni<Void> requireUniqueReading(Long vocabularyId, Long readingId, ReadingEdit request) {
-        return repository.findByVocabularyIdAndReading(vocabularyId, request.reading()).invoke(existing -> {
+    private Uni<Void> requireUniqueReading(
+            Long vocabularyId,
+            Long readingId,
+            VocabularyReadingEdit request
+    ) {
+        return vocabularyReadings.findByVocabularyIdAndReading(vocabularyId, request.reading()).invoke(existing -> {
             if (existing != null && !existing.id.equals(readingId)) {
                 throw VocabularyEditPersistence.conflict("Reading already exists for this vocabulary");
             }
         }).replaceWithVoid();
     }
 
-    private void applyReadingChanges(VocabularyReading reading, ReadingEdit request) {
+    private void applyReadingChanges(VocabularyReading reading, VocabularyReadingEdit request) {
         reading.reading = request.reading();
         reading.isPrimary = request.isPrimary();
         reading.displayOrder = request.displayOrder();

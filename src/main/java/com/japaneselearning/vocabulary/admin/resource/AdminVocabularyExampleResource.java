@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.ExampleEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleEdit;
 import com.japaneselearning.vocabulary.admin.service.VocabularyExampleEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -42,12 +42,15 @@ public class AdminVocabularyExampleResource extends BaseResource {
             description = "Body must be an array of 1 to 100 items, even for one item. All additions are atomic."
     )
     @RequestBody(required = true)
-    public Uni<Response> add(
+    public Uni<Response> addVocabularyExamples(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid ExampleEdit> request) {
-        return exampleService.add(vocabularyId, request).map(this::success);
+            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyExampleEdit> request
+    ) {
+        return exampleService
+                .addVocabularyExamples(vocabularyId, request)
+                .map(this::success);
     }
 
     @PUT
@@ -57,14 +60,17 @@ public class AdminVocabularyExampleResource extends BaseResource {
             description = "Updates exactly one resource or assignment, not the vocabulary aggregate."
     )
     @RequestBody(required = true)
-    public Uni<Response> update(
+    public Uni<Response> updateVocabularyExample(
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
             @PathParam("exampleId") @Positive
             @Parameter(description = "Existing exampleId", required = true)
             Long exampleId,
-            @NotNull @Valid ExampleEdit request) {
-        return exampleService.update(vocabularyId, exampleId, request).map(this::success);
+            @NotNull @Valid VocabularyExampleEdit request
+    ) {
+        return exampleService
+                .updateVocabularyExample(vocabularyId, exampleId, request)
+                .map(this::success);
     }
 }

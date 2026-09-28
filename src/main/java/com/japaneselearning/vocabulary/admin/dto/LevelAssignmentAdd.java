@@ -5,8 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record ReadingEdit(
-        @NotBlank @Size(max = 100) String reading,
-        @NotNull Boolean isPrimary,
+public record LevelAssignmentAdd(
+        @NotBlank @Size(max = 10) String level,
         @NotNull @Min(0) Integer displayOrder) {
 }
