@@ -1,4 +1,10 @@
 openapi: 3.1.0
+info:
+  title: Japanese Learning API
+  version: 1.0.0
+tags:
+  - name: Admin Vocabulary
+    description: Vocabulary editing requires a JWT bearer token with the case-sensitive Admin role. No DELETE operations are provided.
 security:
   - bearerAuth: [ ]
 paths:
@@ -26,6 +32,25 @@ paths:
           description: Admin role required
   /api/v1/admin/vocabularies/{vocabularyId}:
     put:
+      operationId: updateVocabularyCore
+      summary: Update vocabulary core fields
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. Only word and normalizedWord
+        change. normalizedWord is supplied by the caller; a value belonging to another vocabulary returns
+        409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VocabularyCoreUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -35,6 +60,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyCoreResult'
@@ -48,8 +74,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/readings:
     post:
+      operationId: addVocabularyReadings
+      summary: Add vocabulary readings
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The vocabulary must retain at least one primary reading
+        (400 otherwise); multiple primary readings are allowed and other readings are not automatically
+        demoted. Duplicate reading text within this vocabulary returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/VocabularyReadingUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -59,6 +112,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -74,8 +128,32 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/readings/{readingId}:
     put:
+      operationId: updateVocabularyReading
+      summary: Update a vocabulary reading
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. The vocabulary must retain at
+        least one primary reading (400 otherwise); multiple primary readings are allowed and other readings
+        are not automatically demoted. Duplicate reading text within this vocabulary returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/readingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VocabularyReadingUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -85,6 +163,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyReadingResult'
@@ -98,8 +177,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/meanings:
     post:
+      operationId: addVocabularyMeanings
+      summary: Add vocabulary meanings
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. Only vi and en are accepted. Multiple primary meanings,
+        or no primary meaning, are allowed; other meanings are not automatically demoted. Duplicate language
+        and meaning within this vocabulary returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/VocabularyMeaningUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -109,6 +215,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -124,8 +231,32 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/meanings/{meaningId}:
     put:
+      operationId: updateVocabularyMeaning
+      summary: Update a vocabulary meaning
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. Only vi and en are accepted.
+        Multiple primary meanings, or no primary meaning, are allowed; other meanings are not automatically
+        demoted. Duplicate language and meaning within this vocabulary returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/meaningId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VocabularyMeaningUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -135,6 +266,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyMeaningResult'
@@ -148,8 +280,34 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/pitch-accents:
     post:
+      operationId: addVocabularyPitchAccents
+      summary: Add vocabulary pitch accents
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The body readingId must belong to this vocabulary (404
+        otherwise). Duplicate readingId and accentPattern returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/VocabularyPitchAccentUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -159,6 +317,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -174,8 +333,32 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/pitch-accents/{pitchAccentId}:
     put:
+      operationId: updateVocabularyPitchAccent
+      summary: Update a vocabulary pitch accent
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. The body readingId must belong
+        to this vocabulary (404 otherwise). Duplicate readingId and accentPattern returns 409. The accent
+        may be moved to another reading of this vocabulary.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/pitchAccentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VocabularyPitchAccentUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -185,6 +368,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyPitchAccentResult'
@@ -198,8 +382,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/examples:
     post:
+      operationId: addVocabularyExamples
+      summary: Add vocabulary examples
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. Duplicate japaneseText, japaneseReading and targetText
+        within this vocabulary returns 409. exampleId identifies the example sentence, not a separate
+        assignment ID. Creates a new sentence for each item.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/VocabularyExampleUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -209,6 +420,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -224,8 +436,34 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/examples/{exampleId}:
     put:
+      operationId: updateVocabularyExample
+      summary: Update a vocabulary example
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. Duplicate japaneseText,
+        japaneseReading and targetText within this vocabulary returns 409. exampleId identifies the example
+        sentence, not a separate assignment ID. If the sentence is shared with another vocabulary, changes
+        to japaneseText, japaneseReading, meaningVi or meaningEn return 409. targetText and displayOrder may
+        still change locally.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/exampleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VocabularyExampleUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -235,6 +473,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyExampleResult'
@@ -248,8 +487,34 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/levels:
     post:
+      operationId: addLevelAssignments
+      summary: Assign existing JLPT levels
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The level code must already exist (404 otherwise);
+        duplicate assignments return 409. Does not create master data.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/LevelAssignmentAddRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -259,6 +524,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -274,8 +540,32 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/levels/{levelId}:
     put:
+      operationId: updateLevelAssignmentOrder
+      summary: Update level assignment order
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. Changes assignment
+        displayOrder only, not level master data. levelId is the existing JLPT level ID, not an assignment
+        ID. displayOrder may be zero.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/levelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentOrderUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -285,6 +575,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyLevelResult'
@@ -296,10 +587,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus403'
         '404':
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
-        '409':
-          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/lessons:
     post:
+      operationId: addLessonAssignments
+      summary: Assign existing lessons
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The lesson must already exist (404 otherwise), and its
+        JLPT level must already be assigned to this vocabulary (400 otherwise). Duplicate assignments return
+        409. Does not create master data.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/LessonAssignmentAddRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -309,6 +625,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -324,8 +641,40 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/lessons/{lessonId}:
     put:
+      operationId: updateLessonAssignmentOrder
+      summary: Update lesson assignment order
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. Changes assignment
+        displayOrder only, not lesson master data. lessonId is the existing lesson ID, not an assignment ID.
+        displayOrder must be at least 1; zero returns 400 even though the shared
+        AssignmentOrderUpdateRequest DTO permits zero for levels.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/lessonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AssignmentOrderUpdateRequest'
+                - type: object
+                  properties:
+                    displayOrder:
+                      type: integer
+                      format: int32
+                      minimum: 1
       responses:
         '200':
           description: Operation completed atomically
@@ -335,6 +684,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyLessonResult'
@@ -346,10 +696,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus403'
         '404':
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
-        '409':
-          $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/parts-of-speech:
     post:
+      operationId: addPartOfSpeechAssignments
+      summary: Assign existing parts of speech
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The POS code must already exist (404 otherwise);
+        duplicate assignments return 409. Does not create master data. These assignments have no update
+        fields or update operation.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/PartOfSpeechAssignmentAddRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -359,6 +734,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -374,8 +750,37 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/kanji:
     post:
+      operationId: addVocabularyKanji
+      summary: Create or attach kanji
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. character, strokeCount, meaningVi and meaningEn are
+        kanji metadata; displayOrder belongs to this vocabulary assignment. Omitted or null optional
+        metadata is treated as null, not as an instruction to retain its previous value. Creates a kanji if
+        the character is new; otherwise attaches existing kanji only when all metadata matches exactly (409
+        otherwise). An existing assignment returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/KanjiUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -385,6 +790,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -400,8 +806,34 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}:
     put:
+      operationId: updateVocabularyKanji
+      summary: Update assigned kanji
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. character, strokeCount,
+        meaningVi and meaningEn are kanji metadata; displayOrder belongs to this vocabulary assignment.
+        Omitted or null optional metadata is treated as null, not as an instruction to retain its previous
+        value. If shared with another vocabulary, metadata changes return 409, but local displayOrder may
+        change. A character belonging to another kanji returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/kanjiId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KanjiUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -411,6 +843,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyKanjiResult'
@@ -424,8 +857,36 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings:
     post:
+      operationId: addKanjiReadings
+      summary: Add kanji readings
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Send a JSON array
+        of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
+        all additions. Results follow request order. The kanji must be assigned to this vocabulary (404
+        otherwise). Kanji shared with another vocabulary cannot have readings added (409). Duplicate reading
+        and readingType within the kanji returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/kanjiId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/KanjiReadingUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -435,6 +896,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         type: array
@@ -450,8 +912,35 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings/{readingId}:
     put:
+      operationId: updateKanjiReading
+      summary: Update a kanji reading
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role in the role claim. Replaces the
+        fields of this resource or assignment only. The vocabulary and every child or assignment in the URL
+        must exist and belong to the specified parent; otherwise returns 404. readingId is a kanji reading
+        ID (returned as kanjiReadingId), not a vocabulary reading ID. It must belong to the specified kanji,
+        which must be assigned to this vocabulary (404 otherwise). Shared kanji cannot have readings
+        updated, even with unchanged values (409). Duplicate reading and readingType within the kanji
+        returns 409.
+      tags: [Admin Vocabulary]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/vocabularyId'
+        - $ref: '#/components/parameters/kanjiId'
+        - $ref: '#/components/parameters/kanjiReadingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KanjiReadingUpdateRequest'
       responses:
         '200':
           description: Operation completed atomically
@@ -461,6 +950,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
+                    required: [data]
                     properties:
                       data:
                         $ref: '#/components/schemas/KanjiReadingResult'
@@ -474,8 +964,282 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus404'
         '409':
           $ref: '#/components/responses/AdminEditErrorResponseStatus409'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Send the Auth Service JWT access token in Authorization as Bearer <token>. Admin Vocabulary operations require the case-sensitive Admin value in the role claim.
+  parameters:
+    vocabularyId:
+      name: vocabularyId
+      in: path
+      required: true
+      description: Target vocabulary ID.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    readingId:
+      name: readingId
+      in: path
+      required: true
+      description: Vocabulary reading ID; must belong to the vocabulary in the URL.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    meaningId:
+      name: meaningId
+      in: path
+      required: true
+      description: Meaning ID; must belong to the vocabulary in the URL.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    pitchAccentId:
+      name: pitchAccentId
+      in: path
+      required: true
+      description: Pitch accent ID; its reading must belong to the vocabulary in the URL.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    exampleId:
+      name: exampleId
+      in: path
+      required: true
+      description: Example sentence ID; must be associated with this vocabulary.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    levelId:
+      name: levelId
+      in: path
+      required: true
+      description: JLPT level master-data ID; must already be assigned to this vocabulary.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    lessonId:
+      name: lessonId
+      in: path
+      required: true
+      description: Lesson master-data ID; must already be assigned to this vocabulary.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    kanjiId:
+      name: kanjiId
+      in: path
+      required: true
+      description: Kanji ID; must already be assigned to this vocabulary.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    kanjiReadingId:
+      name: readingId
+      in: path
+      required: true
+      description: Kanji reading ID returned as kanjiReadingId; must belong to this kanji and vocabulary relationship.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
   schemas:
+    AssignmentOrderUpdateRequest:
+      type: object
+      description: Assignment order only. Levels accept zero; lesson updates require at least 1.
+      required: [displayOrder]
+      properties:
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    KanjiReadingUpdateRequest:
+      type: object
+      required: [reading, readingType, displayOrder]
+      properties:
+        reading:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 100
+        readingType:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank). No enum is enforced.
+          maxLength: 20
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    KanjiUpdateRequest:
+      type: object
+      required: [character, displayOrder]
+      properties:
+        character:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 10
+        strokeCount:
+          type: [integer, "null"]
+          format: int32
+          description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
+          minimum: 0
+          maximum: 65535
+        meaningVi:
+          type: [string, "null"]
+          description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
+          maxLength: 500
+        meaningEn:
+          type: [string, "null"]
+          description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
+          maxLength: 500
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    LessonAssignmentAddRequest:
+      type: object
+      required: [lessonId, displayOrder]
+      properties:
+        lessonId:
+          type: integer
+          format: int64
+          minimum: 1
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 1
+    LevelAssignmentAddRequest:
+      type: object
+      required: [level, displayOrder]
+      properties:
+        level:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 10
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    PartOfSpeechAssignmentAddRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 50
+    VocabularyCoreUpdateRequest:
+      type: object
+      required: [word, normalizedWord]
+      properties:
+        word:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 100
+        normalizedWord:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 100
+    VocabularyExampleUpdateRequest:
+      type: object
+      required: [japaneseText, japaneseReading, meaningVi, meaningEn, targetText, displayOrder]
+      properties:
+        japaneseText:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 1000
+        japaneseReading:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 1000
+        meaningVi:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 1000
+        meaningEn:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 1000
+        targetText:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 200
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    VocabularyMeaningUpdateRequest:
+      type: object
+      required: [language, meaning, isPrimary, displayOrder]
+      properties:
+        language:
+          type: string
+          enum: [vi, en]
+          pattern: '^(vi|en)$'
+        meaning:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 500
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
+    VocabularyPitchAccentUpdateRequest:
+      type: object
+      required: [readingId, accentPattern]
+      properties:
+        readingId:
+          type: integer
+          format: int64
+          minimum: 1
+        accentPattern:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 65535
+    VocabularyReadingUpdateRequest:
+      type: object
+      required: [reading, isPrimary, displayOrder]
+      properties:
+        reading:
+          type: string
+          minLength: 1
+          description: Must contain a non-whitespace character (Jakarta NotBlank).
+          maxLength: 100
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 0
     ImportResult:
       type: object
       properties:
@@ -492,6 +1256,8 @@ components:
           format: int32
     ResponseMeta:
       type: object
+      required: [timestamp, traceId, correlationId]
+      description: Response timestamp and request identifiers are nested here, not at the envelope root.
       properties:
         timestamp:
           type: string
@@ -502,9 +1268,12 @@ components:
           type: string
     AdminEditResponse:
       type: object
+      required: [success, meta]
+      description: Successful edit envelope. data is the operation-specific result; error is omitted.
       properties:
         success:
           type: boolean
+          const: true
         meta:
           $ref: '#/components/schemas/ResponseMeta'
     VocabularyCoreResult:
@@ -579,11 +1348,15 @@ components:
           format: int64
     AdminEditErrorResponse:
       type: object
+      required: [success, error, meta]
+      description: Error envelope. data is omitted. Validation details may be empty; clients must not assume field details for every 400.
       properties:
         success:
           type: boolean
+          const: false
         error:
           type: object
+          required: [code, message, details]
           properties:
             code:
               type: string
@@ -591,8 +1364,10 @@ components:
               type: string
             details:
               type: array
+              description: Empty for DTO validation, authentication, authorization, not-found and conflict errors. Service validation may supply field and message entries.
               items:
                 type: object
+                required: [field, message]
                 properties:
                   field:
                     type: string
@@ -602,31 +1377,43 @@ components:
           $ref: '#/components/schemas/ResponseMeta'
   responses:
     AdminEditErrorResponseStatus400:
-      description: Invalid request
+      description: BAD_REQUEST for malformed JSON, parameter binding or Jakarta input validation (empty details); VALIDATION_ERROR for business validation (field details).
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus401:
-      description: Authentication required
+      description: UNAUTHORIZED - missing, invalid or expired JWT bearer token.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus403:
-      description: Admin role required
+      description: FORBIDDEN - authenticated caller lacks the case-sensitive Admin role.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus404:
-      description: Vocabulary, child, assignment or referenced master data not found
+      description: RESOURCE_NOT_FOUND - vocabulary, child, assignment or referenced master data does not exist in the required parent relationship
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus409:
-      description: Duplicate value or shared-data edit conflict
+      description: VOCABULARY_EDIT_CONFLICT - duplicate value or protected shared-data modification
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus415:
+      description: UNSUPPORTED_MEDIA_TYPE - request Content-Type must be application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminEditErrorResponse'
+    AdminEditErrorResponseStatus500:
+      description: INTERNAL_SERVER_ERROR - unexpected server failure; no internal diagnostic details are exposed
       content:
         application/json:
           schema:
