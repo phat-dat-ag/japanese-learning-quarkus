@@ -47,7 +47,7 @@ public class VocabularyMeaningEditService {
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        vocabularyMeanings.findMeaningForVocabulary(vocabularyId, meaningId), "Meaning")
+                        vocabularyMeanings.findMeaningForVocabulary(vocabularyId, meaningId), "Meaning", meaningId)
                 )
                 .flatMap(meaning -> requireUniqueMeaning(vocabularyId, meaningId, request)
                         .map(ignored -> {

@@ -30,11 +30,32 @@ public class VocabularyEditPersistence {
     }
 
     public Uni<Vocabulary> requireVocabularyForUpdate(Long vocabularyId) {
-        return requireFound(vocabularies.findVocabularyByIdForUpdate(vocabularyId), "Vocabulary");
+        return requireFound(
+                vocabularies.findVocabularyByIdForUpdate(vocabularyId),
+                "Vocabulary",
+                vocabularyId
+        );
     }
 
-    public <T> Uni<T> requireFound(Uni<T> lookup, String resourceName) {
-        return lookup.onItem().ifNull().failWith(() -> resourceNotFound(resourceName));
+    public <T> Uni<T> requireFound(Uni<T> lookup, String resourceName, Long resourceId) {
+        return lookup
+                .onItem()
+                .ifNull()
+                .failWith(
+                        () -> resourceNotFound(resourceName, resourceId)
+                );
+    }
+
+    public <T> Uni<T> requireFound(Uni<T> lookup, String resourceName, String resourceId) {
+        return lookup
+                .onItem()
+                .ifNull()
+                .failWith(
+                        () -> new ResourceNotFoundException(
+                                "RESOURCE_NOT_FOUND",
+                                resourceName + " not found with id: " + resourceId
+                        )
+                );
     }
 
     public <T> Uni<T> flushAndMapUniqueConflicts(Uni<T> editOperation) {
@@ -50,10 +71,11 @@ public class VocabularyEditPersistence {
                         || constraintName.endsWith("." + constraint));
     }
 
-    public static ResourceNotFoundException resourceNotFound(String resourceName) {
+
+    public static ResourceNotFoundException resourceNotFound(String resourceName, Long resourceId) {
         return new ResourceNotFoundException(
                 "RESOURCE_NOT_FOUND",
-                resourceName + " not found for this vocabulary"
+                resourceName + " not found with id: " + resourceId
         );
     }
 

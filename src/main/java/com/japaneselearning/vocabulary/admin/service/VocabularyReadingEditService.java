@@ -53,7 +53,7 @@ public class VocabularyReadingEditService {
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        vocabularyReadings.findReadingForVocabulary(vocabularyId, readingId), "Reading"
+                        vocabularyReadings.findReadingForVocabulary(vocabularyId, readingId), "Reading", readingId
                 ))
                 .flatMap(reading -> requireUniqueReading(vocabularyId, readingId, request)
                         .call(() -> requirePrimaryReading(vocabularyId, readingId, request.isPrimary()))

@@ -90,7 +90,7 @@ public class VocabularyKanjiEditService {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> requireAssignedKanjiForUpdate(vocabularyId, kanjiId))
                 .chain(() -> persistence.requireFound(
-                        kanjiReadings.findReadingForKanji(kanjiId, readingId), "Kanji reading"
+                        kanjiReadings.findReadingForKanji(kanjiId, readingId), "Kanji reading", readingId
                 ))
                 .call(() -> requireExclusiveKanjiAssignment(vocabularyId, kanjiId))
                 .flatMap(reading -> requireUniqueKanjiReading(kanjiId, readingId, request)
@@ -184,9 +184,9 @@ public class VocabularyKanjiEditService {
     ) {
         return kanjiAssignments.existsKanjiAssignment(vocabularyId, kanjiId).invoke(assigned -> {
             if (!assigned) {
-                throw VocabularyEditPersistence.resourceNotFound("Kanji assignment");
+                throw VocabularyEditPersistence.resourceNotFound("Kanji assignment", kanjiId);
             }
-        }).chain(() -> persistence.requireFound(kanji.findKanjiByIdForUpdate(kanjiId), "Kanji"));
+        }).chain(() -> persistence.requireFound(kanji.findKanjiByIdForUpdate(kanjiId), "Kanji", kanjiId));
     }
 
     private Uni<Void> requireExclusiveKanjiAssignment(

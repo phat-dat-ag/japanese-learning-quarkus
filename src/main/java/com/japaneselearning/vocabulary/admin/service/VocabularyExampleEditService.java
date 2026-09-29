@@ -53,7 +53,7 @@ public class VocabularyExampleEditService {
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        exampleAssignments.findExampleAssignment(vocabularyId, exampleId), "Example")
+                        exampleAssignments.findExampleAssignment(vocabularyId, exampleId), "Example", exampleId)
                 )
                 .flatMap(assignment -> updateAssignedExample(
                         vocabularyId, exampleId, assignment, request

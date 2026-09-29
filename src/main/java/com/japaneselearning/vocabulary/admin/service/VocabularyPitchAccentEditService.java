@@ -51,7 +51,7 @@ public class VocabularyPitchAccentEditService {
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> persistence.requireFound(
-                        pitchAccents.findPitchAccentForVocabulary(vocabularyId, pitchAccentId), "Pitch accent")
+                        pitchAccents.findPitchAccentForVocabulary(vocabularyId, pitchAccentId), "Pitch accent", pitchAccentId)
                 )
                 .flatMap(pitchAccent -> validateReadingOwnershipAndUniqueness(
                                 vocabularyId, pitchAccentId, request
@@ -87,7 +87,7 @@ public class VocabularyPitchAccentEditService {
             VocabularyPitchAccentUpdateRequest request
     ) {
         return persistence.requireFound(readings.findReadingForVocabulary(
-                        vocabularyId, request.readingId()), "Reading"
+                        vocabularyId, request.readingId()), "Reading", request.readingId()
                 )
                 .chain(() -> pitchAccents.findByReadingAndAccentPattern(
                         request.readingId(), request.accentPattern()

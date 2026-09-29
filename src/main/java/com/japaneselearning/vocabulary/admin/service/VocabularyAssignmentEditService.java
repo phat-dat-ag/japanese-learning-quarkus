@@ -69,7 +69,7 @@ public class VocabularyAssignmentEditService {
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> requireExistingAssignment(
-                        levelAssignments.existsLevelAssignment(vocabularyId, levelId)
+                        levelAssignments.existsLevelAssignment(vocabularyId, levelId), levelId
                 ))
                 .chain(() -> levelAssignments.updateLevelAssignmentOrder(
                         vocabularyId, levelId, request.displayOrder()
@@ -104,7 +104,7 @@ public class VocabularyAssignmentEditService {
 
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> requireExistingAssignment(
-                        lessonAssignments.existsLessonAssignment(vocabularyId, lessonId)
+                        lessonAssignments.existsLessonAssignment(vocabularyId, lessonId), lessonId
                 ))
                 .chain(() -> lessonAssignments.updateLessonAssignmentOrder(
                         vocabularyId, lessonId, request.displayOrder()
@@ -131,7 +131,7 @@ public class VocabularyAssignmentEditService {
             Long vocabularyId,
             LevelAssignmentAddRequest request
     ) {
-        return persistence.requireFound(levels.findByCode(request.level()), "Level")
+        return persistence.requireFound(levels.findByCode(request.level()), "Level", request.level())
                 .flatMap(level -> requireNewAssignment(levelAssignments.existsLevelAssignment(vocabularyId, level.id))
                         .chain(() -> levelAssignments.insert(vocabularyId, level.id, request.displayOrder()))
                         .replaceWith(new VocabularyLevelResponse(level.id))
@@ -142,7 +142,7 @@ public class VocabularyAssignmentEditService {
             Long vocabularyId,
             LessonAssignmentAddRequest request
     ) {
-        return persistence.requireFound(lessons.findById(request.lessonId()), "Lesson")
+        return persistence.requireFound(lessons.findById(request.lessonId()), "Lesson", request.lessonId())
                 .flatMap(lesson -> requireLessonLevelAssignment(vocabularyId, lesson.levelId)
                         .chain(() -> requireNewAssignment(
                                 lessonAssignments.existsLessonAssignment(vocabularyId, lesson.id)
@@ -156,7 +156,7 @@ public class VocabularyAssignmentEditService {
             Long vocabularyId,
             PartOfSpeechAssignmentAddRequest request
     ) {
-        return persistence.requireFound(partsOfSpeech.findByCode(request.code()), "Part of speech")
+        return persistence.requireFound(partsOfSpeech.findByCode(request.code()), "Part of speech", request.code())
                 .flatMap(partOfSpeech -> requireNewAssignment(
                         partOfSpeechAssignments.existsPartOfSpeechAssignment(vocabularyId, partOfSpeech.id)
                 )
@@ -181,10 +181,10 @@ public class VocabularyAssignmentEditService {
         }).replaceWithVoid();
     }
 
-    private Uni<Void> requireExistingAssignment(Uni<Boolean> assignmentLookup) {
+    private Uni<Void> requireExistingAssignment(Uni<Boolean> assignmentLookup, Long resourceId) {
         return assignmentLookup.invoke(assigned -> {
             if (!assigned) {
-                throw VocabularyEditPersistence.resourceNotFound("Assignment");
+                throw VocabularyEditPersistence.resourceNotFound("Assignment", resourceId);
             }
         }).replaceWithVoid();
     }
