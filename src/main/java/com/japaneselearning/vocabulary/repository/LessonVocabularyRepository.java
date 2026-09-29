@@ -47,4 +47,30 @@ public class LessonVocabularyRepository {
                 )
                 .replaceWithVoid();
     }
+
+    public Uni<Boolean> existsLessonAssignment(Long vocabularyId, Long lessonId) {
+        return Panache.getSession()
+                .flatMap(session -> session.createQuery("""
+                                select count(assignment) from LessonVocabulary assignment
+                                where assignment.vocabularyId = :vocabularyId
+                                  and assignment.lessonId = :lessonId
+                                """, Long.class)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("lessonId", lessonId)
+                        .getSingleResult())
+                .map(assignmentCount -> assignmentCount > 0);
+    }
+
+    public Uni<Void> updateLessonAssignmentOrder(Long vocabularyId, Long lessonId, Integer displayOrder) {
+        return Panache.getSession()
+                .flatMap(session -> session.createMutationQuery("""
+                                update LessonVocabulary set displayOrder = :displayOrder
+                                where vocabularyId = :vocabularyId and lessonId = :lessonId
+                                """)
+                        .setParameter("displayOrder", displayOrder)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("lessonId", lessonId)
+                        .executeUpdate())
+                .replaceWithVoid();
+    }
 }

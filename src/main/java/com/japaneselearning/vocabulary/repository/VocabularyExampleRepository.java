@@ -52,4 +52,29 @@ public class VocabularyExampleRepository {
                 )
                 .replaceWithVoid();
     }
+
+    public Uni<VocabularyExample> findExampleAssignment(Long vocabularyId, Long exampleId) {
+        return Panache.getSession()
+                .flatMap(session -> session.createQuery("""
+                                select assignment from VocabularyExample assignment
+                                join fetch assignment.exampleSentence
+                                where assignment.vocabularyId = :vocabularyId
+                                  and assignment.exampleSentenceId = :exampleId
+                                """, VocabularyExample.class)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .setParameter("exampleId", exampleId)
+                        .getSingleResultOrNull());
+    }
+
+    public Uni<Long> countOtherVocabularyAssignments(Long exampleId, Long vocabularyId) {
+        return Panache.getSession()
+                .flatMap(session -> session.createQuery("""
+                                select count(assignment) from VocabularyExample assignment
+                                where assignment.exampleSentenceId = :exampleId
+                                  and assignment.vocabularyId <> :vocabularyId
+                                """, Long.class)
+                        .setParameter("exampleId", exampleId)
+                        .setParameter("vocabularyId", vocabularyId)
+                        .getSingleResult());
+    }
 }

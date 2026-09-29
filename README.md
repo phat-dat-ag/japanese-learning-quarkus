@@ -365,3 +365,10 @@ fixtures. Set the local port and test root password, then run from PowerShell:
 
 Without the opt-in property, the MySQL test class is skipped. Remove the disposable
 database/container after testing.
+
+
+### Admin vocabulary editing
+
+See [Admin vocabulary editing](docs/admin-vocabulary-edit.md) for the endpoint matrix,
+request/response contracts, shared-data protections, validation rules, and MySQL tests.
+The feature is backend-only and provides no DELETE APIs.

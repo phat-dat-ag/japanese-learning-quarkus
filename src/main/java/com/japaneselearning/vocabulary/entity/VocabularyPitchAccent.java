@@ -1,11 +1,11 @@
 package com.japaneselearning.vocabulary.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Column;
 
 @Entity
 @Table(name = "vocabulary_pitch_accents")
@@ -18,6 +18,8 @@ public class VocabularyPitchAccent {
     @Column(name = "vocabulary_reading_id", nullable = false)
     public Long vocabularyReadingId;
 
-    @Column(name = "accent_pattern", nullable = false)
+    // Reactive MySQL metadata exposes the base type; Flyway owns UNSIGNED. Integer preserves
+    // 0..65535.
+    @Column(name = "accent_pattern", nullable = false, columnDefinition = "smallint")
     public Integer accentPattern;
 }

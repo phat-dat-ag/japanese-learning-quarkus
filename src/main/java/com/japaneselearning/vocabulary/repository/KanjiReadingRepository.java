@@ -20,4 +20,8 @@ public class KanjiReadingRepository implements PanacheRepository<KanjiReading> {
                 readingType
         ).firstResult();
     }
+
+    public Uni<KanjiReading> findReadingForKanji(Long kanjiId, Long readingId) {
+        return find("kanjiId = ?1 and id = ?2", kanjiId, readingId).firstResult();
+    }
 }
