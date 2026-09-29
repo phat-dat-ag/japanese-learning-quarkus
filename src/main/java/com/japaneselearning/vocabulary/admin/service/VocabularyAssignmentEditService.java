@@ -1,12 +1,12 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAdd;
-import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAdd;
-import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderEdit;
-import com.japaneselearning.vocabulary.admin.dto.PartOfSpeechAssignmentAdd;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyLevelResult;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyLessonResult;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyPartOfSpeechResult;
+import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAddRequest;
+import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAddRequest;
+import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderUpdateRequest;
+import com.japaneselearning.vocabulary.admin.dto.PartOfSpeechAssignmentAddRequest;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyLevelResponse;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyLessonResponse;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyPartOfSpeechResponse;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
 import com.japaneselearning.vocabulary.repository.LessonRepository;
 import com.japaneselearning.vocabulary.repository.LessonVocabularyRepository;
@@ -37,7 +37,8 @@ public class VocabularyAssignmentEditService {
             PartOfSpeechRepository partsOfSpeech,
             VocabularyLevelRepository levelAssignments,
             LessonVocabularyRepository lessonAssignments,
-            VocabularyPartOfSpeechRepository partOfSpeechAssignments) {
+            VocabularyPartOfSpeechRepository partOfSpeechAssignments
+    ) {
         this.persistence = persistence;
         this.levels = levels;
         this.lessons = lessons;
@@ -48,94 +49,119 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    public Uni<List<VocabularyLevelResult>> addLevelAssignments(
+    public Uni<List<VocabularyLevelResponse>> addLevelAssignments(
             Long vocabularyId,
-            List<LevelAssignmentAdd> requests
+            List<LevelAssignmentAddRequest> requests
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> Multi.createFrom().iterable(requests)
-                        .onItem().transformToUniAndConcatenate(request -> addLevelAssignment(vocabularyId, request))
+                        .onItem().transformToUniAndConcatenate(
+                                request -> addLevelAssignment(vocabularyId, request)
+                        )
                         .collect().asList()));
     }
 
     @WithTransaction
-    public Uni<VocabularyLevelResult> updateLevelAssignmentOrder(
+    public Uni<VocabularyLevelResponse> updateLevelAssignmentOrder(
             Long vocabularyId,
             Long levelId,
-            AssignmentOrderEdit request
+            AssignmentOrderUpdateRequest request
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
-                .chain(() -> requireExistingAssignment(levelAssignments.existsLevelAssignment(vocabularyId, levelId)))
-                .chain(() -> levelAssignments.updateLevelAssignmentOrder(vocabularyId, levelId, request.displayOrder()))
-                .replaceWith(new VocabularyLevelResult(levelId)));
+                .chain(() -> requireExistingAssignment(
+                        levelAssignments.existsLevelAssignment(vocabularyId, levelId)
+                ))
+                .chain(() -> levelAssignments.updateLevelAssignmentOrder(
+                        vocabularyId, levelId, request.displayOrder()
+                ))
+                .replaceWith(new VocabularyLevelResponse(levelId))
+        );
     }
 
     @WithTransaction
-    public Uni<List<VocabularyLessonResult>> addLessonAssignments(
+    public Uni<List<VocabularyLessonResponse>> addLessonAssignments(
             Long vocabularyId,
-            List<LessonAssignmentAdd> requests
+            List<LessonAssignmentAddRequest> requests
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> Multi.createFrom().iterable(requests)
-                        .onItem().transformToUniAndConcatenate(request -> addLessonAssignment(vocabularyId, request))
+                        .onItem().transformToUniAndConcatenate(
+                                request -> addLessonAssignment(vocabularyId, request)
+                        )
                         .collect().asList()));
     }
 
     @WithTransaction
-    public Uni<VocabularyLessonResult> updateLessonAssignmentOrder(
+    public Uni<VocabularyLessonResponse> updateLessonAssignmentOrder(
             Long vocabularyId,
             Long lessonId,
-            AssignmentOrderEdit request
+            AssignmentOrderUpdateRequest request
     ) {
         if (request.displayOrder() < 1) {
             throw VocabularyEditPersistence.invalidRequest(
                     "displayOrder", "Lesson display order must be greater than zero");
         }
+
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> requireExistingAssignment(
-                        lessonAssignments.existsLessonAssignment(vocabularyId, lessonId)))
+                        lessonAssignments.existsLessonAssignment(vocabularyId, lessonId)
+                ))
                 .chain(() -> lessonAssignments.updateLessonAssignmentOrder(
-                        vocabularyId, lessonId, request.displayOrder()))
-                .replaceWith(new VocabularyLessonResult(lessonId)));
+                        vocabularyId, lessonId, request.displayOrder()
+                ))
+                .replaceWith(new VocabularyLessonResponse(lessonId)));
     }
 
     @WithTransaction
-    public Uni<List<VocabularyPartOfSpeechResult>> addPartOfSpeechAssignments(
+    public Uni<List<VocabularyPartOfSpeechResponse>> addPartOfSpeechAssignments(
             Long vocabularyId,
-            List<PartOfSpeechAssignmentAdd> requests
+            List<PartOfSpeechAssignmentAddRequest> requests
     ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .chain(() -> Multi.createFrom().iterable(requests)
                         .onItem().transformToUniAndConcatenate(
-                                request -> addPartOfSpeechAssignment(vocabularyId, request))
-                        .collect().asList()));
+                                request -> addPartOfSpeechAssignment(vocabularyId, request)
+                        )
+                        .collect().asList()
+                )
+        );
     }
 
-    private Uni<VocabularyLevelResult> addLevelAssignment(Long vocabularyId, LevelAssignmentAdd request) {
+    private Uni<VocabularyLevelResponse> addLevelAssignment(
+            Long vocabularyId,
+            LevelAssignmentAddRequest request
+    ) {
         return persistence.requireFound(levels.findByCode(request.level()), "Level")
                 .flatMap(level -> requireNewAssignment(levelAssignments.existsLevelAssignment(vocabularyId, level.id))
                         .chain(() -> levelAssignments.insert(vocabularyId, level.id, request.displayOrder()))
-                        .replaceWith(new VocabularyLevelResult(level.id)));
+                        .replaceWith(new VocabularyLevelResponse(level.id))
+                );
     }
 
-    private Uni<VocabularyLessonResult> addLessonAssignment(Long vocabularyId, LessonAssignmentAdd request) {
+    private Uni<VocabularyLessonResponse> addLessonAssignment(
+            Long vocabularyId,
+            LessonAssignmentAddRequest request
+    ) {
         return persistence.requireFound(lessons.findById(request.lessonId()), "Lesson")
                 .flatMap(lesson -> requireLessonLevelAssignment(vocabularyId, lesson.levelId)
                         .chain(() -> requireNewAssignment(
-                                lessonAssignments.existsLessonAssignment(vocabularyId, lesson.id)))
+                                lessonAssignments.existsLessonAssignment(vocabularyId, lesson.id)
+                        ))
                         .chain(() -> lessonAssignments.insert(lesson.id, vocabularyId, request.displayOrder()))
-                        .replaceWith(new VocabularyLessonResult(lesson.id)));
+                        .replaceWith(new VocabularyLessonResponse(lesson.id))
+                );
     }
 
-    private Uni<VocabularyPartOfSpeechResult> addPartOfSpeechAssignment(
+    private Uni<VocabularyPartOfSpeechResponse> addPartOfSpeechAssignment(
             Long vocabularyId,
-            PartOfSpeechAssignmentAdd request
+            PartOfSpeechAssignmentAddRequest request
     ) {
         return persistence.requireFound(partsOfSpeech.findByCode(request.code()), "Part of speech")
                 .flatMap(partOfSpeech -> requireNewAssignment(
-                        partOfSpeechAssignments.existsPartOfSpeechAssignment(vocabularyId, partOfSpeech.id))
+                        partOfSpeechAssignments.existsPartOfSpeechAssignment(vocabularyId, partOfSpeech.id)
+                )
                         .chain(() -> partOfSpeechAssignments.insert(vocabularyId, partOfSpeech.id))
-                        .replaceWith(new VocabularyPartOfSpeechResult(partOfSpeech.id)));
+                        .replaceWith(new VocabularyPartOfSpeechResponse(partOfSpeech.id)));
     }
 
     private Uni<Void> requireLessonLevelAssignment(Long vocabularyId, Long levelId) {

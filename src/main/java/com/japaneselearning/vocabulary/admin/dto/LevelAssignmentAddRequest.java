@@ -5,8 +5,13 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record KanjiReadingEdit(
-        @NotBlank @Size(max = 100) String reading,
-        @NotBlank @Size(max = 20) String readingType,
-        @NotNull @Min(0) Integer displayOrder) {
+public record LevelAssignmentAddRequest(
+        @NotBlank
+        @Size(max = 10)
+        String level,
+
+        @NotNull
+        @Min(0)
+        Integer displayOrder
+) {
 }

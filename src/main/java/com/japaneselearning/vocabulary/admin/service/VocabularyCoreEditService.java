@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.service;
 
-import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreEdit;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreResult;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreUpdateRequest;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreResponse;
 import com.japaneselearning.vocabulary.repository.VocabularyRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
@@ -21,14 +21,18 @@ public class VocabularyCoreEditService {
     }
 
     @WithTransaction
-    public Uni<VocabularyCoreResult> updateVocabularyCore(Long vocabularyId, VocabularyCoreEdit request) {
+    public Uni<VocabularyCoreResponse> updateVocabularyCore(
+            Long vocabularyId,
+            VocabularyCoreUpdateRequest request
+    ) {
         return persistence.flushAndMapUniqueConflicts(persistence.requireVocabularyForUpdate(vocabularyId)
                 .call(() -> requireUniqueNormalizedWord(vocabularyId, request.normalizedWord()))
                 .map(vocabulary -> {
                     vocabulary.word = request.word();
                     vocabulary.normalizedWord = request.normalizedWord();
-                    return new VocabularyCoreResult(vocabularyId);
-                }));
+                    return new VocabularyCoreResponse(vocabularyId);
+                })
+        );
     }
 
     private Uni<Void> requireUniqueNormalizedWord(Long vocabularyId, String normalizedWord) {

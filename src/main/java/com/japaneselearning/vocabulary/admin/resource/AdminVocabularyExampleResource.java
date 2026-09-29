@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyExampleEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -43,10 +43,14 @@ public class AdminVocabularyExampleResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addVocabularyExamples(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyExampleEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid VocabularyExampleUpdateRequest> request
     ) {
         return exampleService
                 .addVocabularyExamples(vocabularyId, request)
@@ -61,13 +65,19 @@ public class AdminVocabularyExampleResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateVocabularyExample(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("exampleId") @Positive
+
+            @PathParam("exampleId")
+            @Positive
             @Parameter(description = "Existing exampleId", required = true)
             Long exampleId,
-            @NotNull @Valid VocabularyExampleEdit request
+
+            @NotNull
+            @Valid
+            VocabularyExampleUpdateRequest request
     ) {
         return exampleService
                 .updateVocabularyExample(vocabularyId, exampleId, request)

@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyPitchAccentEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyPitchAccentUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyPitchAccentEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -43,10 +43,14 @@ public class AdminVocabularyPitchAccentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addVocabularyPitchAccents(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyPitchAccentEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid VocabularyPitchAccentUpdateRequest> request
     ) {
         return pitchAccentService
                 .addVocabularyPitchAccents(vocabularyId, request)
@@ -61,13 +65,19 @@ public class AdminVocabularyPitchAccentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateVocabularyPitchAccent(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("pitchAccentId") @Positive
+
+            @PathParam("pitchAccentId")
+            @Positive
             @Parameter(description = "Existing pitchAccentId", required = true)
             Long pitchAccentId,
-            @NotNull @Valid VocabularyPitchAccentEdit request
+
+            @NotNull
+            @Valid
+            VocabularyPitchAccentUpdateRequest request
     ) {
         return pitchAccentService
                 .updateVocabularyPitchAccent(vocabularyId, pitchAccentId, request)

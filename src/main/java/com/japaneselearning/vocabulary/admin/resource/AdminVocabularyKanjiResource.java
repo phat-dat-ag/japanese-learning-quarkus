@@ -1,8 +1,8 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.KanjiEdit;
-import com.japaneselearning.vocabulary.admin.dto.KanjiReadingEdit;
+import com.japaneselearning.vocabulary.admin.dto.KanjiUpdateRequest;
+import com.japaneselearning.vocabulary.admin.dto.KanjiReadingUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyKanjiEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -44,10 +44,14 @@ public class AdminVocabularyKanjiResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addVocabularyKanji(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid KanjiUpdateRequest> request
     ) {
         return kanjiService
                 .addVocabularyKanji(vocabularyId, request)
@@ -62,13 +66,19 @@ public class AdminVocabularyKanjiResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateVocabularyKanji(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("kanjiId") @Positive
+
+            @PathParam("kanjiId")
+            @Positive
             @Parameter(description = "Existing kanjiId", required = true)
             Long kanjiId,
-            @NotNull @Valid KanjiEdit request
+
+            @NotNull
+            @Valid
+            KanjiUpdateRequest request
     ) {
         return kanjiService
                 .updateVocabularyKanji(vocabularyId, kanjiId, request)
@@ -83,13 +93,19 @@ public class AdminVocabularyKanjiResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addKanjiReadings(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("kanjiId") @Positive
+
+            @PathParam("kanjiId")
+            @Positive
             @Parameter(description = "Existing kanjiId", required = true)
             Long kanjiId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid KanjiReadingEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid KanjiReadingUpdateRequest> request
     ) {
         return kanjiService
                 .addKanjiReadings(vocabularyId, kanjiId, request)
@@ -104,16 +120,24 @@ public class AdminVocabularyKanjiResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateKanjiReading(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("kanjiId") @Positive
+
+            @PathParam("kanjiId")
+            @Positive
             @Parameter(description = "Existing kanjiId", required = true)
             Long kanjiId,
-            @PathParam("readingId") @Positive
+
+            @PathParam("readingId")
+            @Positive
             @Parameter(description = "Existing readingId", required = true)
             Long readingId,
-            @NotNull @Valid KanjiReadingEdit request
+
+            @NotNull
+            @Valid
+            KanjiReadingUpdateRequest request
     ) {
         return kanjiService
                 .updateKanjiReading(vocabularyId, kanjiId, readingId, request)

@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyMeaningEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -43,10 +43,14 @@ public class AdminVocabularyMeaningResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addVocabularyMeanings(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyMeaningEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid VocabularyMeaningUpdateRequest> request
     ) {
         return meaningService
                 .addVocabularyMeanings(vocabularyId, request)
@@ -61,13 +65,19 @@ public class AdminVocabularyMeaningResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateVocabularyMeaning(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("meaningId") @Positive
+
+            @PathParam("meaningId")
+            @Positive
             @Parameter(description = "Existing meaningId", required = true)
             Long meaningId,
-            @NotNull @Valid VocabularyMeaningEdit request
+
+            @NotNull
+            @Valid
+            VocabularyMeaningUpdateRequest request
     ) {
         return meaningService
                 .updateVocabularyMeaning(vocabularyId, meaningId, request)

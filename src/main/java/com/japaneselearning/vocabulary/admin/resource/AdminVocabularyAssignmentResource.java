@@ -1,10 +1,10 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAdd;
-import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAdd;
-import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderEdit;
-import com.japaneselearning.vocabulary.admin.dto.PartOfSpeechAssignmentAdd;
+import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAddRequest;
+import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAddRequest;
+import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderUpdateRequest;
+import com.japaneselearning.vocabulary.admin.dto.PartOfSpeechAssignmentAddRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyAssignmentEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -46,10 +46,14 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addLevelAssignments(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid LevelAssignmentAdd> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid LevelAssignmentAddRequest> request
     ) {
         return assignmentService
                 .addLevelAssignments(vocabularyId, request)
@@ -64,13 +68,19 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateLevelAssignmentOrder(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("levelId") @Positive
+
+            @PathParam("levelId")
+            @Positive
             @Parameter(description = "Existing levelId", required = true)
             Long levelId,
-            @NotNull @Valid AssignmentOrderEdit request
+
+            @NotNull
+            @Valid
+            AssignmentOrderUpdateRequest request
     ) {
         return assignmentService
                 .updateLevelAssignmentOrder(vocabularyId, levelId, request)
@@ -85,10 +95,14 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addLessonAssignments(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid LessonAssignmentAdd> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid LessonAssignmentAddRequest> request
     ) {
         return assignmentService
                 .addLessonAssignments(vocabularyId, request)
@@ -103,13 +117,19 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateLessonAssignmentOrder(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("lessonId") @Positive
+
+            @PathParam("lessonId")
+            @Positive
             @Parameter(description = "Existing lessonId", required = true)
             Long lessonId,
-            @NotNull @Valid AssignmentOrderEdit request
+
+            @NotNull
+            @Valid
+            AssignmentOrderUpdateRequest request
     ) {
         return assignmentService
                 .updateLessonAssignmentOrder(vocabularyId, lessonId, request)
@@ -124,10 +144,14 @@ public class AdminVocabularyAssignmentResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addPartOfSpeechAssignments(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid PartOfSpeechAssignmentAdd> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid PartOfSpeechAssignmentAddRequest> request
     ) {
         return assignmentService
                 .addPartOfSpeechAssignments(vocabularyId, request)

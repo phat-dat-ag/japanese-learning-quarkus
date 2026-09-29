@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyReadingEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -43,10 +43,14 @@ public class AdminVocabularyReadingResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> addVocabularyReadings(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotEmpty @Size(max = 100) List<@NotNull @Valid VocabularyReadingEdit> request
+
+            @NotEmpty
+            @Size(max = 100)
+            List<@NotNull @Valid VocabularyReadingUpdateRequest> request
     ) {
         return readingService
                 .addVocabularyReadings(vocabularyId, request)
@@ -61,13 +65,19 @@ public class AdminVocabularyReadingResource extends BaseResource {
     )
     @RequestBody(required = true)
     public Uni<Response> updateVocabularyReading(
-            @PathParam("vocabularyId") @Positive
+            @PathParam("vocabularyId")
+            @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @PathParam("readingId") @Positive
+
+            @PathParam("readingId")
+            @Positive
             @Parameter(description = "Existing readingId", required = true)
             Long readingId,
-            @NotNull @Valid VocabularyReadingEdit request
+
+            @NotNull
+            @Valid
+            VocabularyReadingUpdateRequest request
     ) {
         return readingService
                 .updateVocabularyReading(vocabularyId, readingId, request)

@@ -1,7 +1,7 @@
 package com.japaneselearning.vocabulary.admin.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
-import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreEdit;
+import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreUpdateRequest;
 import com.japaneselearning.vocabulary.admin.service.VocabularyCoreEditService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -41,7 +41,9 @@ public class AdminVocabularyCoreResource extends BaseResource {
             @PathParam("vocabularyId") @Positive
             @Parameter(description = "Target vocabulary ID", required = true)
             Long vocabularyId,
-            @NotNull @Valid VocabularyCoreEdit request
+            @NotNull
+            @Valid
+            VocabularyCoreUpdateRequest request
     ) {
         return coreService
                 .updateVocabularyCore(vocabularyId, request)
