@@ -74,6 +74,35 @@ class OpenApiSecurityTest {
     }
 
     @Test
+    void documentsFlashcardDetailIdentitiesWithoutChangingLearnerFields() {
+        JsonPath document = given().accept("application/json").get("/q/openapi")
+                .then().statusCode(200).extract().jsonPath();
+        assertEquals("#/components/schemas/FlashcardDetailResponse", document.getString(
+                "paths.'/api/v1/flashcards/{id}'.get.responses.'200'.content.'application/json'.schema.properties.data.'$ref'"));
+        Map<String, String> identities = Map.of(
+                "FlashcardReadingResponse", "readingId",
+                "FlashcardMeaningResponse", "meaningId",
+                "FlashcardPitchAccentResponse", "pitchAccentId",
+                "FlashcardLevelResponse", "levelId",
+                "FlashcardLessonResponse", "lessonId",
+                "FlashcardExampleResponse", "exampleId",
+                "FlashcardKanjiResponse", "kanjiId",
+                "FlashcardKanjiReadingResponse", "kanjiReadingId");
+        identities.forEach((schema, field) -> {
+            String property = "components.schemas." + schema + ".properties." + field;
+            assertEquals("integer", document.getString(property + ".type"));
+            assertEquals("int64", document.getString(property + ".format"));
+            assertEquals(1, document.getInt(property + ".minimum"));
+        });
+        assertEquals("integer", document.getString(
+                "components.schemas.FlashcardReadingResponse.properties.pitchAccents.items.type"));
+        assertEquals("#/components/schemas/FlashcardPitchAccentResponse", document.getString(
+                "components.schemas.FlashcardReadingResponse.properties.pitchAccentDetails.items.'$ref'"));
+        assertEquals("int32", document.getString(
+                "components.schemas.FlashcardLessonResponse.properties.assignmentDisplayOrder.format"));
+    }
+
+    @Test
     void swaggerUiIsAccessibleWithoutAuthentication() {
         given().get("/q/swagger-ui/").then().statusCode(200)
                 .body(containsString("swagger-ui-bundle.js"));

@@ -8,6 +8,43 @@ tags:
 security:
   - bearerAuth: [ ]
 paths:
+  /api/v1/flashcards/{id}:
+    get:
+      operationId: getFlashcard
+      summary: Get vocabulary flashcard detail
+      description: >-
+        Includes persisted child IDs for existing Admin update operations. IDs do not grant
+        write access or change shared example and kanji restrictions. Existing learner fields
+        are preserved, including the integer pitchAccents array.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Flashcard detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ success, data, meta ]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/FlashcardDetailResponse'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          description: Invalid vocabulary ID
+        '401':
+          description: Bearer token required
+        '404':
+          description: Vocabulary not found
   /api/vocabularies:
     post:
       responses:
@@ -40,9 +77,9 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Only word and normalizedWord
         change. normalizedWord is supplied by the caller; a value belonging to another vocabulary returns
         409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -60,7 +97,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyCoreResult'
@@ -88,9 +125,9 @@ paths:
         all additions. Results follow request order. The vocabulary must retain at least one primary reading
         (400 otherwise); multiple primary readings are allowed and other readings are not automatically
         demoted. Duplicate reading text within this vocabulary returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -112,7 +149,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -142,9 +179,9 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. The vocabulary must retain at
         least one primary reading (400 otherwise); multiple primary readings are allowed and other readings
         are not automatically demoted. Duplicate reading text within this vocabulary returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/readingId'
@@ -163,7 +200,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyReadingResult'
@@ -191,9 +228,9 @@ paths:
         all additions. Results follow request order. Only vi and en are accepted. Multiple primary meanings,
         or no primary meaning, are allowed; other meanings are not automatically demoted. Duplicate language
         and meaning within this vocabulary returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -215,7 +252,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -245,9 +282,9 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Only vi and en are accepted.
         Multiple primary meanings, or no primary meaning, are allowed; other meanings are not automatically
         demoted. Duplicate language and meaning within this vocabulary returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/meaningId'
@@ -266,7 +303,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyMeaningResult'
@@ -293,9 +330,9 @@ paths:
         of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
         all additions. Results follow request order. The body readingId must belong to this vocabulary (404
         otherwise). Duplicate readingId and accentPattern returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -317,7 +354,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -347,9 +384,9 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. The body readingId must belong
         to this vocabulary (404 otherwise). Duplicate readingId and accentPattern returns 409. The accent
         may be moved to another reading of this vocabulary.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/pitchAccentId'
@@ -368,7 +405,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyPitchAccentResult'
@@ -396,9 +433,9 @@ paths:
         all additions. Results follow request order. Duplicate japaneseText, japaneseReading and targetText
         within this vocabulary returns 409. exampleId identifies the example sentence, not a separate
         assignment ID. Creates a new sentence for each item.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -420,7 +457,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -452,9 +489,9 @@ paths:
         sentence, not a separate assignment ID. If the sentence is shared with another vocabulary, changes
         to japaneseText, japaneseReading, meaningVi or meaningEn return 409. targetText and displayOrder may
         still change locally.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/exampleId'
@@ -473,7 +510,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyExampleResult'
@@ -500,9 +537,9 @@ paths:
         of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
         all additions. Results follow request order. The level code must already exist (404 otherwise);
         duplicate assignments return 409. Does not create master data.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -524,7 +561,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -554,9 +591,9 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Changes assignment
         displayOrder only, not level master data. levelId is the existing JLPT level ID, not an assignment
         ID. displayOrder may be zero.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/levelId'
@@ -575,7 +612,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyLevelResult'
@@ -601,9 +638,9 @@ paths:
         all additions. Results follow request order. The lesson must already exist (404 otherwise), and its
         JLPT level must already be assigned to this vocabulary (400 otherwise). Duplicate assignments return
         409. Does not create master data.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -625,7 +662,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -656,9 +693,9 @@ paths:
         displayOrder only, not lesson master data. lessonId is the existing lesson ID, not an assignment ID.
         displayOrder must be at least 1; zero returns 400 even though the shared
         AssignmentOrderUpdateRequest DTO permits zero for levels.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/lessonId'
@@ -684,7 +721,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyLessonResult'
@@ -710,9 +747,9 @@ paths:
         all additions. Results follow request order. The POS code must already exist (404 otherwise);
         duplicate assignments return 409. Does not create master data. These assignments have no update
         fields or update operation.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -734,7 +771,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -766,9 +803,9 @@ paths:
         metadata is treated as null, not as an instruction to retain its previous value. Creates a kanji if
         the character is new; otherwise attaches existing kanji only when all metadata matches exactly (409
         otherwise). An existing assignment returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
       requestBody:
@@ -790,7 +827,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -822,9 +859,9 @@ paths:
         Omitted or null optional metadata is treated as null, not as an instruction to retain its previous
         value. If shared with another vocabulary, metadata changes return 409, but local displayOrder may
         change. A character belonging to another kanji returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/kanjiId'
@@ -843,7 +880,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/VocabularyKanjiResult'
@@ -871,9 +908,9 @@ paths:
         all additions. Results follow request order. The kanji must be assigned to this vocabulary (404
         otherwise). Kanji shared with another vocabulary cannot have readings added (409). Duplicate reading
         and readingType within the kanji returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/kanjiId'
@@ -896,7 +933,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         type: array
@@ -928,9 +965,9 @@ paths:
         which must be assigned to this vocabulary (404 otherwise). Shared kanji cannot have readings
         updated, even with unchanged values (409). Duplicate reading and readingType within the kanji
         returns 409.
-      tags: [Admin Vocabulary]
+      tags: [ Admin Vocabulary ]
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - $ref: '#/components/parameters/vocabularyId'
         - $ref: '#/components/parameters/kanjiId'
@@ -950,7 +987,7 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/AdminEditResponse'
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: '#/components/schemas/KanjiReadingResult'
@@ -1058,10 +1095,243 @@ components:
         format: int64
         minimum: 1
   schemas:
+    FlashcardDetailResponse:
+      type: object
+      required: [ vocabulary, readings, meanings, partsOfSpeech, levels, lessons, kanji, examples ]
+      properties:
+        vocabulary:
+          $ref: '#/components/schemas/VocabularyResponse'
+        readings:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardReadingResponse'
+        meanings:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardMeaningResponse'
+        partsOfSpeech:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardPartOfSpeechResponse'
+        levels:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardLevelResponse'
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardLessonResponse'
+        kanji:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardKanjiResponse'
+        examples:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardExampleResponse'
+    VocabularyResponse:
+      type: object
+      required: [ id, word, normalizedWord ]
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted vocabulary.id; vocabularyId in Admin paths.
+        word:
+          type: string
+        normalizedWord:
+          type: string
+    FlashcardReadingResponse:
+      type: object
+      required: [ readingId, reading, isPrimary, displayOrder, pitchAccents, pitchAccentDetails ]
+      properties:
+        readingId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted vocabulary_readings.id; readingId in the Admin vocabulary reading PUT path.
+        reading:
+          type: string
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+          description: From vocabulary_readings. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
+        pitchAccents:
+          type: array
+          description: Existing learner representation; accent patterns only.
+          items:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 65535
+        pitchAccentDetails:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardPitchAccentResponse'
+    FlashcardMeaningResponse:
+      type: object
+      required: [ meaningId, languageCode, meaning, isPrimary, displayOrder ]
+      properties:
+        meaningId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted vocabulary_meanings.id; meaningId in the Admin meaning PUT path.
+        languageCode:
+          type: string
+          description: Map to language in the Admin meaning request.
+        meaning:
+          type: string
+        isPrimary:
+          type: boolean
+        displayOrder:
+          type: integer
+          format: int32
+          description: From vocabulary_meanings. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
+    FlashcardPitchAccentResponse:
+      type: object
+      required: [ pitchAccentId, accentPattern ]
+      properties:
+        pitchAccentId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted vocabulary_pitch_accents.id; pitchAccentId in the Admin PUT path; the containing reading supplies readingId.
+        accentPattern:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 65535
+    FlashcardLevelResponse:
+      type: object
+      required: [ levelId, code, name, displayOrder ]
+      properties:
+        levelId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted jlpt_levels.id; master-data ID; together with vocabularyId identifies the vocabulary_levels assignment.
+        code:
+          type: string
+        name:
+          type: string
+        displayOrder:
+          type: [ integer, 'null' ]
+          format: int32
+          description: From vocabulary_levels, not jlpt_levels; nullable in the database. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
+    FlashcardLessonResponse:
+      type: object
+      required: [ lessonId, levelCode, levelName, lessonNumber, title, description, displayOrder, assignmentDisplayOrder ]
+      properties:
+        lessonId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted lessons.id; master-data ID; together with vocabularyId identifies the lesson_vocabulary assignment.
+        levelCode:
+          type: string
+        levelName:
+          type: string
+        lessonNumber:
+          type: integer
+          format: int32
+          description: Lesson number within its level.
+        title:
+          type: string
+        description:
+          type: [ string, 'null' ]
+        displayOrder:
+          type: integer
+          format: int32
+          description: Existing lesson master-data order from lessons.display_order; not the editable vocabulary assignment order.
+        assignmentDisplayOrder:
+          type: integer
+          format: int32
+          description: From lesson_vocabulary.display_order (SQL INT, default 0); Admin assignment writes require a positive value.
+    FlashcardPartOfSpeechResponse:
+      type: object
+      required: [ code, nameVi, nameEn ]
+      properties:
+        code:
+          type: string
+        nameVi:
+          type: string
+        nameEn:
+          type: string
+    FlashcardExampleResponse:
+      type: object
+      required: [ exampleId, japaneseText, japaneseReading, meaningVi, meaningEn, targetText, displayOrder ]
+      properties:
+        exampleId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted example_sentences.id; exampleId in the Admin PUT path, scoped by the vocabulary_examples association. Shared sentence content restrictions still apply.
+        japaneseText:
+          type: string
+        japaneseReading:
+          type: string
+        meaningVi:
+          type: string
+        meaningEn:
+          type: string
+        targetText:
+          type: string
+        displayOrder:
+          type: integer
+          format: int32
+          description: From vocabulary_examples. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
+    FlashcardKanjiResponse:
+      type: object
+      required: [ kanjiId, character, strokeCount, meaningVi, meaningEn, readings, displayOrder ]
+      properties:
+        kanjiId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted kanji.id; kanjiId in the Admin PUT path, scoped by vocabulary_kanji. Shared metadata restrictions still apply.
+        character:
+          type: string
+        strokeCount:
+          type: [ integer, 'null' ]
+          format: int32
+          description: Persisted stroke count.
+        meaningVi:
+          type: [ string, 'null' ]
+        meaningEn:
+          type: [ string, 'null' ]
+        readings:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardKanjiReadingResponse'
+        displayOrder:
+          type: integer
+          format: int32
+          description: From vocabulary_kanji. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
+    FlashcardKanjiReadingResponse:
+      type: object
+      required: [ kanjiReadingId, reading, readingType, displayOrder ]
+      properties:
+        kanjiReadingId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted kanji_readings.id; readingId in the nested Admin kanji reading PUT path, not a vocabulary reading ID. Shared kanji restrictions still apply.
+        reading:
+          type: string
+        readingType:
+          type: string
+        displayOrder:
+          type: integer
+          format: int32
+          description: From kanji_readings. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
     AssignmentOrderUpdateRequest:
       type: object
       description: Assignment order only. Levels accept zero; lesson updates require at least 1.
-      required: [displayOrder]
+      required: [ displayOrder ]
       properties:
         displayOrder:
           type: integer
@@ -1069,7 +1339,7 @@ components:
           minimum: 0
     KanjiReadingUpdateRequest:
       type: object
-      required: [reading, readingType, displayOrder]
+      required: [ reading, readingType, displayOrder ]
       properties:
         reading:
           type: string
@@ -1087,7 +1357,7 @@ components:
           minimum: 0
     KanjiUpdateRequest:
       type: object
-      required: [character, displayOrder]
+      required: [ character, displayOrder ]
       properties:
         character:
           type: string
@@ -1095,17 +1365,17 @@ components:
           description: Must contain a non-whitespace character (Jakarta NotBlank).
           maxLength: 10
         strokeCount:
-          type: [integer, "null"]
+          type: [ integer, "null" ]
           format: int32
           description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
           minimum: 0
           maximum: 65535
         meaningVi:
-          type: [string, "null"]
+          type: [ string, "null" ]
           description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
           maxLength: 500
         meaningEn:
-          type: [string, "null"]
+          type: [ string, "null" ]
           description: Optional; omitted or null clears this metadata on update. Must match existing metadata when attaching existing kanji.
           maxLength: 500
         displayOrder:
@@ -1114,7 +1384,7 @@ components:
           minimum: 0
     LessonAssignmentAddRequest:
       type: object
-      required: [lessonId, displayOrder]
+      required: [ lessonId, displayOrder ]
       properties:
         lessonId:
           type: integer
@@ -1126,7 +1396,7 @@ components:
           minimum: 1
     LevelAssignmentAddRequest:
       type: object
-      required: [level, displayOrder]
+      required: [ level, displayOrder ]
       properties:
         level:
           type: string
@@ -1139,7 +1409,7 @@ components:
           minimum: 0
     PartOfSpeechAssignmentAddRequest:
       type: object
-      required: [code]
+      required: [ code ]
       properties:
         code:
           type: string
@@ -1148,7 +1418,7 @@ components:
           maxLength: 50
     VocabularyCoreUpdateRequest:
       type: object
-      required: [word, normalizedWord]
+      required: [ word, normalizedWord ]
       properties:
         word:
           type: string
@@ -1162,7 +1432,7 @@ components:
           maxLength: 100
     VocabularyExampleUpdateRequest:
       type: object
-      required: [japaneseText, japaneseReading, meaningVi, meaningEn, targetText, displayOrder]
+      required: [ japaneseText, japaneseReading, meaningVi, meaningEn, targetText, displayOrder ]
       properties:
         japaneseText:
           type: string
@@ -1195,11 +1465,11 @@ components:
           minimum: 0
     VocabularyMeaningUpdateRequest:
       type: object
-      required: [language, meaning, isPrimary, displayOrder]
+      required: [ language, meaning, isPrimary, displayOrder ]
       properties:
         language:
           type: string
-          enum: [vi, en]
+          enum: [ vi, en ]
           pattern: '^(vi|en)$'
         meaning:
           type: string
@@ -1214,7 +1484,7 @@ components:
           minimum: 0
     VocabularyPitchAccentUpdateRequest:
       type: object
-      required: [readingId, accentPattern]
+      required: [ readingId, accentPattern ]
       properties:
         readingId:
           type: integer
@@ -1227,7 +1497,7 @@ components:
           maximum: 65535
     VocabularyReadingUpdateRequest:
       type: object
-      required: [reading, isPrimary, displayOrder]
+      required: [ reading, isPrimary, displayOrder ]
       properties:
         reading:
           type: string
@@ -1256,7 +1526,7 @@ components:
           format: int32
     ResponseMeta:
       type: object
-      required: [timestamp, traceId, correlationId]
+      required: [ timestamp, traceId, correlationId ]
       description: Response timestamp and request identifiers are nested here, not at the envelope root.
       properties:
         timestamp:
@@ -1268,7 +1538,7 @@ components:
           type: string
     AdminEditResponse:
       type: object
-      required: [success, meta]
+      required: [ success, meta ]
       description: Successful edit envelope. data is the operation-specific result; error is omitted.
       properties:
         success:
@@ -1348,7 +1618,7 @@ components:
           format: int64
     AdminEditErrorResponse:
       type: object
-      required: [success, error, meta]
+      required: [ success, error, meta ]
       description: Error envelope. data is omitted. Validation details may be empty; clients must not assume field details for every 400.
       properties:
         success:
@@ -1356,7 +1626,7 @@ components:
           const: false
         error:
           type: object
-          required: [code, message, details]
+          required: [ code, message, details ]
           properties:
             code:
               type: string
@@ -1367,7 +1637,7 @@ components:
               description: Empty for DTO validation, authentication, authorization, not-found and conflict errors. Service validation may supply field and message entries.
               items:
                 type: object
-                required: [field, message]
+                required: [ field, message ]
                 properties:
                   field:
                     type: string

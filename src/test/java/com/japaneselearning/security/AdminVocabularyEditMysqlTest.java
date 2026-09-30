@@ -826,6 +826,105 @@ class AdminVocabularyEditMysqlTest {
                                 + "'"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "readings", "meanings", "pitch-accents", "levels", "lessons",
+            "examples", "kanji", "kanji-readings"
+    })
+    void flashcardDetailExposesPersistedIdentityAndEditableState(String section) throws Exception {
+        String path = sectionPath(section);
+        Map<String, Object> firstRequest = new HashMap<>(requestForSection(section, 1));
+        Map<String, Object> secondRequest = new HashMap<>(requestForSection(section, 2));
+        if (firstRequest.containsKey("displayOrder")) {
+            firstRequest.put("displayOrder", 17);
+            secondRequest.put("displayOrder", 6);
+        }
+        List<Map<String, Object>> added = sendAdminRequest(
+                "POST", vocabularyId, path, List.of(firstRequest, secondRequest))
+                .statusCode(200).extract().jsonPath().getList("data");
+        String idField = resultIdField(section);
+        long firstId = ((Number) added.get(0).get(idField)).longValue();
+        long secondId = ((Number) added.get(1).get(idField)).longValue();
+
+        var detail = given().auth().oauth2(new JwtTestTokens(signingKey).token("User"))
+                .get("/api/v1/flashcards/" + vocabularyId)
+                .then().statusCode(200)
+                .body("data.vocabulary.id", equalTo((int) vocabularyId))
+                .extract().jsonPath();
+        String collection = switch (section) {
+            case "pitch-accents" -> "readings.find { it.readingId == " + readingId + " }.pitchAccentDetails";
+            case "kanji-readings" -> "kanji.find { it.kanjiId == " + kanjiId + " }.readings";
+            default -> section;
+        };
+        List<Map<String, Object>> children = detail.getList("data." + collection);
+        for (int index = 0; index < added.size(); index++) {
+            long expectedId = index == 0 ? firstId : secondId;
+            Map<String, Object> request = index == 0 ? firstRequest : secondRequest;
+            Map<String, Object> child = children.stream()
+                    .filter(item -> ((Number) item.get(idField)).longValue() == expectedId)
+                    .findFirst().orElseThrow();
+            assertEquals(1, queryLong(detailIdentityCountQuery(section, expectedId)));
+            request.forEach((field, value) -> {
+                String responseField = switch (field) {
+                    case "language" -> "languageCode";
+                    case "level" -> "code";
+                    case "displayOrder" -> section.equals("lessons") ? "assignmentDisplayOrder" : field;
+                    default -> field;
+                };
+                if (!field.equals("readingId")) {
+                    assertEquals(value.toString(), child.get(responseField).toString(), section + "." + field);
+                }
+            });
+            if (section.equals("lessons")) {
+                assertEquals(queryLong("SELECT display_order FROM lessons WHERE id=" + expectedId),
+                        ((Number) child.get("displayOrder")).longValue());
+            }
+        }
+        if (List.of("readings", "meanings", "levels", "examples", "kanji", "kanji-readings").contains(section)) {
+            assertEquals(List.of(secondId, firstId), children.stream()
+                    .map(child -> ((Number) child.get(idField)).longValue())
+                    .filter(id -> id == firstId || id == secondId).toList());
+        }
+        if (section.equals("pitch-accents")) {
+            assertEquals(List.of(1, 2), detail.getList(
+                    "data.readings.find { it.readingId == " + readingId + " }.pitchAccents"));
+        }
+        long returnedId = ((Number) children.stream()
+                .filter(child -> ((Number) child.get(idField)).longValue() == secondId)
+                .findFirst().orElseThrow().get(idField)).longValue();
+        Map<String, Object> update = List.of("levels", "lessons").contains(section)
+                ? Map.of("displayOrder", 6) : secondRequest;
+        sendAdminRequest("PUT", vocabularyId, path + "/" + returnedId, update).statusCode(200);
+    }
+
+    private String detailIdentityCountQuery(String section, long id) {
+        String table = switch (section) {
+            case "readings" -> "vocabulary_readings";
+            case "meanings" -> "vocabulary_meanings";
+            case "pitch-accents" -> "vocabulary_pitch_accents";
+            case "levels" -> "vocabulary_levels";
+            case "lessons" -> "lesson_vocabulary";
+            case "examples" -> "vocabulary_examples";
+            case "kanji" -> "vocabulary_kanji";
+            case "kanji-readings" -> "kanji_readings";
+            default -> throw new IllegalArgumentException(section);
+        };
+        String idColumn = switch (section) {
+            case "levels" -> "level_id";
+            case "lessons" -> "lesson_id";
+            case "examples" -> "example_sentence_id";
+            case "kanji" -> "kanji_id";
+            default -> "id";
+        };
+        String parentCondition = switch (section) {
+            case "pitch-accents" -> "vocabulary_reading_id=" + readingId;
+            case "kanji-readings" -> "kanji_id=" + kanjiId;
+            default -> "vocabulary_id=" + vocabularyId;
+        };
+        return "SELECT COUNT(*) FROM " + table + " WHERE " + idColumn + "=" + id
+                + " AND " + parentCondition;
+    }
+
     private String resultIdField(String section) {
         return switch (section) {
             case "readings" -> "readingId";

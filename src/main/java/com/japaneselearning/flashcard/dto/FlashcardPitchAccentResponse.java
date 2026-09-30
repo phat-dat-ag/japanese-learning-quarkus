@@ -1,6 +1,7 @@
 package com.japaneselearning.flashcard.dto;
 
 public record FlashcardPitchAccentResponse(
-        int pattern
+        Long pitchAccentId,
+        Integer accentPattern
 ) {
 }

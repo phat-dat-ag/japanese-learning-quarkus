@@ -19,6 +19,15 @@ import java.util.List;
 @ApplicationScoped
 public class FlashcardRepository {
 
+    public record LevelDetail(JlptLevel level, Integer displayOrder) {
+    }
+
+    public record LessonDetail(Lesson lesson, Integer assignmentDisplayOrder) {
+    }
+
+    public record KanjiDetail(Kanji kanji, Integer displayOrder) {
+    }
+
     public Uni<List<Vocabulary>> findVocabulary(
             String levelCode,
             Integer lessonNumber,
@@ -151,52 +160,61 @@ public class FlashcardRepository {
                 );
     }
 
-    public Uni<List<JlptLevel>> findLevels(Long vocabularyId) {
+    public Uni<List<LevelDetail>> findLevels(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
                         session.createQuery("""
-                                        SELECT l
+                                        SELECT l, vl.displayOrder
                                         FROM VocabularyLevel vl
                                         JOIN JlptLevel l ON l.id = vl.levelId
                                         WHERE vl.vocabularyId = :vocabularyId
                                         ORDER BY vl.displayOrder ASC, l.displayOrder ASC
-                                        """, JlptLevel.class)
+                                        """, Object[].class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
+                                .map(rows -> rows.stream()
+                                        .map(row -> new LevelDetail((JlptLevel) row[0], (Integer) row[1]))
+                                        .toList())
                 );
     }
 
-    public Uni<List<Lesson>> findLessons(Long vocabularyId) {
+    public Uni<List<LessonDetail>> findLessons(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
                         session.createQuery("""
-                                        SELECT l
+                                        SELECT l, lv.displayOrder
                                         FROM LessonVocabulary lv
                                         JOIN Lesson l ON l.id = lv.lessonId
                                         JOIN FETCH l.level jl
                                         WHERE lv.vocabularyId = :vocabularyId
                                         ORDER BY jl.displayOrder ASC, l.displayOrder ASC
-                                        """, Lesson.class)
+                                        """, Object[].class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
+                                .map(rows -> rows.stream()
+                                        .map(row -> new LessonDetail((Lesson) row[0], (Integer) row[1]))
+                                        .toList())
                 );
     }
 
-    public Uni<List<Kanji>> findKanji(Long vocabularyId) {
+    public Uni<List<KanjiDetail>> findKanji(Long vocabularyId) {
 
         return Panache.getSession()
                 .flatMap(session ->
                         session.createQuery("""
-                                        SELECT k
+                                        SELECT k, vk.displayOrder
                                         FROM VocabularyKanji vk
                                         JOIN Kanji k ON k.id = vk.kanjiId
                                         WHERE vk.vocabularyId = :vocabularyId
                                         ORDER BY vk.displayOrder ASC, k.id ASC
-                                        """, Kanji.class)
+                                        """, Object[].class)
                                 .setParameter("vocabularyId", vocabularyId)
                                 .getResultList()
+                                .map(rows -> rows.stream()
+                                        .map(row -> new KanjiDetail((Kanji) row[0], (Integer) row[1]))
+                                        .toList())
                 );
     }
 

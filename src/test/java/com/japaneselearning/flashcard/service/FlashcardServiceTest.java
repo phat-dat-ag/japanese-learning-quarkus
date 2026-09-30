@@ -13,6 +13,10 @@ import com.japaneselearning.flashcard.dto.FlashcardLevelResponse;
 import com.japaneselearning.flashcard.dto.FlashcardMeaningResponse;
 import com.japaneselearning.flashcard.dto.FlashcardPartOfSpeechResponse;
 import com.japaneselearning.flashcard.dto.FlashcardReadingResponse;
+import com.japaneselearning.flashcard.dto.FlashcardPitchAccentResponse;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.LevelDetail;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.LessonDetail;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.KanjiDetail;
 import com.japaneselearning.flashcard.repository.FlashcardRepository;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.entity.VocabularyReading;
@@ -53,25 +57,41 @@ class FlashcardServiceTest {
         firstReading.id = 11L;
         firstReading.reading = "first";
         firstReading.isPrimary = true;
+        firstReading.displayOrder = 3;
         VocabularyReading secondReading = new VocabularyReading();
-        secondReading.id = 12L;
+        secondReading.id = 7L;
         secondReading.reading = "second";
         secondReading.isPrimary = false;
+        secondReading.displayOrder = 9;
         repository.readings = List.of(firstReading, secondReading);
 
         VocabularyPitchAccent firstAccent = new VocabularyPitchAccent();
+        firstAccent.id = 91L;
         firstAccent.vocabularyReadingId = 11L;
         firstAccent.accentPattern = 0;
         VocabularyPitchAccent secondAccent = new VocabularyPitchAccent();
+        secondAccent.id = 83L;
         secondAccent.vocabularyReadingId = 11L;
         secondAccent.accentPattern = 2;
-        repository.pitchAccents = List.of(firstAccent, secondAccent);
+        VocabularyPitchAccent otherAccent = new VocabularyPitchAccent();
+        otherAccent.id = 107L;
+        otherAccent.vocabularyReadingId = 7L;
+        otherAccent.accentPattern = 2;
+        repository.pitchAccents = List.of(otherAccent, firstAccent, secondAccent);
 
         VocabularyMeaning meaning = new VocabularyMeaning();
+        meaning.id = 71L;
+        meaning.displayOrder = 4;
         meaning.languageCode = "en";
         meaning.meaning = "meaning";
         meaning.isPrimary = true;
-        repository.meanings = List.of(meaning);
+        VocabularyMeaning otherMeaning = new VocabularyMeaning();
+        otherMeaning.id = 63L;
+        otherMeaning.languageCode = "vi";
+        otherMeaning.meaning = "meaning";
+        otherMeaning.isPrimary = false;
+        otherMeaning.displayOrder = 8;
+        repository.meanings = List.of(meaning, otherMeaning);
 
         PartOfSpeech pos = new PartOfSpeech();
         pos.code = "noun";
@@ -80,20 +100,22 @@ class FlashcardServiceTest {
         repository.partsOfSpeech = List.of(pos);
 
         JlptLevel level = new JlptLevel();
+        level.id = 5L;
         level.code = "N5";
         level.name = "Level N5";
-        repository.levels = List.of(level);
+        repository.levels = List.of(new LevelDetail(level, null));
 
         JlptLevel lessonLevel = new JlptLevel();
         lessonLevel.code = "N4";
         lessonLevel.name = "Level N4";
         Lesson lesson = new Lesson();
+        lesson.id = 35L;
         lesson.level = lessonLevel;
         lesson.lessonNumber = 3;
         lesson.title = "Lesson";
         lesson.description = null;
         lesson.displayOrder = 7;
-        repository.lessons = List.of(lesson);
+        repository.lessons = List.of(new LessonDetail(lesson, 19));
 
         Kanji firstKanji = new Kanji();
         firstKanji.id = 21L;
@@ -105,9 +127,11 @@ class FlashcardServiceTest {
         secondKanji.id = 22L;
         secondKanji.character = "second-kanji";
         secondKanji.strokeCount = 4;
-        repository.kanji = List.of(firstKanji, secondKanji);
+        repository.kanji = List.of(new KanjiDetail(firstKanji, 4), new KanjiDetail(secondKanji, 10));
 
         KanjiReading kanjiReading = new KanjiReading();
+        kanjiReading.id = 57L;
+        kanjiReading.displayOrder = 6;
         kanjiReading.kanjiId = 22L;
         kanjiReading.reading = "kanji-reading";
         kanjiReading.readingType = "on";
@@ -119,6 +143,8 @@ class FlashcardServiceTest {
         sentence.meaningVi = "sentence-vi";
         sentence.meaningEn = "sentence-en";
         VocabularyExample example = new VocabularyExample();
+        example.exampleSentenceId = 101L;
+        example.displayOrder = 12;
         example.exampleSentence = sentence;
         example.targetText = "target";
         repository.examples = List.of(example);
@@ -129,27 +155,30 @@ class FlashcardServiceTest {
         assertEquals(new FlashcardDetailResponse(
                 new VocabularyResponse(42L, "word", "normalized-word"),
                 List.of(
-                        new FlashcardReadingResponse("first", true, List.of(0, 2)),
-                        new FlashcardReadingResponse("second", false, List.of())
+                        new FlashcardReadingResponse(11L, "first", true, 3, List.of(0, 2), List.of(
+                                new FlashcardPitchAccentResponse(91L, 0), new FlashcardPitchAccentResponse(83L, 2))),
+                        new FlashcardReadingResponse(7L, "second", false, 9, List.of(2),
+                                List.of(new FlashcardPitchAccentResponse(107L, 2)))
                 ),
-                List.of(new FlashcardMeaningResponse("en", "meaning", true)),
+                List.of(new FlashcardMeaningResponse(71L, "en", "meaning", true, 4),
+                        new FlashcardMeaningResponse(63L, "vi", "meaning", false, 8)),
                 List.of(new FlashcardPartOfSpeechResponse("noun", "noun-vi", "noun-en")),
-                List.of(new FlashcardLevelResponse("N5", "Level N5")),
-                List.of(new FlashcardLessonResponse("N4", "Level N4", 3, "Lesson", null, 7)),
+                List.of(new FlashcardLevelResponse(5L, "N5", "Level N5", null)),
+                List.of(new FlashcardLessonResponse(35L, "N4", "Level N4", 3, "Lesson", null, 7, 19)),
                 List.of(
                         new FlashcardKanjiResponse(
-                                "first-kanji", null, "kanji-vi", "kanji-en", List.of()
+                                21L, "first-kanji", null, "kanji-vi", "kanji-en", List.of(), 4
                         ),
                         new FlashcardKanjiResponse(
-                                "second-kanji", 4, null, null,
-                                List.of(new FlashcardKanjiReadingResponse("kanji-reading", "on"))
+                                22L, "second-kanji", 4, null, null,
+                                List.of(new FlashcardKanjiReadingResponse(57L, "kanji-reading", "on", 6)), 10
                         )
                 ),
                 List.of(new FlashcardExampleResponse(
-                        "sentence", "sentence-reading", "sentence-vi", "sentence-en", "target"
+                        101L, "sentence", "sentence-reading", "sentence-vi", "sentence-en", "target", 12
                 ))
         ), response);
-        assertEquals(List.of(11L, 12L), repository.requestedReadingIds);
+        assertEquals(List.of(11L, 7L), repository.requestedReadingIds);
         assertEquals(List.of(21L, 22L), repository.requestedKanjiIds);
     }
 
@@ -221,7 +250,7 @@ class FlashcardServiceTest {
         CompletableFuture<FlashcardDetailResponse> second = detail.subscribeAsCompletionStage();
 
         VocabularyReading secondReading = new VocabularyReading();
-        secondReading.id = 12L;
+        secondReading.id = 7L;
         secondReading.reading = "second";
         secondReadings.complete(List.of(secondReading));
 
@@ -252,9 +281,9 @@ class FlashcardServiceTest {
         List<VocabularyReading> readings = List.of();
         List<VocabularyMeaning> meanings = List.of();
         List<PartOfSpeech> partsOfSpeech = List.of();
-        List<JlptLevel> levels = List.of();
-        List<Lesson> lessons = List.of();
-        List<Kanji> kanji = List.of();
+        List<LevelDetail> levels = List.of();
+        List<LessonDetail> lessons = List.of();
+        List<KanjiDetail> kanji = List.of();
         List<VocabularyExample> examples = List.of();
         List<VocabularyPitchAccent> pitchAccents = List.of();
         List<KanjiReading> kanjiReadings = List.of();
@@ -287,21 +316,21 @@ class FlashcardServiceTest {
         }
 
         @Override
-        public Uni<List<JlptLevel>> findLevels(Long vocabularyId) {
+        public Uni<List<LevelDetail>> findLevels(Long vocabularyId) {
             assertEquals(42L, vocabularyId);
             relationCalls++;
             return Uni.createFrom().deferred(() -> Uni.createFrom().item(levels));
         }
 
         @Override
-        public Uni<List<Lesson>> findLessons(Long vocabularyId) {
+        public Uni<List<LessonDetail>> findLessons(Long vocabularyId) {
             assertEquals(42L, vocabularyId);
             relationCalls++;
             return Uni.createFrom().deferred(() -> Uni.createFrom().item(lessons));
         }
 
         @Override
-        public Uni<List<Kanji>> findKanji(Long vocabularyId) {
+        public Uni<List<KanjiDetail>> findKanji(Long vocabularyId) {
             assertEquals(42L, vocabularyId);
             relationCalls++;
             return Uni.createFrom().deferred(() -> Uni.createFrom().item(kanji));

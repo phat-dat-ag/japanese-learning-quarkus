@@ -8,12 +8,13 @@ import com.japaneselearning.flashcard.dto.FlashcardLessonResponse;
 import com.japaneselearning.flashcard.dto.FlashcardLevelResponse;
 import com.japaneselearning.flashcard.dto.FlashcardMeaningResponse;
 import com.japaneselearning.flashcard.dto.FlashcardPartOfSpeechResponse;
+import com.japaneselearning.flashcard.dto.FlashcardPitchAccentResponse;
 import com.japaneselearning.flashcard.dto.FlashcardReadingResponse;
 import com.japaneselearning.flashcard.dto.VocabularyResponse;
-import com.japaneselearning.vocabulary.entity.JlptLevel;
-import com.japaneselearning.vocabulary.entity.Kanji;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.KanjiDetail;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.LessonDetail;
+import com.japaneselearning.flashcard.repository.FlashcardRepository.LevelDetail;
 import com.japaneselearning.vocabulary.entity.KanjiReading;
-import com.japaneselearning.vocabulary.entity.Lesson;
 import com.japaneselearning.vocabulary.entity.PartOfSpeech;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.entity.VocabularyExample;
@@ -31,9 +32,9 @@ final class FlashcardDetailAssembler {
     private List<VocabularyReading> readings;
     private List<VocabularyMeaning> meanings;
     private List<PartOfSpeech> partsOfSpeech;
-    private List<JlptLevel> levels;
-    private List<Lesson> lessons;
-    private List<Kanji> kanji;
+    private List<LevelDetail> levels;
+    private List<LessonDetail> lessons;
+    private List<KanjiDetail> kanji;
     private List<VocabularyExample> examples;
     private List<VocabularyPitchAccent> pitchAccents;
     private List<KanjiReading> kanjiReadings;
@@ -51,7 +52,7 @@ final class FlashcardDetailAssembler {
     }
 
     List<Long> kanjiIds() {
-        return kanji.stream().map(character -> character.id).toList();
+        return kanji.stream().map(detail -> detail.kanji().id).toList();
     }
 
     void setReadings(List<VocabularyReading> readings) {
@@ -66,15 +67,15 @@ final class FlashcardDetailAssembler {
         this.partsOfSpeech = partsOfSpeech;
     }
 
-    void setLevels(List<JlptLevel> levels) {
+    void setLevels(List<LevelDetail> levels) {
         this.levels = levels;
     }
 
-    void setLessons(List<Lesson> lessons) {
+    void setLessons(List<LessonDetail> lessons) {
         this.lessons = lessons;
     }
 
-    void setKanji(List<Kanji> kanji) {
+    void setKanji(List<KanjiDetail> kanji) {
         this.kanji = kanji;
     }
 
@@ -91,11 +92,11 @@ final class FlashcardDetailAssembler {
     }
 
     FlashcardDetailResponse build() {
-        Map<Long, List<Integer>> pitchAccentMap = pitchAccents.stream()
+        Map<Long, List<FlashcardPitchAccentResponse>> pitchAccentMap = pitchAccents.stream()
                 .collect(Collectors.groupingBy(
                         accent -> accent.vocabularyReadingId,
                         Collectors.mapping(
-                                accent -> accent.accentPattern,
+                                accent -> new FlashcardPitchAccentResponse(accent.id, accent.accentPattern),
                                 Collectors.toList()
                         )
                 ));
@@ -105,7 +106,7 @@ final class FlashcardDetailAssembler {
                         reading -> reading.kanjiId,
                         Collectors.mapping(
                                 reading -> new FlashcardKanjiReadingResponse(
-                                        reading.reading, reading.readingType
+                                        reading.id, reading.reading, reading.readingType, reading.displayOrder
                                 ),
                                 Collectors.toList()
                         )
@@ -116,40 +117,52 @@ final class FlashcardDetailAssembler {
                         vocabulary.id, vocabulary.word, vocabulary.normalizedWord
                 ),
                 readings.stream().map(reading -> new FlashcardReadingResponse(
+                        reading.id,
                         reading.reading,
                         reading.isPrimary,
+                        reading.displayOrder,
+                        pitchAccentMap.getOrDefault(reading.id, List.of())
+                                .stream()
+                                .map(FlashcardPitchAccentResponse::accentPattern)
+                                .toList(),
                         pitchAccentMap.getOrDefault(reading.id, List.of())
                 )).toList(),
                 meanings.stream().map(meaning -> new FlashcardMeaningResponse(
-                        meaning.languageCode, meaning.meaning, meaning.isPrimary
+                        meaning.id, meaning.languageCode, meaning.meaning, meaning.isPrimary, meaning.displayOrder
                 )).toList(),
                 partsOfSpeech.stream().map(pos -> new FlashcardPartOfSpeechResponse(
                         pos.code, pos.nameVi, pos.nameEn
                 )).toList(),
                 levels.stream().map(level -> new FlashcardLevelResponse(
-                        level.code, level.name
+                        level.level().id, level.level().code, level.level().name, level.displayOrder()
                 )).toList(),
-                lessons.stream().map(lesson -> new FlashcardLessonResponse(
-                        lesson.level.code,
-                        lesson.level.name,
-                        lesson.lessonNumber,
-                        lesson.title,
-                        lesson.description,
-                        lesson.displayOrder
+                lessons.stream().map(detail -> new FlashcardLessonResponse(
+                        detail.lesson().id,
+                        detail.lesson().level.code,
+                        detail.lesson().level.name,
+                        detail.lesson().lessonNumber,
+                        detail.lesson().title,
+                        detail.lesson().description,
+                        detail.lesson().displayOrder,
+                        detail.assignmentDisplayOrder()
                 )).toList(),
-                kanji.stream().map(character -> new FlashcardKanjiResponse(
-                        character.character,
-                        character.strokeCount,
-                        character.meaningVi,
-                        character.meaningEn,
-                        kanjiReadingMap.getOrDefault(character.id, List.of())
+                kanji.stream().map(detail -> new FlashcardKanjiResponse(
+                        detail.kanji().id,
+                        detail.kanji().character,
+                        detail.kanji().strokeCount,
+                        detail.kanji().meaningVi,
+                        detail.kanji().meaningEn,
+                        kanjiReadingMap.getOrDefault(detail.kanji().id, List.of()),
+                        detail.displayOrder()
                 )).toList(),
                 examples.stream().map(example -> new FlashcardExampleResponse(
+                        example.exampleSentenceId,
                         example.exampleSentence.japaneseText,
                         example.exampleSentence.japaneseReading,
                         example.exampleSentence.meaningVi,
                         example.exampleSentence.meaningEn,
-                        example.targetText
+                        example.targetText,
+                        example.displayOrder
                 )).toList()
         );
     }
