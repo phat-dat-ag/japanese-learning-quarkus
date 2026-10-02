@@ -64,6 +64,7 @@ class OpenApiSecurityTest {
         operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}", "put");
         operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings", "post");
         operations.put("/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings/{readingId}", "put");
+        operations.put("/api/v1/lessons/{lessonId}", "put");
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach((path, method) -> {
             Map<?, ?> operation = (Map<?, ?>) paths.get(path).get(method);
