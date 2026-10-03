@@ -164,7 +164,7 @@ class VocabularyBatchApiTest {
         assertEquals("#/components/schemas/VocabularyImportItem", document.getString(
                 operation + ".requestBody.content.'application/json'.schema.items.'$ref'"));
         assertEquals("#/components/schemas/ImportResult", document.getString(
-                operation + ".responses.'200'.content.'application/json'.schema.properties.data.'$ref'"));
+                operation + ".responses.'200'.content.'application/json'.schema.allOf[1].properties.data.'$ref'"));
     }
 
     @ParameterizedTest

@@ -228,6 +228,9 @@ class AdminVocabularySecurityTest {
                             + (method.isAnnotationPresent(Path.class) ? method.getAnnotation(Path.class).value() : "");
                     JsonNode operation = document.path("paths").path(path).path(add ? "post" : "put");
                     assertEquals(method.getName(), operation.path("operationId").asText(), path);
+                    assertEquals(Set.of(resource.getAnnotation(
+                                    org.eclipse.microprofile.openapi.annotations.tags.Tag.class).name()),
+                            strings(operation.path("tags")), path);
                     assertTrue(operation.at("/requestBody/required").asBoolean(), path);
                     JsonNode request = operation.at("/requestBody/content/application~1json/schema");
                     var bodyType = method.getGenericParameterTypes()[method.getParameterCount() - 1];
@@ -319,7 +322,8 @@ class AdminVocabularySecurityTest {
                 assertFalse(operationId.isBlank(), path.getKey());
                 assertFalse(operation.path("summary").asText().isBlank());
                 assertTrue(operation.path("description").asText().contains("Admin"));
-                assertTrue(strings(operation.path("tags")).contains("Admin Vocabulary"));
+                assertEquals(1, operation.path("tags").size());
+                assertFalse(strings(operation.path("tags")).contains("Admin Vocabulary"));
                 assertEquals(1, operation.path("security").size());
                 assertEquals(0, operation.at("/security/0/bearerAuth").size());
                 assertTrue(operation.at("/security/0/bearerAuth").isArray());
@@ -406,7 +410,7 @@ class AdminVocabularySecurityTest {
         }
         assertEquals(Set.of("timestamp", "traceId", "correlationId"), strings(schemas.at("/ResponseMeta/required")));
         assertEquals("date-time", schemas.at("/ResponseMeta/properties/timestamp/format").asText());
-        JsonNode error = schemas.at("/AdminEditErrorResponse/properties/error");
+        JsonNode error = resolve(document, schemas.at("/AdminEditErrorResponse/properties/error"));
         assertEquals(Set.of("code", "message", "details"), strings(error.path("required")));
         assertEquals("array", error.at("/properties/details/type").asText());
         assertEquals(Set.of("field", "message"), strings(error.at("/properties/details/items/required")));
