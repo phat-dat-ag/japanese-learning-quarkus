@@ -60,6 +60,71 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  /api/v1/lessons/batch:
+    post:
+      operationId: createLessons
+      summary: Create lessons independently (Admin only)
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role. Accepts 1 to 100 existing
+        LessonWriteRequest objects. Each item uses single-create validation and business rules.
+        Items are processed sequentially in input order in separate transactions and sessions.
+        A failed item rolls back only itself; successful items remain committed. No existing lesson
+        is overwritten. Duplicate lessonNumber or displayOrder within a level, including earlier
+        successful items in this request, produces LESSON_CONFLICT for that item.
+        HTTP 200 means the batch was processed, even when some or all items failed, consistent with
+        the existing single-create 200 convention. The envelope success is true; inspect each result's
+        success and the summary counts. Indices are zero-based. Item errors include BAD_REQUEST
+        (DTO validation or null item), JLPT_LEVEL_NOT_FOUND, LESSON_CONFLICT, and INTERNAL_SERVER_ERROR
+        (safe generic persistence/unexpected failure). These do not become whole-request HTTP errors.
+        Malformed JSON, values that cannot bind to the DTO, null/empty arrays and arrays exceeding
+        100 items fail the whole request before processing. A disconnected client may not receive
+        results for items already committed; this operation is not an atomic or idempotent retry.
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/LessonWriteRequest'
+            example:
+              - levelId: 1
+                lessonNumber: 1
+                title: Bai 1
+                description: bai co ban cua tieng nhat
+                displayOrder: 1
+              - levelId: 1
+                lessonNumber: 2
+                title: Bai 2
+                description: null
+                displayOrder: 2
+      responses:
+        '200':
+          description: Batch processed (all, some, or no items succeeded). Each success is committed independently.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LessonBatchResponse'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/lessons/{lessonId}:
     put:
       operationId: updateLesson
@@ -1209,6 +1274,63 @@ components:
         format: int64
         minimum: 1
   schemas:
+    LessonBatchResponse:
+      type: object
+      required: [ total, succeeded, failed, results ]
+      properties:
+        total:
+          type: integer
+          minimum: 1
+          maximum: 100
+        succeeded:
+          type: integer
+          minimum: 0
+        failed:
+          type: integer
+          minimum: 0
+        results:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Exactly one result per input item, in input order; succeeded plus failed equals total.
+          items:
+            $ref: '#/components/schemas/LessonBatchResult'
+    LessonBatchResult:
+      type: object
+      required: [ index, success ]
+      description: Success includes lesson; failure includes error. The unused field is omitted.
+      properties:
+        index:
+          type: integer
+          minimum: 0
+          maximum: 99
+          description: Zero-based position in the request array.
+        success:
+          type: boolean
+        lesson:
+          $ref: '#/components/schemas/LessonResponse'
+        error:
+          $ref: '#/components/schemas/ErrorResponse'
+    ErrorResponse:
+      type: object
+      required: [ code, message, details ]
+      properties:
+        code:
+          type: string
+          description: BAD_REQUEST, JLPT_LEVEL_NOT_FOUND, LESSON_CONFLICT or INTERNAL_SERVER_ERROR.
+        message:
+          type: string
+          description: Safe public message without database or internal exception details.
+        details:
+          type: array
+          items:
+            type: object
+            required: [ field, message ]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
     LessonWriteRequest:
       type: object
       required: [ levelId, lessonNumber, title, displayOrder ]
