@@ -2,6 +2,8 @@ package com.japaneselearning.vocabulary.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
+import com.japaneselearning.vocabulary.service.LessonBatchFileReader;
+import com.japaneselearning.vocabulary.service.LessonBatchService;
 import com.japaneselearning.vocabulary.service.LessonService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -21,15 +23,42 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 @Path("/api/v1/lessons")
 @Produces(MediaType.APPLICATION_JSON)
 public class LessonResource extends BaseResource {
 
     private final LessonService lessonService;
+    private final LessonBatchService lessonBatchService;
+    private final LessonBatchFileReader batchFileReader;
 
-    public LessonResource(LessonService lessonService) {
+    public LessonResource(
+            LessonService lessonService,
+            LessonBatchService lessonBatchService,
+            LessonBatchFileReader batchFileReader
+    ) {
         this.lessonService = lessonService;
+        this.lessonBatchService = lessonBatchService;
+        this.batchFileReader = batchFileReader;
+    }
+
+    @POST
+    @Path("/batch")
+    @RolesAllowed("Admin")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Operation(summary = "Create lessons independently (Admin only)")
+    @RequestBody(required = true)
+    public Uni<Response> createLessons(
+            @NotNull
+            @RestForm("file")
+            FileUpload file
+    ) {
+        return batchFileReader
+                .read(file.uploadedFile())
+                .flatMap(lessonBatchService::createLessons)
+                .map(this::success);
     }
 
     @POST
