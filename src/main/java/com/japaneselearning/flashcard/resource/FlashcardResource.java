@@ -13,7 +13,10 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
+@Tag(name = "Flashcards")
 @Path("/api/v1/flashcards")
 @Produces(MediaType.APPLICATION_JSON)
 public class FlashcardResource extends BaseResource {
@@ -27,6 +30,7 @@ public class FlashcardResource extends BaseResource {
     }
 
     @GET
+    @Operation(summary = "List flashcards")
     public Uni<Response> getFlashcards(
             @QueryParam("level") String level,
             @QueryParam("lesson") Integer lesson,
@@ -40,6 +44,7 @@ public class FlashcardResource extends BaseResource {
 
     @GET
     @Path("/{id}")
+    @Operation(summary = "Get vocabulary flashcard detail")
     public Uni<Response> getFlashcard(
             @PathParam("id") Long flashcardId
     ) {

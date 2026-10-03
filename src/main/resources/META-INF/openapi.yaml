@@ -2,21 +2,258 @@ openapi: 3.1.0
 info:
   title: Japanese Learning API
   version: 1.0.0
+  description: >-
+    Authenticated learner queries and Admin editing/import APIs. Supply an Auth Service JWT access token.
+    Role names are case-sensitive. Success responses wrap data with success and meta; errors wrap error
+    with success=false and meta. Null object fields are omitted. Numeric IDs are Java int64 values;
+    Angular clients should avoid precision loss for IDs beyond JavaScript's safe integer range.
 tags:
-  - name: Admin Vocabulary
-    description: Vocabulary editing requires a JWT bearer token with the case-sensitive Admin role. No DELETE operations are provided.
+  - name: Flashcards
+    description: Paged vocabulary cards and detailed learner content. User or Admin role required.
+  - name: JLPT Levels
+    description: JLPT level catalogue. User or Admin role required.
+  - name: Lessons
+    description: Lesson lookup and Admin-only lesson creation, update and file batches.
+  - name: Vocabulary Imports
+    description: Admin-only atomic vocabulary imports from JSON bodies or uploaded files.
+  - name: Admin Vocabulary Core
+    description: Admin-only edits to vocabulary word and normalized identity.
+  - name: Admin Vocabulary Readings
+    description: Admin-only vocabulary readings and primary-reading rules.
+  - name: Admin Vocabulary Meanings
+    description: Admin-only vocabulary meanings and languages.
+  - name: Admin Vocabulary Pitch Accents
+    description: Admin-only pitch accents associated with vocabulary readings.
+  - name: Admin Vocabulary Examples
+    description: Admin-only example sentences and vocabulary-specific example assignments.
+  - name: Admin Vocabulary Assignments
+    description: Admin-only JLPT level, lesson and part-of-speech assignments.
+  - name: Admin Vocabulary Kanji
+    description: Admin-only kanji assignments, metadata and nested kanji readings.
 security:
   - bearerAuth: [ ]
+# Each tag follows one Resource class. Static schemas supply the typed data hidden by Uni<Response>.
 paths:
+  /api/v1/flashcards:
+    get:
+      operationId: getFlashcards
+      summary: List flashcards
+      tags: [ Flashcards ]
+      description: >-
+        Requires the User or Admin role. Lists vocabulary IDs and words for a JLPT level, optionally
+        filtered by lesson number within that level. Pagination is zero-based; page multiplied by size
+        must not exceed 2147483647. An unmatched filter or page beyond the result set returns an empty
+        flashcardItems array. Pagination fields are inside data, not meta.
+      parameters:
+        - name: level
+          in: query
+          description: Defaults to N5 when omitted or blank; trimmed and converted to uppercase. Supported codes are N1, N2, N3, N4 and N5.
+          schema:
+            type: string
+            default: N5
+          example: N5
+        - name: lesson
+          in: query
+          description: Optional positive lesson number within the selected level, not a lesson ID.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+        - name: page
+          in: query
+          description: Zero-based page index. The product of page and size must fit a signed 32-bit integer.
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Number of flashcards per page (1-100).
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Successful response; data contains FlashcardListResponse.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/FlashcardListResponse'
+        '400':
+          description: FLASHCARD_VALIDATION_ERROR - invalid level, lesson number or pagination range.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          description: FORBIDDEN - authenticated caller lacks the case-sensitive User or Admin role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '404':
+          description: NOT_FOUND - a lesson, page or size query value cannot be parsed as an integer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  /api/v1/flashcards/{id}:
+    get:
+      tags: [ Flashcards ]
+      operationId: getFlashcard
+      summary: Get vocabulary flashcard detail
+      description: >-
+        Requires the User or Admin role. Includes persisted child IDs for existing Admin update operations. IDs do not grant
+        write access or change shared example and kanji restrictions. Existing learner fields
+        are preserved, including the integer pitchAccents array.
+      parameters:
+        - name: id
+          description: Positive vocabulary ID returned by the flashcard list.
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Flashcard detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ success, data, meta ]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/FlashcardDetailResponse'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '400':
+          description: FLASHCARD_VALIDATION_ERROR - vocabulary ID must be positive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          description: FORBIDDEN - authenticated caller lacks the case-sensitive User or Admin role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '404':
+          description: VOCABULARY_NOT_FOUND - vocabulary does not exist; malformed path values can also return NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  /api/v1/jlpt-levels:
+    get:
+      operationId: getLevels
+      summary: List JLPT levels
+      tags: [ JLPT Levels ]
+      description: Requires the User or Admin role. Returns level codes and names ordered by master-data display order; IDs are not included.
+      responses:
+        '200':
+          description: Successful response; data contains an ordered array of JlptLevelResponse.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JlptLevelResponse'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          description: FORBIDDEN - authenticated caller lacks the case-sensitive User or Admin role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/lessons:
+    get:
+      operationId: getLessons
+      summary: List lessons by JLPT level
+      tags: [ Lessons ]
+      description: Requires the User or Admin role. Trims the level code and looks up the existing level. Returns lessons ordered by display order, or an empty array when that level has no lessons.
+      parameters:
+        - name: level
+          in: query
+          required: true
+          description: Existing JLPT level code; must contain a non-whitespace character. Leading and trailing whitespace is trimmed.
+          schema:
+            type: string
+            minLength: 1
+          example: N5
+      responses:
+        '200':
+          description: Successful response; data contains an ordered array of LessonResponse.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LessonResponse'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '404':
+          description: JLPT_LEVEL_NOT_FOUND - the requested JLPT level does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          description: FORBIDDEN - authenticated caller lacks the case-sensitive User or Admin role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
     post:
+      tags: [ Lessons ]
       operationId: createLesson
       summary: Create a lesson
       description: >-
         Requires a JWT bearer token with the case-sensitive Admin role. Writes all mutable lesson
         fields atomically. levelId must reference an existing JLPT level. Lesson number and display
-        order must each be unique within that level. Omitted or null description clears it.
-        Vocabulary assignments are preserved. Returns the existing lesson representation.
+        order must each be unique within that level. Omitted or null description leaves the new lesson without a description.
+        Returns the created lesson representation.
       security:
         - bearerAuth: [ ]
       requestBody:
@@ -60,8 +297,72 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  /api/v1/lessons/{lessonId}:
+    put:
+      tags: [ Lessons ]
+      operationId: updateLesson
+      summary: Update a lesson
+      description: >-
+        Requires a JWT bearer token with the case-sensitive Admin role. Writes all mutable lesson
+        fields atomically. levelId must reference an existing JLPT level. Lesson number and display
+        order must each be unique within that level. Omitted or null description clears it.
+        Vocabulary assignments are preserved. Returns the existing lesson representation.
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: lessonId
+          in: path
+          required: true
+          description: Existing lesson ID to update.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+            maximum: 9223372036854775807
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonWriteRequest'
+      responses:
+        '200':
+          description: Lesson saved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LessonResponse'
+        '400':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '404':
+          description: JLPT_LEVEL_NOT_FOUND - referenced level does not exist; RESOURCE_NOT_FOUND - target lesson does not exist; NOT_FOUND - lessonId cannot be parsed as an integer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '409':
+          description: LESSON_CONFLICT - lesson number or display order already exists within the target JLPT level.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/lessons/batch:
     post:
+      tags: [ Lessons ]
       operationId: createLessons
       summary: Create lessons independently (Admin only)
       description: >-
@@ -129,36 +430,34 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
-  /api/v1/lessons/{lessonId}:
-    put:
-      operationId: updateLesson
-      summary: Update a lesson
+  /api/vocabularies:
+    post:
+      operationId: createVocabularies
+      summary: Import a vocabulary batch (Admin only)
+      tags: [ Vocabulary Imports ]
       description: >-
-        Requires a JWT bearer token with the case-sensitive Admin role. Writes all mutable lesson
-        fields atomically. levelId must reference an existing JLPT level. Lesson number and display
-        order must each be unique within that level. Omitted or null description clears it.
-        Vocabulary assignments are preserved. Returns the existing lesson representation.
-      security:
-        - bearerAuth: [ ]
-      parameters:
-        - name: lessonId
-          in: path
-          required: true
-          description: Existing lesson ID to update.
-          schema:
-            type: integer
-            format: int64
-            minimum: 1
-            maximum: 9223372036854775807
+        Requires the case-sensitive Admin role. Imports a non-empty JSON array of VocabularyImportItem
+        objects. The configured vocabulary.import.max-batch-size limit defaults to 500; deployments may
+        override it. The whole batch is atomic: any failure rolls back all writes. Duplicate word values
+        in one batch are rejected. Existing vocabulary is matched by normalizedWord and must have identical
+        level and lesson sets; only new examples are appended and existing metadata is preserved.
+        New vocabulary is fully created. updated counts matching existing entries, including unchanged repeats.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LessonWriteRequest'
+              type: array
+              minItems: 1
+              description: Non-null items; maximum count is configured, default 500.
+              items:
+                $ref: '#/components/schemas/VocabularyImportItem'
+            examples:
+              minimal:
+                $ref: '#/components/examples/VocabularyImport'
       responses:
         '200':
-          description: Lesson saved successfully.
+          description: Successful response; data contains ImportResult.
           content:
             application/json:
               schema:
@@ -168,21 +467,19 @@ paths:
                     required: [ data ]
                     properties:
                       data:
-                        $ref: '#/components/schemas/LessonResponse'
+                        $ref: '#/components/schemas/ImportResult'
         '400':
-          $ref: '#/components/responses/AdminEditErrorResponseStatus400'
-        '401':
-          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
-        '403':
-          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
-        '404':
-          description: JLPT_LEVEL_NOT_FOUND - referenced level does not exist; RESOURCE_NOT_FOUND - target lesson does not exist.
+          description: BAD_REQUEST for malformed request data; VALIDATION_ERROR for import validation failures, assignment mismatch, unknown lesson or part of speech, or configured batch limit exceeded.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminEditErrorResponse'
-        '409':
-          description: LESSON_CONFLICT - lesson number or display order already exists within the target JLPT level.
+        '401':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
+        '403':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '413':
+          description: PAYLOAD_TOO_LARGE - request exceeds the configured HTTP body limit.
           content:
             application/json:
               schema:
@@ -191,65 +488,70 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
-  /api/v1/flashcards/{id}:
-    get:
-      operationId: getFlashcard
-      summary: Get vocabulary flashcard detail
-      description: >-
-        Includes persisted child IDs for existing Admin update operations. IDs do not grant
-        write access or change shared example and kanji restrictions. Existing learner fields
-        are preserved, including the integer pitchAccents array.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-            minimum: 1
-      responses:
-        '200':
-          description: Flashcard detail
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ success, data, meta ]
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/FlashcardDetailResponse'
-                  meta:
-                    $ref: '#/components/schemas/ResponseMeta'
-        '400':
-          description: Invalid vocabulary ID
-        '401':
-          description: Bearer token required
-        '404':
-          description: Vocabulary not found
-  /api/vocabularies:
+  /api/vocabularies/import:
     post:
+      operationId: importVocabularies
+      summary: Import a vocabulary file (Admin only)
+      tags: [ Vocabulary Imports ]
+      description: >-
+        Requires the case-sensitive Admin role. Imports a non-empty JSON array of VocabularyImportItem
+        objects. The configured vocabulary.import.max-batch-size limit defaults to 500; deployments may
+        override it. The whole batch is atomic: any failure rolls back all writes. Duplicate word values
+        in one batch are rejected. Existing vocabulary is matched by normalizedWord and must have identical
+        level and lesson sets; only new examples are appended and existing metadata is preserved.
+        New vocabulary is fully created. updated counts matching existing entries, including unchanged repeats.
+        Upload the JSON array as the file part. The filename and part Content-Type do not prove JSON
+        validity; the server parses the content. The HTTP body-size limit is deployment-configured;
+        this endpoint does not use the lesson batch endpoint's 1 MiB file limit.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [ file ]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: >-
+                    JSON file containing a non-empty array of VocabularyImportItem objects (default maximum 500).
+                    Example file content:
+                    [{"word":"猫","normalizedWord":"猫","levels":["N5"],"lessons":[{"level":"N5","lessonNumber":1,"displayOrder":1}],"readings":[{"reading":"ねこ","isPrimary":true}],"meanings":[{"language":"en","meaning":"cat"}],"partsOfSpeech":["noun"],"examples":[{"japaneseText":"猫です。","japaneseReading":"ねこです。","meaningVi":"Con meo.","meaningEn":"It is a cat.","targetText":"猫"}]}]
+                    Referenced lessons and part-of-speech codes must already exist.
       responses:
         '200':
-          description: Batch processed atomically. New vocabulary is fully created; matching existing vocabulary receives only new examples.
+          description: Successful response; data contains ImportResult.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  data:
-                    $ref: '#/components/schemas/ImportResult'
-                  meta:
-                    $ref: '#/components/schemas/ResponseMeta'
+                allOf:
+                  - $ref: '#/components/schemas/AdminEditResponse'
+                  - type: object
+                    required: [ data ]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ImportResult'
         '400':
-          description: Invalid vocabulary batch, assignment mismatch, missing lesson, or configured batch limit exceeded
+          description: BAD_REQUEST for malformed request data; VALIDATION_ERROR for invalid import data, assignment mismatch, unknown lesson or part of speech, or configured batch limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
         '401':
-          description: Bearer token required
+          $ref: '#/components/responses/AdminEditErrorResponseStatus401'
         '403':
-          description: Admin role required
+          $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '413':
+          description: PAYLOAD_TOO_LARGE - request exceeds the configured HTTP body limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
+        '415':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus415'
+        '500':
+          $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/admin/vocabularies/{vocabularyId}:
     put:
       operationId: updateVocabularyCore
@@ -260,7 +562,7 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Only word and normalizedWord
         change. normalizedWord is supplied by the caller; a value belonging to another vocabulary returns
         409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Core ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -308,7 +610,7 @@ paths:
         all additions. Results follow request order. The vocabulary must retain at least one primary reading
         (400 otherwise); multiple primary readings are allowed and other readings are not automatically
         demoted. Duplicate reading text within this vocabulary returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Readings ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -362,7 +664,7 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. The vocabulary must retain at
         least one primary reading (400 otherwise); multiple primary readings are allowed and other readings
         are not automatically demoted. Duplicate reading text within this vocabulary returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Readings ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -411,7 +713,7 @@ paths:
         all additions. Results follow request order. Only vi and en are accepted. Multiple primary meanings,
         or no primary meaning, are allowed; other meanings are not automatically demoted. Duplicate language
         and meaning within this vocabulary returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Meanings ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -465,7 +767,7 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Only vi and en are accepted.
         Multiple primary meanings, or no primary meaning, are allowed; other meanings are not automatically
         demoted. Duplicate language and meaning within this vocabulary returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Meanings ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -513,7 +815,7 @@ paths:
         of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
         all additions. Results follow request order. The body readingId must belong to this vocabulary (404
         otherwise). Duplicate readingId and accentPattern returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Pitch Accents ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -567,7 +869,7 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. The body readingId must belong
         to this vocabulary (404 otherwise). Duplicate readingId and accentPattern returns 409. The accent
         may be moved to another reading of this vocabulary.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Pitch Accents ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -616,7 +918,7 @@ paths:
         all additions. Results follow request order. Duplicate japaneseText, japaneseReading and targetText
         within this vocabulary returns 409. exampleId identifies the example sentence, not a separate
         assignment ID. Creates a new sentence for each item.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Examples ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -672,7 +974,7 @@ paths:
         sentence, not a separate assignment ID. If the sentence is shared with another vocabulary, changes
         to japaneseText, japaneseReading, meaningVi or meaningEn return 409. targetText and displayOrder may
         still change locally.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Examples ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -720,7 +1022,7 @@ paths:
         of 1 to 100 non-null items, even for one item. The entire batch is atomic; any failure rolls back
         all additions. Results follow request order. The level code must already exist (404 otherwise);
         duplicate assignments return 409. Does not create master data.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Assignments ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -774,7 +1076,7 @@ paths:
         must exist and belong to the specified parent; otherwise returns 404. Changes assignment
         displayOrder only, not level master data. levelId is the existing JLPT level ID, not an assignment
         ID. displayOrder may be zero.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Assignments ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -821,7 +1123,7 @@ paths:
         all additions. Results follow request order. The lesson must already exist (404 otherwise), and its
         JLPT level must already be assigned to this vocabulary (400 otherwise). Duplicate assignments return
         409. Does not create master data.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Assignments ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -876,7 +1178,7 @@ paths:
         displayOrder only, not lesson master data. lessonId is the existing lesson ID, not an assignment ID.
         displayOrder must be at least 1; zero returns 400 even though the shared
         AssignmentOrderUpdateRequest DTO permits zero for levels.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Assignments ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -930,7 +1232,7 @@ paths:
         all additions. Results follow request order. The POS code must already exist (404 otherwise);
         duplicate assignments return 409. Does not create master data. These assignments have no update
         fields or update operation.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Assignments ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -986,7 +1288,7 @@ paths:
         metadata is treated as null, not as an instruction to retain its previous value. Creates a kanji if
         the character is new; otherwise attaches existing kanji only when all metadata matches exactly (409
         otherwise). An existing assignment returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Kanji ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -1042,7 +1344,7 @@ paths:
         Omitted or null optional metadata is treated as null, not as an instruction to retain its previous
         value. If shared with another vocabulary, metadata changes return 409, but local displayOrder may
         change. A character belonging to another kanji returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Kanji ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -1091,7 +1393,7 @@ paths:
         all additions. Results follow request order. The kanji must be assigned to this vocabulary (404
         otherwise). Kanji shared with another vocabulary cannot have readings added (409). Duplicate reading
         and readingType within the kanji returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Kanji ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -1148,7 +1450,7 @@ paths:
         which must be assigned to this vocabulary (404 otherwise). Shared kanji cannot have readings
         updated, even with unchanged values (409). Duplicate reading and readingType within the kanji
         returns 409.
-      tags: [ Admin Vocabulary ]
+      tags: [ Admin Vocabulary Kanji ]
       security:
         - bearerAuth: [ ]
       parameters:
@@ -1194,7 +1496,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Send the Auth Service JWT access token in Authorization as Bearer <token>. Admin Vocabulary operations require the case-sensitive Admin value in the role claim.
+      description: Send the Auth Service JWT access token in Authorization as Bearer <token>. Read operations require User or Admin; write operations require the case-sensitive Admin value in the role claim.
   parameters:
     vocabularyId:
       name: vocabularyId
@@ -1278,6 +1580,54 @@ components:
         format: int64
         minimum: 1
   schemas:
+    JlptLevelResponse:
+      type: object
+      required: [ code, name ]
+      properties:
+        code:
+          type: string
+          description: JLPT level code, for example N5. This endpoint does not return a numeric level ID.
+        name:
+          type: string
+          description: Display name of the level.
+    FlashcardListItemResponse:
+      type: object
+      required: [ id, word ]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Vocabulary ID used for flashcard detail and Admin vocabulary operations.
+        word:
+          type: string
+    FlashcardListResponse:
+      type: object
+      required: [ flashcardItems, page, size, totalElements, totalPages ]
+      properties:
+        flashcardItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashcardListItemResponse'
+        page:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Requested zero-based page index.
+        size:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Total matching vocabulary count across all pages.
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Ceiling of totalElements divided by size; zero when no vocabulary matches.
     LessonBatchResponse:
       type: object
       required: [ total, succeeded, failed, results ]
@@ -1321,7 +1671,7 @@ components:
       properties:
         code:
           type: string
-          description: BAD_REQUEST, JLPT_LEVEL_NOT_FOUND, LESSON_CONFLICT or INTERNAL_SERVER_ERROR.
+          description: Stable application error code; see each operation for relevant codes.
         message:
           type: string
           description: Safe public message without database or internal exception details.
@@ -1496,8 +1846,9 @@ components:
           minimum: 0
           maximum: 65535
     FlashcardLevelResponse:
+      description: Nullable fields are omitted from JSON when no value is stored.
       type: object
-      required: [ levelId, code, name, displayOrder ]
+      required: [ levelId, code, name ]
       properties:
         levelId:
           type: integer
@@ -1513,8 +1864,9 @@ components:
           format: int32
           description: From vocabulary_levels, not jlpt_levels; nullable in the database. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
     FlashcardLessonResponse:
+      description: Nullable fields are omitted from JSON when no value is stored.
       type: object
-      required: [ lessonId, levelCode, levelName, lessonNumber, title, description, displayOrder, assignmentDisplayOrder ]
+      required: [ lessonId, levelCode, levelName, lessonNumber, title, displayOrder, assignmentDisplayOrder ]
       properties:
         lessonId:
           type: integer
@@ -1575,8 +1927,9 @@ components:
           format: int32
           description: From vocabulary_examples. Persisted display_order (SQL INT); Admin writes require a nonnegative value.
     FlashcardKanjiResponse:
+      description: Nullable fields are omitted from JSON when no value is stored.
       type: object
-      required: [ kanjiId, character, strokeCount, meaningVi, meaningEn, readings, displayOrder ]
+      required: [ kanjiId, character, readings, displayOrder ]
       properties:
         kanjiId:
           type: integer
@@ -1800,8 +2153,211 @@ components:
           type: integer
           format: int32
           minimum: 0
+    VocabularyImportItem:
+      type: "object"
+      required: [ "word","normalizedWord","levels","lessons","readings","meanings","partsOfSpeech","examples" ]
+      properties:
+        word:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Written vocabulary form. Duplicate word values within one batch are rejected."
+        normalizedWord:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Caller-supplied canonical identity used to find existing vocabulary; the server does not normalize it."
+        levels:
+          type: "array"
+          minItems: 1
+          description: "Required level codes. Existing vocabulary must have exactly the same set."
+          items:
+            type: "string"
+            enum: [ "N1","N2","N3","N4","N5" ]
+        lessons:
+          type: "array"
+          minItems: 1
+          description: "Existing lessons. Duplicate level/lessonNumber pairs are rejected; each level must occur in levels. Existing vocabulary must have exactly this lesson set."
+          items:
+            $ref: "#/components/schemas/LessonImportItem"
+        readings:
+          type: "array"
+          minItems: 1
+          description: "At least one entry must have isPrimary=true. Required and validated even when importing existing vocabulary."
+          items:
+            $ref: "#/components/schemas/VocabularyReadingImportItem"
+        meanings:
+          type: "array"
+          minItems: 1
+          description: "At least one non-null meaning; no primary-meaning requirement."
+          items:
+            $ref: "#/components/schemas/VocabularyMeaningImportItem"
+        partsOfSpeech:
+          type: "array"
+          minItems: 1
+          description: "Nonblank POS codes; codes must exist when creating vocabulary. Existing vocabulary keeps its current assignments."
+          items:
+            type: "string"
+            minLength: 1
+            description: "Must contain a non-whitespace character. Existing part-of-speech code."
+        kanji:
+          type: [ "array","null" ]
+          description: "Optional; omitted, null or empty means no kanji to import. Existing vocabulary metadata is not changed."
+          items:
+            $ref: "#/components/schemas/VocabularyKanjiImportItem"
+        pitchAccents:
+          type: [ "array","null" ]
+          description: "Optional; omitted, null or empty means no accents to import. Existing vocabulary readings and accents are not changed."
+          items:
+            $ref: "#/components/schemas/VocabularyPitchAccentImportItem"
+        examples:
+          type: "array"
+          minItems: 1
+          description: "At least one non-null example. For existing vocabulary only new examples are appended; repeated example identities are skipped."
+          items:
+            $ref: "#/components/schemas/VocabularyExampleImportItem"
+    LessonImportItem:
+      type: "object"
+      required: [ "level","lessonNumber","displayOrder" ]
+      properties:
+        level:
+          type: "string"
+          enum: [ "N1","N2","N3","N4","N5" ]
+          description: "Must be present in the parent levels array."
+        lessonNumber:
+          type: "integer"
+          format: "int32"
+          description: "Existing lesson number within level; not a lesson ID."
+          minimum: 1
+        displayOrder:
+          type: "integer"
+          format: "int32"
+          description: "Vocabulary assignment order within the lesson."
+          minimum: 1
+    VocabularyReadingImportItem:
+      type: "object"
+      required: [ "reading" ]
+      properties:
+        reading:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Vocabulary reading."
+        isPrimary:
+          type: "boolean"
+          default: false
+          description: "Omitted value defaults to false."
+        displayOrder:
+          type: "integer"
+          format: "int32"
+          description: "Omitted value defaults to 0."
+          default: 0
+    VocabularyMeaningImportItem:
+      type: "object"
+      required: [ "language","meaning" ]
+      properties:
+        language:
+          type: "string"
+          enum: [ "vi","en" ]
+          description: "Language code; the flashcard response calls this languageCode."
+        meaning:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Meaning in the selected language."
+        isPrimary:
+          type: "boolean"
+          default: false
+          description: "Omitted value defaults to false."
+        displayOrder:
+          type: "integer"
+          format: "int32"
+          description: "Omitted value defaults to 0."
+          default: 0
+    VocabularyPitchAccentImportItem:
+      type: "object"
+      required: [ "reading" ]
+      properties:
+        reading:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Must identify a vocabulary reading when creating new vocabulary."
+        accentPattern:
+          type: "integer"
+          format: "int32"
+          description: "Pitch accent pattern; omitted value defaults to 0."
+          minimum: 0
+          default: 0
+    VocabularyKanjiImportItem:
+      type: "object"
+      required: [ "character","readings" ]
+      properties:
+        character:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Kanji character."
+        strokeCount:
+          type: [ "integer","null" ]
+          format: "int32"
+          description: "Optional stroke count."
+        meaningVi:
+          type: [ "string","null" ]
+          description: "Optional Vietnamese meaning."
+        meaningEn:
+          type: [ "string","null" ]
+          description: "Optional English meaning."
+        readings:
+          type: "array"
+          minItems: 1
+          description: "At least one non-null reading is required for each supplied kanji."
+          items:
+            $ref: "#/components/schemas/KanjiReadingImportItem"
+    KanjiReadingImportItem:
+      type: "object"
+      required: [ "reading","readingType" ]
+      properties:
+        reading:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Kanji reading."
+        readingType:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Reading type; the import validator does not enforce an enum."
+        displayOrder:
+          type: "integer"
+          format: "int32"
+          description: "Omitted value defaults to 0."
+          default: 0
+    VocabularyExampleImportItem:
+      type: "object"
+      required: [ "japaneseText","japaneseReading","meaningVi","meaningEn","targetText" ]
+      properties:
+        japaneseText:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Japanese sentence."
+        japaneseReading:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Sentence reading."
+        meaningVi:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Vietnamese translation."
+        meaningEn:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. English translation."
+        targetText:
+          type: "string"
+          minLength: 1
+          description: "Must contain a non-whitespace character. Vocabulary-specific target text in the sentence."
+        displayOrder:
+          type: "integer"
+          format: "int32"
+          description: "Omitted value defaults to 0."
+          default: 0
     ImportResult:
       type: object
+      required: [ total, created, updated ]
+      description: created plus updated equals total; the entire batch committed successfully.
       properties:
         total:
           type: integer
@@ -1829,7 +2385,7 @@ components:
     AdminEditResponse:
       type: object
       required: [ success, meta ]
-      description: Successful edit envelope. data is the operation-specific result; error is omitted.
+      description: Common ApiResponse success envelope (legacy schema name). data is the operation-specific result; error is omitted.
       properties:
         success:
           type: boolean
@@ -1915,29 +2471,37 @@ components:
           type: boolean
           const: false
         error:
-          type: object
-          required: [ code, message, details ]
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-            details:
-              type: array
-              description: Empty for DTO validation, authentication, authorization, not-found and conflict errors. Service validation may supply field and message entries.
-              items:
-                type: object
-                required: [ field, message ]
-                properties:
-                  field:
-                    type: string
-                  message:
-                    type: string
+          $ref: '#/components/schemas/ErrorResponse'
         meta:
           $ref: '#/components/schemas/ResponseMeta'
+  examples:
+    VocabularyImport:
+      summary: One vocabulary with required nested data
+      description: Referenced N5 lesson 1 and the noun part-of-speech code must already exist. Optional primitive fields default to false or 0.
+      value:
+        - word: 猫
+          normalizedWord: 猫
+          levels: [ N5 ]
+          lessons:
+            - level: N5
+              lessonNumber: 1
+              displayOrder: 1
+          readings:
+            - reading: ねこ
+              isPrimary: true
+          meanings:
+            - language: en
+              meaning: cat
+          partsOfSpeech: [ noun ]
+          examples:
+            - japaneseText: 猫です。
+              japaneseReading: ねこです。
+              meaningVi: Con meo.
+              meaningEn: It is a cat.
+              targetText: 猫
   responses:
     AdminEditErrorResponseStatus400:
-      description: BAD_REQUEST for malformed JSON, parameter binding or Jakarta input validation (empty details); VALIDATION_ERROR for business validation (field details).
+      description: BAD_REQUEST for malformed JSON or Jakarta input validation (empty details); VALIDATION_ERROR for business validation (field details).
       content:
         application/json:
           schema:
@@ -1955,7 +2519,7 @@ components:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus404:
-      description: RESOURCE_NOT_FOUND - vocabulary, child, assignment or referenced master data does not exist in the required parent relationship
+      description: RESOURCE_NOT_FOUND - vocabulary, child, assignment or referenced master data does not exist in the required parent relationship. NOT_FOUND - a path ID cannot be parsed as an integer.
       content:
         application/json:
           schema:
@@ -1967,7 +2531,7 @@ components:
           schema:
             $ref: '#/components/schemas/AdminEditErrorResponse'
     AdminEditErrorResponseStatus415:
-      description: UNSUPPORTED_MEDIA_TYPE - request Content-Type must be application/json
+      description: UNSUPPORTED_MEDIA_TYPE - request Content-Type must match the media type documented in requestBody
       content:
         application/json:
           schema:

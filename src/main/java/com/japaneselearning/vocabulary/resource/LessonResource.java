@@ -23,9 +23,11 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 
+@Tag(name = "Lessons")
 @Path("/api/v1/lessons")
 @Produces(MediaType.APPLICATION_JSON)
 public class LessonResource extends BaseResource {
@@ -90,6 +92,7 @@ public class LessonResource extends BaseResource {
     }
 
     @GET
+    @Operation(summary = "List lessons by JLPT level")
     public Uni<Response> getLessons(
             @QueryParam("level")
             @NotBlank(message = "Level is required") String level

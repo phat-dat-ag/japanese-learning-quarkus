@@ -21,9 +21,11 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.util.List;
 
+@Tag(name = "Admin Vocabulary Examples")
 @Path("/api/v1/admin/vocabularies/{vocabularyId}")
 @RolesAllowed("Admin")
 @Consumes(MediaType.APPLICATION_JSON)
