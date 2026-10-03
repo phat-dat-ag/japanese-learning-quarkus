@@ -2,6 +2,7 @@ package com.japaneselearning.vocabulary.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
+import com.japaneselearning.vocabulary.service.LessonBatchFileReader;
 import com.japaneselearning.vocabulary.service.LessonBatchService;
 import com.japaneselearning.vocabulary.service.LessonService;
 import io.smallrye.mutiny.Uni;
@@ -10,7 +11,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -23,8 +23,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
-
-import java.util.List;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 @Path("/api/v1/lessons")
 @Produces(MediaType.APPLICATION_JSON)
@@ -32,24 +32,33 @@ public class LessonResource extends BaseResource {
 
     private final LessonService lessonService;
     private final LessonBatchService lessonBatchService;
+    private final LessonBatchFileReader batchFileReader;
 
-    public LessonResource(LessonService lessonService, LessonBatchService lessonBatchService) {
+    public LessonResource(
+            LessonService lessonService,
+            LessonBatchService lessonBatchService,
+            LessonBatchFileReader batchFileReader
+    ) {
         this.lessonService = lessonService;
         this.lessonBatchService = lessonBatchService;
+        this.batchFileReader = batchFileReader;
     }
 
     @POST
     @Path("/batch")
     @RolesAllowed("Admin")
-    @Consumes(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Operation(summary = "Create lessons independently (Admin only)")
     @RequestBody(required = true)
     public Uni<Response> createLessons(
             @NotNull
-            @Size(min = 1, max = LessonBatchService.MAX_BATCH_SIZE)
-            List<LessonWriteRequest> requests
+            @RestForm("file")
+            FileUpload file
     ) {
-        return lessonBatchService.createLessons(requests).map(this::success);
+        return batchFileReader
+                .read(file.uploadedFile())
+                .flatMap(lessonBatchService::createLessons)
+                .map(this::success);
     }
 
     @POST

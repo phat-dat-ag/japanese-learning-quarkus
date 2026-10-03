@@ -65,8 +65,11 @@ paths:
       operationId: createLessons
       summary: Create lessons independently (Admin only)
       description: >-
-        Requires a JWT bearer token with the case-sensitive Admin role. Accepts 1 to 100 existing
-        LessonWriteRequest objects. Each item uses single-create validation and business rules.
+        Requires a JWT bearer token with the case-sensitive Admin role.
+        Accepts one multipart file field named file (maximum 1 MiB / 1048576 bytes),
+        containing a JSON array of 1 to 100 LessonWriteRequest objects. Filename and part Content-Type
+        are not used to validate JSON; actual parsing is authoritative.
+        Each item uses single-create validation and business rules.
         Items are processed sequentially in input order in separate transactions and sessions.
         A failed item rolls back only itself; successful items remain committed. No existing lesson
         is overwritten. Duplicate lessonNumber or displayOrder within a level, including earlier
@@ -76,7 +79,7 @@ paths:
         success and the summary counts. Indices are zero-based. Item errors include BAD_REQUEST
         (DTO validation or null item), JLPT_LEVEL_NOT_FOUND, LESSON_CONFLICT, and INTERNAL_SERVER_ERROR
         (safe generic persistence/unexpected failure). These do not become whole-request HTTP errors.
-        Malformed JSON, values that cannot bind to the DTO, null/empty arrays and arrays exceeding
+        Missing or empty files, non-array or malformed JSON (including trailing content), values that cannot bind to the DTO, null/empty arrays and arrays exceeding
         100 items fail the whole request before processing. A disconnected client may not receive
         results for items already committed; this operation is not an atomic or idempotent retry.
       security:
@@ -84,24 +87,19 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              type: array
-              minItems: 1
-              maxItems: 100
-              items:
-                $ref: '#/components/schemas/LessonWriteRequest'
-            example:
-              - levelId: 1
-                lessonNumber: 1
-                title: Bai 1
-                description: bai co ban cua tieng nhat
-                displayOrder: 1
-              - levelId: 1
-                lessonNumber: 2
-                title: Bai 2
-                description: null
-                displayOrder: 2
+              type: object
+              required: [ file ]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: >-
+                    JSON file, at most 1048576 bytes, containing an array of 1-100 LessonWriteRequest objects.
+                    Example file content:
+                    [{"levelId":1,"lessonNumber":1,"title":"Bai 1","description":null,"displayOrder":1},
+                    {"levelId":1,"lessonNumber":2,"title":"Bai 2","description":null,"displayOrder":2}]
       responses:
         '200':
           description: Batch processed (all, some, or no items succeeded). Each success is committed independently.
@@ -121,6 +119,12 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus401'
         '403':
           $ref: '#/components/responses/AdminEditErrorResponseStatus403'
+        '413':
+          description: Uploaded file exceeds 1 MiB (1048576 bytes).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminEditErrorResponse'
         '415':
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
