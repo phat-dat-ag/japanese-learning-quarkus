@@ -2,7 +2,6 @@ package com.japaneselearning.vocabulary.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
-import com.japaneselearning.vocabulary.service.LessonBatchService;
 import com.japaneselearning.vocabulary.service.LessonService;
 import io.smallrye.mutiny.Uni;
 import jakarta.annotation.security.RolesAllowed;
@@ -10,7 +9,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -24,32 +22,14 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 
-import java.util.List;
-
 @Path("/api/v1/lessons")
 @Produces(MediaType.APPLICATION_JSON)
 public class LessonResource extends BaseResource {
 
     private final LessonService lessonService;
-    private final LessonBatchService lessonBatchService;
 
-    public LessonResource(LessonService lessonService, LessonBatchService lessonBatchService) {
+    public LessonResource(LessonService lessonService) {
         this.lessonService = lessonService;
-        this.lessonBatchService = lessonBatchService;
-    }
-
-    @POST
-    @Path("/batch")
-    @RolesAllowed("Admin")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Operation(summary = "Create lessons independently (Admin only)")
-    @RequestBody(required = true)
-    public Uni<Response> createLessons(
-            @NotNull
-            @Size(min = 1, max = LessonBatchService.MAX_BATCH_SIZE)
-            List<LessonWriteRequest> requests
-    ) {
-        return lessonBatchService.createLessons(requests).map(this::success);
     }
 
     @POST
