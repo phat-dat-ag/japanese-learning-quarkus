@@ -372,3 +372,69 @@ database/container after testing.
 See [Admin vocabulary editing](docs/admin-vocabulary-edit.md) for the endpoint matrix,
 request/response contracts, shared-data protections, validation rules, and MySQL tests.
 The feature is backend-only and provides no DELETE APIs.
+
+## Application logging
+
+Application code uses JBoss Logging with a private static final class logger.
+The root INFO level covers Quarkus and application lifecycle messages. Set
+`APP_LOG_LEVEL=DEBUG` for application diagnostics without enabling framework
+debug logs. Existing safe exception logging emits ERROR once with bounded code
+locations and correlation/trace IDs, never raw exception messages. Successful vocabulary imports log one INFO summary after transaction commit.
+Routine HTTP completion, validation rejections and health probes are DEBUG.
+Existing pre-commit import processing counts remain DEBUG.
+
+Console and file logging are both enabled. The default file is
+`logs/application.log`, relative to the process working directory. Override
+`APP_LOG_DIR` and `APP_LOG_FILE`, or use `QUARKUS_LOG_FILE_PATH` for a complete
+path. `APP_LOG_FILE_ENABLED=false` disables the file handler and cleanup.
+Tests disable file logging by default. Both handlers preserve correlation IDs
+and use 8192-entry asynchronous queues with discard on overflow to avoid blocking
+reactive request threads. Overload or abrupt process termination can lose queued
+logs; these logs are operational diagnostics, not a durable audit trail.
+
+The built-in Quarkus handler appends across restarts and rotates daily on the
+first log event after midnight in the JVM timezone, producing
+`application.log.yyyy-MM-dd`. A zero backup index disables size-based rotation
+and count-based deletion; it does not disable daily rotation. There is no daily
+file-size or total disk-size cap: provision and monitor storage for peak 30-day
+volume. See the [Quarkus logging configuration](https://quarkus.io/guides/logging/).
+
+A dedicated daemon worker scans at startup and hourly, deleting only matching
+daily archives whose last-modified time is older than 30 days
+(`APP_LOG_RETENTION_DAYS` overrides this). It never deletes the active file,
+recurses into directories, or follows archive symlinks. Cleanup retries after a
+WARN on failure; messages omit filesystem paths and exception contents. Expiry
+can lag by up to an hour while running; while stopped, archives remain until
+the next startup. Keep the configured daily suffix: incompatible suffixes fail
+startup to avoid silently breaking retention. Use one log file/directory per
+application instance and do not let external rotators rename these files.
+
+No payloads, uploaded contents, arbitrary URLs, headers, credentials or JWTs
+are added to application logs. The existing OIDC provider ERROR override remains
+because its verification warnings may contain rejected tokens. Avoid enabling
+global framework DEBUG/TRACE or SQL bind logging in production.
+
+### Root Docker Compose integration (not changed here)
+
+The root `vocabulary-api` service inherits `read_only: true` and currently has
+no persistent log mount. Before deploying file logging, add a writable persistent
+mount and environment entry in the root Compose project, for example:
+
+```yaml
+services:
+  vocabulary-api:
+    environment:
+      APP_LOG_DIR: /var/log/japanese-learning
+    volumes:
+      - vocabulary_logs:/var/log/japanese-learning
+volumes:
+  vocabulary_logs:
+```
+
+Provision that volume directory with ownership/write permissions for container
+UID 185 before startup (the image runs non-root). A bind mount is also suitable
+if its host directory is pre-created with those permissions. Without this root
+change the existing read-only container cannot write the default log path;
+console logging remains available, but file logging is not operational. Each
+replica needs its own directory. Keep Docker's console collection enabled and
+manage its retention separately from application file retention.
