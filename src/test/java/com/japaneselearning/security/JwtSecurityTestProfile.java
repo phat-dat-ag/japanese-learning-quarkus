@@ -14,6 +14,7 @@ import com.japaneselearning.vocabulary.repository.LessonRepository;
 import com.japaneselearning.vocabulary.service.JlptLevelService;
 import com.japaneselearning.vocabulary.service.LessonService;
 import com.japaneselearning.vocabulary.service.VocabularyService;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.test.junit.QuarkusTestProfile;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.inject.Alternative;
@@ -54,6 +55,7 @@ public class JwtSecurityTestProfile implements QuarkusTestProfile {
         }
 
         @Override
+        @LogVocabularyOperation("vocabulary.import")
         public Uni<ImportResult> importVocabulary(Path file) {
             return Uni.createFrom().item(new ImportResult(1, 1, 0));
         }

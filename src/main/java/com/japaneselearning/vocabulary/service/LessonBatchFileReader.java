@@ -10,6 +10,7 @@ import io.vertx.mutiny.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.WebApplicationException;
+import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @ApplicationScoped
 public class LessonBatchFileReader {
+    private static final Logger LOG = Logger.getLogger(LessonBatchFileReader.class);
     public static final int MAX_FILE_BYTES = 1024 * 1024;
 
     private final Vertx vertx;
@@ -33,10 +35,12 @@ public class LessonBatchFileReader {
     public Uni<List<LessonWriteRequest>> read(Path file) {
         return vertx.fileSystem().props(file.toString()).flatMap(properties -> {
             if (properties.size() > MAX_FILE_BYTES) {
+                LOG.warnf("Lesson batch rejected reason=file_size bytes=%d limit=%d", properties.size(), MAX_FILE_BYTES);
                 return Uni.createFrom().failure(new WebApplicationException(413));
             }
 
             if (properties.size() == 0) {
+                LOG.debug("Lesson batch rejected reason=empty_file");
                 return Uni.createFrom().failure(new BadRequestException());
             }
 
@@ -58,6 +62,7 @@ public class LessonBatchFileReader {
 
             return requests;
         } catch (IOException exception) {
+            LOG.debug("Lesson batch rejected reason=invalid_json");
             throw new BadRequestException();
         }
     }

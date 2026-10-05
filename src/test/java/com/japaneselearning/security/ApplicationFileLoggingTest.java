@@ -52,7 +52,7 @@ class ApplicationFileLoggingTest {
         String output;
         do {
             output = Files.readString(logFile);
-            if (output.contains("correlationId=" + id + "-import Vocabulary import completed")) {
+            if (output.contains("correlationId=" + id + "-import Business operation completed operation=vocabulary.import")) {
                 break;
             }
             Thread.sleep(25);
@@ -60,7 +60,7 @@ class ApplicationFileLoggingTest {
 
         assertTrue(output.contains("correlationId=" + id + " Correlation probe application log"));
         assertTrue(output.contains("correlationId=" + id + "-error Unhandled exception"));
-        assertTrue(output.contains("correlationId=" + id + "-import Vocabulary import completed total=1 created=1 updated=0"));
+        assertTrue(output.contains("correlationId=" + id + "-import Business operation completed operation=vocabulary.import total=1 created=1 updated=0"));
         assertFalse(output.contains(id + "-health"));
         assertFalse(output.contains(id + "-rejected"));
         assertFalse(output.contains("credential-sentinel"));

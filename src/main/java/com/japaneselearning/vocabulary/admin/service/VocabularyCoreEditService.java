@@ -3,6 +3,7 @@ package com.japaneselearning.vocabulary.admin.service;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreResponse;
 import com.japaneselearning.vocabulary.repository.VocabularyRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,6 +22,7 @@ public class VocabularyCoreEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.core.update")
     public Uni<VocabularyCoreResponse> updateVocabularyCore(
             Long vocabularyId,
             VocabularyCoreUpdateRequest request

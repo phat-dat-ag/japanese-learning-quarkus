@@ -379,9 +379,22 @@ Application code uses JBoss Logging with a private static final class logger.
 The root INFO level covers Quarkus and application lifecycle messages. Set
 `APP_LOG_LEVEL=DEBUG` for application diagnostics without enabling framework
 debug logs. Existing safe exception logging emits ERROR once with bounded code
-locations and correlation/trace IDs, never raw exception messages. Successful vocabulary imports log one INFO summary after transaction commit.
-Routine HTTP completion, validation rejections and health probes are DEBUG.
-Existing pre-commit import processing counts remain DEBUG.
+locations and correlation/trace IDs, never raw exception messages.
+
+Write-service methods opt into `LogVocabularyOperation`. Its interceptor runs
+outside the existing transaction interceptor, so INFO outcomes follow successful
+commit without changing transaction boundaries. Events identify the operation
+(e.g. `vocabulary.reading.update`), numeric IDs, and counts only. Lesson batches
+and imports emit one summary; nested lesson creates are suppressed using
+subscription-local Mutiny context, which is removed on completion or cancellation.
+Partial lesson batches, write conflicts, rejected vocabulary imports and oversized
+lesson files use WARN. Ordinary missing resources and validation rejections,
+flashcard/lesson/JLPT reads, and existing pre-commit import diagnostics use DEBUG.
+Unexpected failures are left to the existing central ERROR handler (or
+`BatchItemErrors` for recovered batch failures), with no duplicate service ERROR.
+Resources, per-item import helpers, health probes and authentication flows gain
+no additional INFO logs. No request/response objects, file paths, exception
+messages, headers, tokens, or uploaded text are serialized by operation logging.
 
 Console and file logging are both enabled. The default file is
 `logs/application.log`, relative to the process working directory. Override

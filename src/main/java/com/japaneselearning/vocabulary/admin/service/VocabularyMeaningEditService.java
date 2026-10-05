@@ -4,6 +4,7 @@ import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyMeaningResponse;
 import com.japaneselearning.vocabulary.entity.VocabularyMeaning;
 import com.japaneselearning.vocabulary.repository.VocabularyMeaningRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -25,6 +26,7 @@ public class VocabularyMeaningEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.meanings.add")
     public Uni<List<VocabularyMeaningResponse>> addVocabularyMeanings(
             Long vocabularyId,
             List<VocabularyMeaningUpdateRequest> requests
@@ -40,6 +42,7 @@ public class VocabularyMeaningEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.meaning.update")
     public Uni<VocabularyMeaningResponse> updateVocabularyMeaning(
             Long vocabularyId,
             Long meaningId,

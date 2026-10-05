@@ -12,6 +12,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.NoResultException;
+import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,8 @@ import java.util.Set;
 
 @ApplicationScoped
 public class FlashcardService {
+
+    private static final Logger LOG = Logger.getLogger(FlashcardService.class);
 
     private static final Set<String> SUPPORTED_LEVELS = Set.of("N1", "N2", "N3", "N4", "N5");
 
@@ -52,6 +55,11 @@ public class FlashcardService {
                         .toList();
 
                 int totalPages = (int) Math.ceil((double) totalElements / size);
+
+                LOG.debugf(
+                        "Flashcards loaded level=%s lesson=%s page=%d size=%d returned=%d total=%d",
+                        levelCode, lesson, page, size, items.size(), totalElements
+                );
 
                 return new FlashcardListResponse(
                         items, page, size, totalElements, totalPages
@@ -95,7 +103,8 @@ public class FlashcardService {
                         .invoke(detail::setPitchAccents))
                 .call(detail -> flashcardRepository.findKanjiReadings(detail.kanjiIds())
                         .invoke(detail::setKanjiReadings))
-                .map(FlashcardDetailAssembler::build);
+                .map(FlashcardDetailAssembler::build)
+                .invoke(detail -> LOG.debugf("Flashcard loaded vocabularyId=%d", vocabularyId));
     }
 
     private void validateListRequest(String levelCode, Integer lesson, int page, int size) {
