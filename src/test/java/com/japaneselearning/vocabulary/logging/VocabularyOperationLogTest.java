@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class VocabularyOperationLogTest {
     private final List<ExtLogRecord> records = new ArrayList<>();
-    private final Logger logger = Logger.getLogger(VocabularyOperationLogTest.class.getName());
+    private final Logger logger = Logger.getLogger(VocabularyOperationLog.class.getName());
     private final Handler handler = new Handler() {
         public void publish(LogRecord record) {
             records.add((ExtLogRecord) record);

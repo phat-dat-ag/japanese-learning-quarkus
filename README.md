@@ -63,7 +63,7 @@ After MySQL, the separate root-owned Flyway service, and Auth are ready, run on
 their shared Docker network (replace `japanese-learning` with its actual name):
 
 ```sh
-docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker -p 8080:8080 japanese-learning-vocabulary:local
+docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker --mount type=volume,source=vocabulary_api_logs,target=/deployments/data/logs -p 8080:8080 japanese-learning-vocabulary:local
 ```
 
 MySQL remains reactive. Schema generation is disabled and this image does not
@@ -427,27 +427,32 @@ are added to application logs. The existing OIDC provider ERROR override remains
 because its verification warnings may contain rejected tokens. Avoid enabling
 global framework DEBUG/TRACE or SQL bind logging in production.
 
-### Root Docker Compose integration (not changed here)
+### Docker file logging
 
-The root `vocabulary-api` service inherits `read_only: true` and currently has
-no persistent log mount. Before deploying file logging, add a writable persistent
-mount and environment entry in the root Compose project, for example:
+The image sets `APP_LOG_DIR=/deployments/data/logs`, so Docker writes
+`/deployments/data/logs/application.log` while local runs retain
+`logs/application.log`. The image creates the log directory as UID 185, GID 0,
+mode 0750. A fresh Docker named volume inherits this ownership on first mount;
+the runtime remains non-root and does not need a root startup script.
 
-```yaml
-services:
-  vocabulary-api:
-    environment:
-      APP_LOG_DIR: /var/log/japanese-learning
-    volumes:
-      - vocabulary_logs:/var/log/japanese-learning
-volumes:
-  vocabulary_logs:
+Root Compose mounts `vocabulary_api_logs` at `/deployments/data/logs` and sets
+`APP_LOG_DIR` to that path. The production overlay inherits the mount. This
+keeps the root filesystem read-only and persists both active and rotated logs
+across container recreation. Console logging remains enabled, with Docker's
+console retention managed separately.
+
+After rebuilding the image, recreate the service from the repository root:
+
+```sh
+docker compose up -d --build --no-deps vocabulary-api
+docker compose exec vocabulary-api sh -c 'id; ls -ld /deployments/data/logs; test -s /deployments/data/logs/application.log'
+docker compose logs --tail=20 vocabulary-api
 ```
 
-Provision that volume directory with ownership/write permissions for container
-UID 185 before startup (the image runs non-root). A bind mount is also suitable
-if its host directory is pre-created with those permissions. Without this root
-change the existing read-only container cannot write the default log path;
-console logging remains available, but file logging is not operational. Each
-replica needs its own directory. Keep Docker's console collection enabled and
-manage its retention separately from application file retention.
+Use the same Compose project name and deployment overlays as your running stack.
+The volume is project-scoped; `docker compose down` retains it, while
+`docker compose down -v` deletes it. Existing volumes retain their permissions,
+so a previously created volume must already be writable by UID 185. Do not use
+`volume.nocopy` for a fresh volume. Each replica needs a separate log volume.
+Override the log path only together with a corresponding writable persistent
+mount. Monitor volume capacity using the retention guidance above.
