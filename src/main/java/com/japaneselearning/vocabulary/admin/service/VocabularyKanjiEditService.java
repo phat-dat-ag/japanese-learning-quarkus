@@ -9,6 +9,7 @@ import com.japaneselearning.vocabulary.entity.KanjiReading;
 import com.japaneselearning.vocabulary.repository.KanjiReadingRepository;
 import com.japaneselearning.vocabulary.repository.KanjiRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyKanjiRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -37,6 +38,7 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.kanji.add")
     public Uni<List<VocabularyKanjiResponse>> addVocabularyKanji(
             Long vocabularyId,
             List<KanjiUpdateRequest> requests
@@ -52,6 +54,7 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.kanji.update")
     public Uni<VocabularyKanjiResponse> updateVocabularyKanji(
             Long vocabularyId,
             Long kanjiId,
@@ -63,6 +66,7 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.kanji_readings.add")
     public Uni<List<KanjiReadingResponse>> addKanjiReadings(
             Long vocabularyId,
             Long kanjiId,
@@ -81,6 +85,7 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.kanji_reading.update")
     public Uni<KanjiReadingResponse> updateKanjiReading(
             Long vocabularyId,
             Long kanjiId,

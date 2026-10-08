@@ -4,6 +4,7 @@ import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingResponse;
 import com.japaneselearning.vocabulary.entity.VocabularyReading;
 import com.japaneselearning.vocabulary.repository.VocabularyReadingRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -27,6 +28,7 @@ public class VocabularyReadingEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.readings.add")
     public Uni<List<VocabularyReadingResponse>> addVocabularyReadings(
             Long vocabularyId,
             List<VocabularyReadingUpdateRequest> requests
@@ -46,6 +48,7 @@ public class VocabularyReadingEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.reading.update")
     public Uni<VocabularyReadingResponse> updateVocabularyReading(
             Long vocabularyId,
             Long readingId,

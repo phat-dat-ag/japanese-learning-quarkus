@@ -5,6 +5,7 @@ import com.japaneselearning.common.exception.handler.HttpErrors;
 import com.japaneselearning.vocabulary.dto.LessonBatchResponse;
 import com.japaneselearning.vocabulary.dto.LessonBatchResult;
 import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -27,6 +28,7 @@ public class LessonBatchService {
     }
 
     // Do not add an outer session/transaction: each CDI createLesson call owns and closes its own.
+    @LogVocabularyOperation("lesson.batch.create")
     public Uni<LessonBatchResponse> createLessons(List<LessonWriteRequest> requests) {
         return Multi.createFrom().range(0, requests.size())
                 .onItem().transformToUniAndConcatenate(

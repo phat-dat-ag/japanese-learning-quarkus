@@ -48,6 +48,7 @@ public class VocabularyAssignmentValidator {
                 .collect(Collectors.toCollection(TreeSet::new));
 
         List<ValidationError> errors = new ArrayList<>();
+
         if (!storedLevels.equals(requestedLevels)) {
             errors.add(new ValidationError("levels",
                     "Existing levels: " + storedLevels + "; requested levels: " + requestedLevels));
@@ -56,12 +57,21 @@ public class VocabularyAssignmentValidator {
             errors.add(new ValidationError("lessons",
                     "Existing lessons: " + storedLessons + "; requested lessons: " + requestedLessons));
         }
+
         if (!errors.isEmpty()) {
-            LOG.debugf("Vocabulary assignment mismatch levels=%s lessons=%s",
-                    !storedLevels.equals(requestedLevels), !storedLessons.equals(requestedLessons));
-            throw new ValidationException("VALIDATION_ERROR",
-                    "Vocabulary '" + vocabulary.word + "' already exists but its assignments do not match the request",
-                    errors);
+            LOG.debugf(
+                    "Vocabulary assignment mismatch vocabularyId=%d levels=%s lessons=%s",
+                    (Object) vocabulary.id,
+                    !storedLevels.equals(requestedLevels),
+                    !storedLessons.equals(requestedLessons)
+            );
+
+            throw new ValidationException(
+                    "VALIDATION_ERROR",
+                    "Vocabulary '" + vocabulary.word +
+                            "' already exists but its assignments do not match the request",
+                    errors
+            );
         }
     }
 }

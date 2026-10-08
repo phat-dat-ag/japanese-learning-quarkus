@@ -63,7 +63,7 @@ After MySQL, the separate root-owned Flyway service, and Auth are ready, run on
 their shared Docker network (replace `japanese-learning` with its actual name):
 
 ```sh
-docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker -p 8080:8080 japanese-learning-vocabulary:local
+docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker --mount type=volume,source=vocabulary_api_logs,target=/deployments/data/logs -p 8080:8080 japanese-learning-vocabulary:local
 ```
 
 MySQL remains reactive. Schema generation is disabled and this image does not
@@ -372,3 +372,87 @@ database/container after testing.
 See [Admin vocabulary editing](docs/admin-vocabulary-edit.md) for the endpoint matrix,
 request/response contracts, shared-data protections, validation rules, and MySQL tests.
 The feature is backend-only and provides no DELETE APIs.
+
+## Application logging
+
+Application code uses JBoss Logging with a private static final class logger.
+The root INFO level covers Quarkus and application lifecycle messages. Set
+`APP_LOG_LEVEL=DEBUG` for application diagnostics without enabling framework
+debug logs. Existing safe exception logging emits ERROR once with bounded code
+locations and correlation/trace IDs, never raw exception messages.
+
+Write-service methods opt into `LogVocabularyOperation`. Its interceptor runs
+outside the existing transaction interceptor, so INFO outcomes follow successful
+commit without changing transaction boundaries. Events identify the operation
+(e.g. `vocabulary.reading.update`), numeric IDs, and counts only. Lesson batches
+and imports emit one summary; nested lesson creates are suppressed using
+subscription-local Mutiny context, which is removed on completion or cancellation.
+Partial lesson batches, write conflicts, rejected vocabulary imports and oversized
+lesson files use WARN. Ordinary missing resources and validation rejections,
+flashcard/lesson/JLPT reads, and existing pre-commit import diagnostics use DEBUG.
+Unexpected failures are left to the existing central ERROR handler (or
+`BatchItemErrors` for recovered batch failures), with no duplicate service ERROR.
+Resources, per-item import helpers, health probes and authentication flows gain
+no additional INFO logs. No request/response objects, file paths, exception
+messages, headers, tokens, or uploaded text are serialized by operation logging.
+
+Console and file logging are both enabled. The default file is
+`logs/application.log`, relative to the process working directory. Override
+`APP_LOG_DIR` and `APP_LOG_FILE`, or use `QUARKUS_LOG_FILE_PATH` for a complete
+path. `APP_LOG_FILE_ENABLED=false` disables the file handler and cleanup.
+Tests disable file logging by default. Both handlers preserve correlation IDs
+and use 8192-entry asynchronous queues with discard on overflow to avoid blocking
+reactive request threads. Overload or abrupt process termination can lose queued
+logs; these logs are operational diagnostics, not a durable audit trail.
+
+The built-in Quarkus handler appends across restarts and rotates daily on the
+first log event after midnight in the JVM timezone, producing
+`application.log.yyyy-MM-dd`. A zero backup index disables size-based rotation
+and count-based deletion; it does not disable daily rotation. There is no daily
+file-size or total disk-size cap: provision and monitor storage for peak 30-day
+volume. See the [Quarkus logging configuration](https://quarkus.io/guides/logging/).
+
+A dedicated daemon worker scans at startup and hourly, deleting only matching
+daily archives whose last-modified time is older than 30 days
+(`APP_LOG_RETENTION_DAYS` overrides this). It never deletes the active file,
+recurses into directories, or follows archive symlinks. Cleanup retries after a
+WARN on failure; messages omit filesystem paths and exception contents. Expiry
+can lag by up to an hour while running; while stopped, archives remain until
+the next startup. Keep the configured daily suffix: incompatible suffixes fail
+startup to avoid silently breaking retention. Use one log file/directory per
+application instance and do not let external rotators rename these files.
+
+No payloads, uploaded contents, arbitrary URLs, headers, credentials or JWTs
+are added to application logs. The existing OIDC provider ERROR override remains
+because its verification warnings may contain rejected tokens. Avoid enabling
+global framework DEBUG/TRACE or SQL bind logging in production.
+
+### Docker file logging
+
+The image sets `APP_LOG_DIR=/deployments/data/logs`, so Docker writes
+`/deployments/data/logs/application.log` while local runs retain
+`logs/application.log`. The image creates the log directory as UID 185, GID 0,
+mode 0750. A fresh Docker named volume inherits this ownership on first mount;
+the runtime remains non-root and does not need a root startup script.
+
+Root Compose mounts `vocabulary_api_logs` at `/deployments/data/logs` and sets
+`APP_LOG_DIR` to that path. The production overlay inherits the mount. This
+keeps the root filesystem read-only and persists both active and rotated logs
+across container recreation. Console logging remains enabled, with Docker's
+console retention managed separately.
+
+After rebuilding the image, recreate the service from the repository root:
+
+```sh
+docker compose up -d --build --no-deps vocabulary-api
+docker compose exec vocabulary-api sh -c 'id; ls -ld /deployments/data/logs; test -s /deployments/data/logs/application.log'
+docker compose logs --tail=20 vocabulary-api
+```
+
+Use the same Compose project name and deployment overlays as your running stack.
+The volume is project-scoped; `docker compose down` retains it, while
+`docker compose down -v` deletes it. Existing volumes retain their permissions,
+so a previously created volume must already be writable by UID 185. Do not use
+`volume.nocopy` for a fresh volume. Each replica needs a separate log volume.
+Override the log path only together with a corresponding writable persistent
+mount. Monitor volume capacity using the retention guidance above.

@@ -13,12 +13,16 @@ RUN ./mvnw -B -ntp package -Dmaven.test.skip=true
 
 # Follow the Quarkus fast-jar layout and container-aware Java launcher.
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:1.24@sha256:5db930442757ef371837b40e9d90c4b6d4afd07c54ff3957afadb09ebb68c82c
+USER 0
 WORKDIR /deployments
+# Seed ownership for Docker named-volume initialization; runtime stays non-root.
+RUN mkdir -p /deployments/data/logs && chown 185:0 /deployments/data/logs && chmod 0750 /deployments/data/logs
 COPY --from=build --chown=0:0 /workspace/target/quarkus-app/lib/ ./lib/
 COPY --from=build --chown=0:0 /workspace/target/quarkus-app/*.jar ./
 COPY --from=build --chown=0:0 /workspace/target/quarkus-app/app/ ./app/
 COPY --from=build --chown=0:0 /workspace/target/quarkus-app/quarkus/ ./quarkus/
-ENV QUARKUS_HTTP_HOST=0.0.0.0 \
+ENV APP_LOG_DIR=/deployments/data/logs \
+    QUARKUS_HTTP_HOST=0.0.0.0 \
     QUARKUS_HTTP_PORT=8080 \
     JAVA_APP_JAR=/deployments/quarkus-run.jar \
     JAVA_OPTS_APPEND="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"

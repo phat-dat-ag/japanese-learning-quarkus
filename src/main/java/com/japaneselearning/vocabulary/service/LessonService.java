@@ -7,10 +7,12 @@ import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
 import com.japaneselearning.vocabulary.entity.Lesson;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
 import com.japaneselearning.vocabulary.repository.LessonRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 import org.hibernate.exception.ConstraintViolationException;
 
 import java.time.LocalDateTime;
@@ -19,6 +21,7 @@ import java.util.Set;
 
 @ApplicationScoped
 public class LessonService {
+    private static final Logger LOG = Logger.getLogger(LessonService.class);
 
     private static final Set<String> UNIQUE_CONSTRAINTS = Set.of(
             "uk_lessons_level_number",
@@ -37,6 +40,7 @@ public class LessonService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("lesson.create")
     public Uni<LessonResponse> createLesson(LessonWriteRequest request) {
         return flushAndMapConflicts(requireLevel(request.levelId())
                 .call(() -> requireUniqueFields(null, request))
@@ -49,6 +53,7 @@ public class LessonService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("lesson.update")
     public Uni<LessonResponse> updateLesson(
             Long lessonId,
             LessonWriteRequest request
@@ -166,6 +171,7 @@ public class LessonService {
                                         )
                                 )
                                 .toList()
-                );
+                )
+                .invoke(lessons -> LOG.debugf("Lessons loaded count=%d", lessons.size()));
     }
 }

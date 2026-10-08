@@ -33,8 +33,11 @@ public class CorrelationIdFilter {
         context.addHeadersEndHandler(ignored -> context.response().putHeader(HEADER, id));
         context.addEndHandler(ignored -> {
             try {
-                LOG.infof("HTTP request completed with status %d in %dms correlationId=%s",
-                        context.response().getStatusCode(), (System.nanoTime() - started) / 1_000_000, id);
+                LOG.debugf(
+                        "HTTP request completed with status %d in %dms correlationId=%s",
+                        context.response().getStatusCode(),
+                        (System.nanoTime() - started) / 1_000_000, id
+                );
             } finally {
                 MDC.remove("correlationId");
             }

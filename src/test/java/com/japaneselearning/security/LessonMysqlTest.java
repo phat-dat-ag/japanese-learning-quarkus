@@ -1,5 +1,7 @@
 package com.japaneselearning.security;
 
+import com.japaneselearning.vocabulary.logging.VocabularyOperationLog;
+import io.quarkus.hibernate.reactive.panache.common.runtime.SessionOperations;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -7,6 +9,7 @@ import io.restassured.response.ValidatableResponse;
 import io.vertx.mutiny.mysqlclient.MySQLPool;
 import jakarta.inject.Inject;
 import org.jose4j.jwk.RsaJsonWebKey;
+import org.jboss.logmanager.ExtLogRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -18,11 +21,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @QuarkusTest
 @TestProfile(VocabularyMysqlTestProfile.class)
@@ -41,6 +49,72 @@ class LessonMysqlTest {
         token = new JwtTestTokens(signingKey).token("Admin");
         levelId = queryLong("SELECT id FROM jlpt_levels WHERE code='N5'");
         number = ThreadLocalRandom.current().nextInt(1000000, 1000000000);
+    }
+
+    @Test
+    void businessEventsFollowTransactionCompletionAndFailedWritesHaveNoSuccess() {
+        String correlationId = "lesson-log-" + UUID.randomUUID();
+        String traceId = "trace-" + UUID.randomUUID();
+        record Event(String message, String correlationId, boolean activeTransaction) {
+        }
+        var events = new CopyOnWriteArrayList<Event>();
+        Logger logger = Logger.getLogger(VocabularyOperationLog.class.getName());
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord record) {
+                ExtLogRecord event = (ExtLogRecord) record;
+                if (!correlationId.equals(event.getMdc("correlationId"))) {
+                    return;
+                }
+                // Capture synchronously at the LOG call, before async console/file delivery.
+                var session = SessionOperations.getCurrentSession("<default>");
+                events.add(new Event(event.getFormattedMessage(), event.getMdc("correlationId"),
+                        session != null && session.currentTransaction() != null));
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        logger.addHandler(handler);
+        try {
+            var body = request(levelId, number, number);
+            long id = given().auth().oauth2(token).contentType("application/json")
+                    .header("X-Correlation-ID", correlationId).header("X-Trace-Id", traceId)
+                    .body(body).post("/api/v1/lessons").then().statusCode(200)
+                    .body("meta.correlationId", equalTo(correlationId), "meta.traceId", equalTo(traceId))
+                    .extract().jsonPath().getLong("data.id");
+            assertEquals(1, events.size());
+            assertEquals("Business operation completed operation=lesson.create lessonId=" + id,
+                    events.get(0).message());
+            assertEquals(correlationId, events.get(0).correlationId());
+            assertFalse(events.get(0).activeTransaction(), "Success must follow transaction completion");
+            assertEquals(1, queryLong("SELECT COUNT(*) FROM lessons WHERE id=" + id));
+
+            given().auth().oauth2(token).contentType("application/json")
+                    .header("X-Correlation-ID", correlationId).body(body)
+                    .put("/api/v1/lessons/" + id).then().statusCode(200);
+            assertEquals(2, events.size());
+            assertEquals("Business operation completed operation=lesson.update lessonId=" + id,
+                    events.get(1).message());
+            assertFalse(events.get(1).activeTransaction());
+
+            given().auth().oauth2(token).contentType("application/json")
+                    .header("X-Correlation-ID", correlationId).body(body)
+                    .post("/api/v1/lessons").then().statusCode(409);
+            assertEquals(3, events.size());
+            assertEquals("Business operation rejected operation=lesson.create reason=conflict",
+                    events.get(2).message());
+            assertFalse(events.get(2).activeTransaction());
+            assertEquals(1, queryLong("SELECT COUNT(*) FROM lessons WHERE level_id=" + levelId
+                    + " AND lesson_number=" + number));
+        } finally {
+            logger.removeHandler(handler);
+        }
     }
 
     @Test

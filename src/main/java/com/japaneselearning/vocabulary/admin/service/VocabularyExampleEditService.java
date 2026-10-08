@@ -6,6 +6,7 @@ import com.japaneselearning.vocabulary.entity.ExampleSentence;
 import com.japaneselearning.vocabulary.entity.VocabularyExample;
 import com.japaneselearning.vocabulary.repository.ExampleSentenceRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyExampleRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -31,6 +32,7 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.examples.add")
     public Uni<List<VocabularyExampleResponse>> addVocabularyExamples(
             Long vocabularyId,
             List<VocabularyExampleUpdateRequest> requests
@@ -46,6 +48,7 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.example.update")
     public Uni<VocabularyExampleResponse> updateVocabularyExample(
             Long vocabularyId,
             Long exampleId,

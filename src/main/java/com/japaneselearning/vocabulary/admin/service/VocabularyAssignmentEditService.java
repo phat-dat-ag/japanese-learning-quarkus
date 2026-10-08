@@ -13,6 +13,7 @@ import com.japaneselearning.vocabulary.repository.LessonVocabularyRepository;
 import com.japaneselearning.vocabulary.repository.PartOfSpeechRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyLevelRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyPartOfSpeechRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -49,6 +50,7 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.levels.add")
     public Uni<List<VocabularyLevelResponse>> addLevelAssignments(
             Long vocabularyId,
             List<LevelAssignmentAddRequest> requests
@@ -62,6 +64,7 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.level_order.update")
     public Uni<VocabularyLevelResponse> updateLevelAssignmentOrder(
             Long vocabularyId,
             Long levelId,
@@ -79,6 +82,7 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.lessons.add")
     public Uni<List<VocabularyLessonResponse>> addLessonAssignments(
             Long vocabularyId,
             List<LessonAssignmentAddRequest> requests
@@ -92,6 +96,7 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.lesson_order.update")
     public Uni<VocabularyLessonResponse> updateLessonAssignmentOrder(
             Long vocabularyId,
             Long lessonId,
@@ -113,6 +118,7 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.parts_of_speech.add")
     public Uni<List<VocabularyPartOfSpeechResponse>> addPartOfSpeechAssignments(
             Long vocabularyId,
             List<PartOfSpeechAssignmentAddRequest> requests

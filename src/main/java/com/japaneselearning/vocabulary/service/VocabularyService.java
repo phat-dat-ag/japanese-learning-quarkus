@@ -3,6 +3,7 @@ package com.japaneselearning.vocabulary.service;
 import com.japaneselearning.vocabulary.importer.VocabularyImporter;
 import com.japaneselearning.vocabulary.importer.dto.ImportResult;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -20,11 +21,13 @@ public class VocabularyService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.import")
     public Uni<ImportResult> importVocabulary(List<VocabularyImportItem> items) {
         return vocabularyImporter.importVocabulary(items);
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.import")
     public Uni<ImportResult> importVocabulary(Path file) {
         return vocabularyImporter.importVocabulary(file);
     }

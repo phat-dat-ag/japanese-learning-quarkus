@@ -5,6 +5,7 @@ import com.japaneselearning.vocabulary.admin.dto.VocabularyPitchAccentResponse;
 import com.japaneselearning.vocabulary.entity.VocabularyPitchAccent;
 import com.japaneselearning.vocabulary.repository.VocabularyPitchAccentRepository;
 import com.japaneselearning.vocabulary.repository.VocabularyReadingRepository;
+import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -29,6 +30,7 @@ public class VocabularyPitchAccentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.pitch_accents.add")
     public Uni<List<VocabularyPitchAccentResponse>> addVocabularyPitchAccents(
             Long vocabularyId,
             List<VocabularyPitchAccentUpdateRequest> requests
@@ -44,6 +46,7 @@ public class VocabularyPitchAccentEditService {
     }
 
     @WithTransaction
+    @LogVocabularyOperation("vocabulary.pitch_accent.update")
     public Uni<VocabularyPitchAccentResponse> updateVocabularyPitchAccent(
             Long vocabularyId,
             Long pitchAccentId,
