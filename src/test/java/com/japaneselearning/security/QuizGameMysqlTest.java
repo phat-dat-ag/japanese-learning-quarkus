@@ -218,32 +218,59 @@ class QuizGameMysqlTest {
         long before = number("SELECT COUNT(*) FROM quiz_sessions");
         var connection = pool.getConnection().await().atMost(TIMEOUT);
         var transaction = connection.begin().await().atMost(TIMEOUT);
+        CompletableFuture<Response> pending = null;
+        boolean committed = false;
         try {
-            connection.query("SELECT id FROM quiz_questions WHERE id=" + question + " FOR UPDATE")
-                    .execute().await().atMost(TIMEOUT);
-            String mutation = switch (change) {
-                case "classification" -> "DELETE FROM quiz_question_lessons WHERE question_id=" + question;
-                case "status" -> "UPDATE quiz_questions SET status='DRAFT' WHERE id=" + question;
-                default -> "UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.'), "
-                        + "updated_at=DATE_ADD(updated_at, INTERVAL 1 SECOND) WHERE id=" + source;
-            };
+            long connectionId =
+                    connection
+                            .query("SELECT CONNECTION_ID()")
+                            .execute()
+                            .await()
+                            .atMost(TIMEOUT)
+                            .iterator()
+                            .next()
+                            .getLong(0);
+            connection
+                    .query("SELECT id FROM quiz_questions WHERE id=" + question + " FOR UPDATE")
+                    .execute()
+                    .await()
+                    .atMost(TIMEOUT);
+            String mutation =
+                    switch (change) {
+                        case "classification" -> "DELETE FROM quiz_question_lessons WHERE question_id=" + question;
+                        case "status" -> "UPDATE quiz_questions SET status='DRAFT' WHERE id=" + question;
+                        default -> "UPDATE example_sentences SET"
+                                + " japanese_reading=CONCAT(japanese_reading,'.'),"
+                                + " updated_at=DATE_ADD(updated_at, INTERVAL 1 SECOND) WHERE"
+                                + " id="
+                                + source;
+                    };
             connection.query(mutation).execute().await().atMost(TIMEOUT);
-            var pending = CompletableFuture.supplyAsync(() ->
-                    create(user, Map.of("lessonId", lesson, "questionCount", 1)));
-            long deadline = System.nanoTime() + TIMEOUT.toNanos();
-            while (number("SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state='LOCK WAIT'") == 0
-                    && System.nanoTime() < deadline) {
-                Thread.sleep(50);
-            }
-            assertTrue(number("SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state='LOCK WAIT'") > 0,
+            pending =
+                    CompletableFuture.supplyAsync(
+                            () -> create(user, Map.of("lessonId", lesson, "questionCount", 1)));
+            assertTrue(
+                    awaitQuestionLockWait(connectionId, question, pending),
                     "Reproduction must reach a database lock wait before the mutation commits");
             assertFalse(pending.isDone(), "Session creation must wait for the question lock");
             transaction.commit().await().atMost(TIMEOUT);
-            pending.get(15, TimeUnit.SECONDS).then().statusCode(409)
+            committed = true;
+            pending.get(15, TimeUnit.SECONDS)
+                    .then()
+                    .statusCode(409)
                     .body("error.code", equalTo("QUIZ_GAME_CONFLICT"));
             assertEquals(before, number("SELECT COUNT(*) FROM quiz_sessions"));
         } finally {
-            connection.close().await().atMost(TIMEOUT);
+            try {
+                if (!committed) {
+                    transaction.rollback().await().atMost(TIMEOUT);
+                }
+            } finally {
+                connection.close().await().atMost(TIMEOUT);
+                if (pending != null) {
+                    pending.get(15, TimeUnit.SECONDS);
+                }
+            }
         }
     }
 
@@ -278,6 +305,35 @@ class QuizGameMysqlTest {
             create(token("User", subject), Map.of("questionCount", 1)).then().statusCode(401);
         }
         given().auth().oauth2(admin).get(BASE + "/config").then().statusCode(200);
+    }
+
+    private boolean awaitQuestionLockWait(
+            long connectionId, long questionId, CompletableFuture<Response> pending)
+            throws InterruptedException {
+        // INNODB_TRX is cached; rapid polling can keep returning a pre-wait snapshot.
+        // Observe the actual wait edge for this transaction's question row instead.
+        String query =
+                """
+                        SELECT COUNT(*) FROM performance_schema.data_lock_waits w
+                        JOIN performance_schema.threads t ON t.THREAD_ID = w.BLOCKING_THREAD_ID
+                        JOIN performance_schema.data_locks l
+                          ON l.ENGINE = w.ENGINE AND l.ENGINE_LOCK_ID = w.REQUESTING_ENGINE_LOCK_ID
+                        WHERE t.PROCESSLIST_ID = %d AND l.OBJECT_SCHEMA = 'vocabulary_import_test'
+                          AND l.OBJECT_NAME = 'quiz_questions' AND l.INDEX_NAME = 'PRIMARY'
+                          AND l.LOCK_TYPE = 'RECORD' AND l.LOCK_STATUS = 'WAITING' AND l.LOCK_DATA = '%d'
+                        """
+                        .formatted(connectionId, questionId);
+        long deadline = System.nanoTime() + TIMEOUT.toNanos();
+        do {
+            if (number(query) > 0) {
+                return true;
+            }
+            if (pending.isDone()) {
+                return false;
+            }
+            Thread.sleep(50);
+        } while (System.nanoTime() < deadline);
+        return false;
     }
 
     private Response config() {

@@ -89,6 +89,25 @@ triggers, new dependencies or changes to Vocabulary APIs are needed.
 randomized subsets/order/options, JWT ownership, validation, source invalidation,
 concurrent creations, and rollback after an injected snapshot-option constraint failure.
 Controlled lock-wait races cover classification, publication and example-reading changes.
+They observe Performance Schema wait edges for the exact question row and blocking
+connection before committing the mutation. Rapid polling of cached `INNODB_TRX` can
+miss an active wait; it is not a reliable synchronization barrier. Failed races explicitly
+roll back the mutation and drain the pending request so later cases are not contaminated.
+
+Run the regression suite against an isolated MySQL 8 database named
+`vocabulary_import_test`, initialized with V1-V7 using external Flyway. Performance
+Schema must be enabled (the standard MySQL container default); the existing test profile
+uses the disposable database's root account to inspect lock waits.
+
+```powershell
+.\mvnw.cmd -B -ntp verify '-Dquarkus.http.test-port=0' '-Dvocabulary.mysql.tests=true' `
+  '-Dvocabulary.mysql.url=mysql://127.0.0.1:13306/vocabulary_import_test'
+```
+
+Port 13306 belongs to the disposable test container, not the development database.
+The test profile's default password is `vocabulary-test`; override it with
+`-Dvocabulary.mysql.password` when needed.
+
 `QuizFoundationMysqlTest` continues to cover immutable history and snapshot constraints.
 OpenAPI tests fetch the live merged document and verify the two-operation scope, security,
 request bounds, examples and response fields.
