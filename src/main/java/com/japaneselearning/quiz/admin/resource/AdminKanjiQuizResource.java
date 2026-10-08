@@ -9,6 +9,8 @@ import com.japaneselearning.quiz.admin.dto.QuizQuestionUpdateRequest;
 import com.japaneselearning.quiz.admin.dto.QuizVersionRequest;
 import com.japaneselearning.quiz.admin.service.QuizAdminQueryService;
 import com.japaneselearning.quiz.admin.service.QuizAdminWriteService;
+import com.japaneselearning.quiz.admin.service.QuizImportFileReader;
+import com.japaneselearning.quiz.admin.service.QuizImportService;
 import com.japaneselearning.quiz.domain.QuestionSource;
 import com.japaneselearning.quiz.domain.QuestionStatus;
 import com.japaneselearning.quiz.domain.QuizQuestionRules;
@@ -32,6 +34,8 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.resteasy.reactive.RestForm;
+import org.jboss.resteasy.reactive.multipart.FileUpload;
 
 @Tag(name = "Admin Kanji Quiz")
 @Path("/api/v1/admin/kanji-quiz/questions")
@@ -41,13 +45,35 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class AdminKanjiQuizResource extends BaseResource {
     private final QuizAdminQueryService queries;
     private final QuizAdminWriteService writes;
+    private final QuizImportFileReader importReader;
+    private final QuizImportService importer;
 
     public AdminKanjiQuizResource(
             QuizAdminQueryService queries,
-            QuizAdminWriteService writes
+            QuizAdminWriteService writes,
+            QuizImportFileReader importReader,
+            QuizImportService importer
     ) {
         this.queries = queries;
         this.writes = writes;
+        this.importReader = importReader;
+        this.importer = importer;
+    }
+
+    @POST
+    @Path("/import")
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
+    @Operation(summary = "Import draft Kanji Quiz questions with per-item results")
+    @RequestBody(required = true)
+    public Uni<Response> importQuizQuestions(
+            @NotNull
+            @RestForm("file")
+            FileUpload file
+    ) {
+        return importReader
+                .read(file.uploadedFile(), file.contentType())
+                .chain(importer::importQuestions)
+                .map(this::success);
     }
 
     @POST

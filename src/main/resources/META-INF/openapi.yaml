@@ -2240,6 +2240,105 @@ paths:
             "application/json":
               schema:
                 "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/import":
+    post:
+      operationId: "importQuizQuestions"
+      summary: "Import draft Kanji Quiz questions with per-item results"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Upload multipart field file containing a JSON array of the existing create contract. Both EXAMPLE and CUSTOM remain DRAFT; source sentences are never edited. Syntax, file and count checks finish before any writes. Each item then uses its own independent reactive transaction, without an outer transaction. Expected validation, reference and duplicate/conflict failures roll back only that item; processing continues in input order. HTTP 200 includes partial success and all-item failure. Errors contain zero-based field paths and stable codes. Multiple Bean Validation errors are collected where feasible; domain validation may report the first error. Limits: quiz.import.max-file-bytes (QUIZ_IMPORT_MAX_FILE_BYTES, default 1048576 bytes) and quiz.import.max-items (QUIZ_IMPORT_MAX_ITEMS, default 100). File overflow returns 413; count violations return 400. Server/proxy limits may reject earlier. Malformed syntax, duplicate JSON keys, empty arrays, trailing content and non-array roots reject the whole request before processing. Invalid item shapes, unknown fields and scalar type errors become FAILED results. Unexpected infrastructure errors stop processing with 500; earlier commits remain. Retrying a batch may therefore produce duplicate results."
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              required:
+                - "file"
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+                  description: "Required JSON file containing a nonempty array of Phase 2 QuizQuestionCreateRequest objects, not an envelope. File media type application/json or application/octet-stream; name/extension do not determine validity. Unknown fields, scalar coercion and non-object items produce FAILED results. Duplicate JSON keys and trailing JSON reject the request before processing. Example file content: [{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}, {\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+                  contentMediaType: "application/json"
+                  contentSchema:
+                    "$ref": "#/components/schemas/QuizQuestionImportArray"
+            encoding:
+              file:
+                contentType: "application/json, application/octet-stream"
+            examples:
+              custom:
+                summary: "One CUSTOM question"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+              example:
+                summary: "One existing EXAMPLE question"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+              mixed:
+                summary: "Mixed source batch"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}, {\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+      responses:
+        "200":
+          description: "Accepted batch, including partial success or all-item failure. Each IMPORTED item is independently committed as DRAFT. total equals imported plus failed; results preserve input order."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    "$ref": "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizImportResponse"
+              examples:
+                success:
+                  "$ref": "#/components/examples/QuizQuestionImportSuccess"
+                allSuccess:
+                  "$ref": "#/components/examples/QuizQuestionImportAllSuccess"
+                allFailed:
+                  "$ref": "#/components/examples/QuizQuestionImportAllFailed"
+        "400":
+          description: "QUIZ_IMPORT_INVALID for malformed JSON, ambiguous duplicate keys, invalid top-level structure, empty arrays, unsupported file media type or item limit. BAD_REQUEST for a missing multipart file. No items are processed. Item validation/reference/conflict errors are returned in HTTP 200 results."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+              examples:
+                indexed:
+                  "$ref": "#/components/examples/QuizQuestionImportInvalid"
+        "413":
+          description: "PAYLOAD_TOO_LARGE - uploaded file exceeds configured byte limit, or a lower server/proxy request limit."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - request must use multipart/form-data. An unsupported file-part media type returns 400."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          description: "Unexpected infrastructure failure stops processing. Earlier committed items remain; the standard sanitized error envelope is returned."
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -2330,6 +2429,102 @@ components:
         format: int64
         minimum: 1
   schemas:
+    QuizQuestionImportArray:
+      type: "array"
+      minItems: 1
+      description: "File JSON array. Maximum item count is configurable (quiz.import.max-items, default 100), not a fixed schema maximum. Each item uses the existing Phase 2 create contract."
+      items:
+        "$ref": "#/components/schemas/QuizQuestionCreateRequest"
+    QuizImportError:
+      "type": "object"
+      "required":
+        - "field"
+        - "code"
+        - "message"
+      "properties":
+        "field":
+          "type": "string"
+        "code":
+          "type": "string"
+        "message":
+          "type": "string"
+      "description": "Absolute zero-based field path and safe error code/message. Codes include QUIZ_ITEM_INVALID, QUIZ_ITEM_JSON_INVALID and existing Phase 2 business codes."
+    QuizImportResult:
+      "type": "object"
+      "required":
+        - "index"
+        - "status"
+      "properties":
+        "index":
+          "type": "integer"
+          "minimum": 0
+        "status":
+          "type": "string"
+          "enum":
+            - "IMPORTED"
+            - "FAILED"
+        "questionId":
+          "type": "integer"
+          "minimum": 1
+          "format": "int64"
+        "version":
+          "type": "integer"
+          "minimum": 0
+          "format": "int64"
+        "errors":
+          "type": "array"
+          "minItems": 1
+          "items":
+            "$ref": "#/components/schemas/QuizImportError"
+      "oneOf":
+        -
+          "required":
+            - "questionId"
+            - "version"
+          "properties":
+            "status":
+              "const": "IMPORTED"
+          "not":
+            "required":
+              - "errors"
+        -
+          "required":
+            - "errors"
+          "properties":
+            "status":
+              "const": "FAILED"
+          "not":
+            "anyOf":
+              -
+                "required":
+                  - "questionId"
+              -
+                "required":
+                  - "version"
+      "description": "One result per input item. Successful identifiers appear only after commit; failed items have errors and no identifiers."
+    QuizImportResponse:
+      "type": "object"
+      "required":
+        - "total"
+        - "imported"
+        - "failed"
+        - "results"
+      "properties":
+        "total":
+          "type": "integer"
+          "minimum": 1
+        "imported":
+          "type": "integer"
+          "minimum": 0
+        "failed":
+          "type": "integer"
+          "minimum": 0
+        "results":
+          "type": "array"
+          "minItems": 1
+          "items":
+            "$ref": "#/components/schemas/QuizImportResult"
+      "description": "Accepted batch: total = imported + failed = results.size. Results retain input order, including when all items fail."
     QuizQuestionContentRequest:
       type: "object"
       description: "Complete editable content, not a patch. Omitted optional fields are cleared. EXAMPLE never edits source reading. Source type is immutable."
@@ -3521,6 +3716,91 @@ components:
         meta:
           $ref: '#/components/schemas/ResponseMeta'
   examples:
+    QuizQuestionImportSuccess:
+      "summary": "Partial success: first question committed, second rejected"
+      "value":
+        "success": true
+        "data":
+          "total": 2
+          "imported": 1
+          "failed": 1
+          "results":
+            -
+              "index": 0
+              "status": "IMPORTED"
+              "questionId": 11
+              "version": 1
+            -
+              "index": 1
+              "status": "FAILED"
+              "errors":
+                -
+                  "field": "[1].content.targetReading"
+                  "code": "QUIZ_QUESTION_INVALID"
+                  "message": "Target reading must exactly match the selected segment"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportAllSuccess:
+      "summary": "All questions committed"
+      "value":
+        "success": true
+        "data":
+          "total": 2
+          "imported": 2
+          "failed": 0
+          "results":
+            -
+              "index": 0
+              "status": "IMPORTED"
+              "questionId": 11
+              "version": 1
+            -
+              "index": 1
+              "status": "IMPORTED"
+              "questionId": 12
+              "version": 1
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportAllFailed:
+      "summary": "Accepted array with every item rejected"
+      "value":
+        "success": true
+        "data":
+          "total": 1
+          "imported": 0
+          "failed": 1
+          "results":
+            -
+              "index": 0
+              "status": "FAILED"
+              "errors":
+                -
+                  "field": "[0].content.targetReading"
+                  "code": "QUIZ_QUESTION_INVALID"
+                  "message": "Target reading must exactly match the selected segment"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportInvalid:
+      "summary": "Invalid top-level file; no items processed"
+      "value":
+        "success": false
+        "error":
+          "code": "QUIZ_IMPORT_INVALID"
+          "message": "Invalid quiz import; no questions processed"
+          "details":
+            -
+              "field": "file"
+              "message": "Expected a JSON array"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
     QuizQuestionDraftSuccess:
       summary: "DRAFT question details"
       value:

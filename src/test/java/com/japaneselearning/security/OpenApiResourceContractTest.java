@@ -117,7 +117,7 @@ class OpenApiResourceContractTest {
                         documented.add(verb + " " + path.getKey());
                     }
                 }));
-        assertEquals(36, operations.size());
+        assertEquals(37, operations.size());
         assertEquals(operations, documented);
     }
 
@@ -150,8 +150,9 @@ class OpenApiResourceContractTest {
     }
 
     @Test
-    void bothFileEndpointsHaveBinaryControlsAndCorrectMediaTypeErrors() {
-        for (String path : List.of("/api/v1/lessons/batch", "/api/vocabularies/import")) {
+    void fileEndpointsHaveBinaryControlsAndCorrectMediaTypeErrors() {
+        for (String path : List.of("/api/v1/lessons/batch", "/api/vocabularies/import",
+                "/api/v1/admin/kanji-quiz/questions/import")) {
             JsonNode operation = document.path("paths").path(path).path("post");
             JsonNode content = operation.at("/requestBody/content");
             assertEquals(Set.of("multipart/form-data"), fields(content));
