@@ -1,12 +1,12 @@
 package com.japaneselearning.quiz.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.EnumType;
 import com.japaneselearning.quiz.domain.QuestionSource;
 import com.japaneselearning.quiz.domain.QuestionStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "quiz_questions")
@@ -44,6 +44,9 @@ public class QuizQuestion extends QuizMutableEntity {
     @org.hibernate.annotations.JdbcTypeCode(java.sql.Types.VARCHAR)
     @Column(name = "status", nullable = false, length = 16)
     public QuestionStatus status;
+
+    @Column(name = "content_key", length = 64)
+    public String contentKey;
 
     @Column(name = "validated_example_fingerprint", length = 64)
     public String validatedExampleFingerprint;
