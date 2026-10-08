@@ -19,7 +19,9 @@ public class QuizSessionQuestionRepository implements PanacheRepository<QuizSess
     public Uni<QuizSessionQuestion> persistSnapshot(Long sessionId, int questionNumber, QuestionSnapshot snapshot) {
         return Panache.getSession().chain(session -> {
             if (session.currentTransaction() == null) {
-                return Uni.createFrom().failure(new IllegalStateException("Snapshot persistence requires a transaction"));
+                return Uni.createFrom().failure(
+                        new IllegalStateException("Snapshot persistence requires a transaction")
+                );
             }
 
             QuizSessionQuestion question = new QuizSessionQuestion();
@@ -61,7 +63,8 @@ public class QuizSessionQuestionRepository implements PanacheRepository<QuizSess
 
     public Uni<List<QuizSessionOption>> findOptions(Long sessionQuestionId) {
         return Panache.getSession().chain(session -> session.createQuery(
-                        "from QuizSessionOption where sessionQuestionId = :id", QuizSessionOption.class
+                        "from QuizSessionOption where sessionQuestionId = :id order by id",
+                        QuizSessionOption.class
                 )
                 .setParameter("id", sessionQuestionId).getResultList());
     }

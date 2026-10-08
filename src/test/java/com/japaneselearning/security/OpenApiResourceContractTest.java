@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.japaneselearning.flashcard.resource.FlashcardResource;
 import com.japaneselearning.quiz.admin.resource.AdminKanjiQuizResource;
+import com.japaneselearning.quiz.player.resource.KanjiQuizResource;
 import com.japaneselearning.vocabulary.admin.resource.*;
 import com.japaneselearning.vocabulary.importer.VocabularyImportValidator;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
@@ -59,7 +60,7 @@ class OpenApiResourceContractTest {
                 AdminVocabularyReadingResource.class, AdminVocabularyMeaningResource.class,
                 AdminVocabularyPitchAccentResource.class, AdminVocabularyExampleResource.class,
                 AdminVocabularyAssignmentResource.class, AdminVocabularyKanjiResource.class,
-                AdminKanjiQuizResource.class);
+                AdminKanjiQuizResource.class, KanjiQuizResource.class);
         Set<String> resourceTags = new HashSet<>();
         Set<String> operations = new HashSet<>();
         Set<String> operationIds = new HashSet<>();
@@ -117,7 +118,7 @@ class OpenApiResourceContractTest {
                         documented.add(verb + " " + path.getKey());
                     }
                 }));
-        assertEquals(37, operations.size());
+        assertEquals(39, operations.size());
         assertEquals(operations, documented);
     }
 

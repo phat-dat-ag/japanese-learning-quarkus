@@ -9,6 +9,7 @@ import com.japaneselearning.quiz.domain.QuizQuestionRules;
 import com.japaneselearning.quiz.domain.QuizSessionStatus;
 import com.japaneselearning.quiz.entity.QuizQuestion;
 import com.japaneselearning.quiz.entity.QuizSession;
+import com.japaneselearning.quiz.repository.QuizGameRepository;
 import com.japaneselearning.quiz.repository.QuizQuestionOptionRepository;
 import com.japaneselearning.quiz.repository.QuizQuestionRepository;
 import com.japaneselearning.quiz.repository.QuizSessionQuestionRepository;
@@ -18,13 +19,16 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @ApplicationScoped
 public class QuizSessionSnapshotService {
-    private static final int MAX_SESSION_QUESTIONS = 100;
+    public static final int MAX_SESSION_QUESTIONS = 100;
+    private final QuizGameRepository games;
     private final QuizQuestionRepository questions;
     private final QuizQuestionOptionRepository options;
     private final QuizSessionRepository sessions;
@@ -34,8 +38,10 @@ public class QuizSessionSnapshotService {
             QuizQuestionRepository questions,
             QuizQuestionOptionRepository options,
             QuizSessionRepository sessions,
-            QuizSessionQuestionRepository snapshots
+            QuizSessionQuestionRepository snapshots,
+            QuizGameRepository games
     ) {
+        this.games = games;
         this.questions = questions;
         this.options = options;
         this.sessions = sessions;
@@ -44,6 +50,16 @@ public class QuizSessionSnapshotService {
 
     @WithTransaction
     public Uni<QuizSession> create(String userSubject, List<Long> questionIds) {
+        return create(userSubject, questionIds, null, null);
+    }
+
+    @WithTransaction
+    public Uni<QuizSession> create(
+            String userSubject,
+            List<Long> questionIds,
+            Long levelId,
+            Long lessonId
+    ) {
         if (userSubject == null
                 || userSubject.isBlank()
                 || userSubject.codePointCount(0, userSubject.length()) > 255
@@ -74,23 +90,44 @@ public class QuizSessionSnapshotService {
                                 "QUIZ_QUESTION_NOT_FOUND", "Quiz question not found"
                         ))
                 )
-                .collect().asList().chain(locked -> lockSources(locked).chain(sources -> {
-                    Map<Long, QuizQuestion> byId = new HashMap<>();
-                    locked.forEach(question -> byId.put(question.id, question));
-                    return Multi.createFrom().iterable(selected)
-                            .onItem().transformToUniAndConcatenate(id -> options.findByQuestionId(id).map(values -> {
-                                QuizQuestion question = byId.get(id);
+                .collect().asList().chain(locked -> lockSources(locked)
+                        .call(() -> games.stillMatches(selected, levelId, lessonId).invoke(matches -> {
+                            if (!matches) {
+                                throw QuizQuestionRules.invalid(
+                                        "filters",
+                                        "Question bank changed during creation; retry the request"
+                                );
+                            }
+                        }))
+                        .chain(sources -> capture(selected, locked, sources)))
+                .chain(values -> persistSession(userSubject, values));
+    }
 
-                                return QuestionSnapshot.capture(
-                                        question,
-                                        sources.get(question.exampleSentenceId),
-                                        values.stream()
-                                                .map(option -> new QuestionOption(option.optionText, option.correct))
-                                                .toList());
-                            }))
-                            .collect()
-                            .asList();
-                })).chain(values -> persistSession(userSubject, values));
+    private Uni<List<QuestionSnapshot>> capture(
+            List<Long> selected,
+            List<QuizQuestion> locked,
+            Map<Long, ExampleReading> sources
+    ) {
+        Map<Long, QuizQuestion> byId = new HashMap<>();
+        locked.forEach(question -> byId.put(question.id, question));
+        return Multi.createFrom().iterable(selected)
+                .onItem().transformToUniAndConcatenate(id -> options.findByQuestionId(id).map(values -> {
+                    QuizQuestion question = byId.get(id);
+                    List<QuestionOption> shuffled = new ArrayList<>(
+                            values.stream().map(option ->
+                                    new QuestionOption(option.optionText, option.correct)
+                            ).toList()
+                    );
+                    // Sequential snapshot inserts retain this shuffle when options are later read by ID.
+                    Collections.shuffle(shuffled);
+
+                    return QuestionSnapshot.capture(
+                            question,
+                            sources.get(question.exampleSentenceId),
+                            shuffled
+                    );
+                }))
+                .collect().asList();
     }
 
     private Uni<Map<Long, ExampleReading>> lockSources(List<QuizQuestion> locked) {
@@ -115,7 +152,9 @@ public class QuizSessionSnapshotService {
         session.questionCount = values.size();
 
         return sessions.persist(session).chain(() -> Multi.createFrom().range(0, values.size())
-                .onItem().transformToUniAndConcatenate(index -> snapshots.persistSnapshot(session.id, index, values.get(index)))
+                .onItem().transformToUniAndConcatenate(index ->
+                        snapshots.persistSnapshot(session.id, index, values.get(index))
+                )
                 .collect().asList()
         ).call(sessions::flush).replaceWith(session);
     }

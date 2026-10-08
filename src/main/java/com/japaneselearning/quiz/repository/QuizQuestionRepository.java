@@ -12,6 +12,23 @@ import java.util.List;
 
 @ApplicationScoped
 public class QuizQuestionRepository implements PanacheRepository<QuizQuestion> {
+    static final String PLAYABLE_FILTER = """
+            FROM quiz_questions q
+            LEFT JOIN example_sentences e ON e.id = q.example_sentence_id
+            WHERE q.status = 'PUBLISHED'
+              AND (q.source_type = 'CUSTOM' OR (e.id IS NOT NULL AND
+                q.validated_example_fingerprint =
+                    SHA2(CONCAT(e.japanese_reading, CHAR(0), CAST(e.updated_at AS CHAR)), 256)))
+              AND (:levelId IS NULL OR EXISTS (
+                SELECT 1 FROM quiz_question_levels ql WHERE ql.question_id = q.id AND ql.level_id = :levelId)
+                OR EXISTS (SELECT 1 FROM quiz_question_lessons ql JOIN lessons l ON l.id = ql.lesson_id
+                    WHERE ql.question_id = q.id AND l.level_id = :levelId))
+              AND (:lessonId IS NULL OR EXISTS (
+                SELECT 1 FROM quiz_question_lessons ql JOIN lessons l ON l.id = ql.lesson_id
+                WHERE ql.question_id = q.id AND ql.lesson_id = :lessonId
+                  AND (:levelId IS NULL OR l.level_id = :levelId)))
+            """;
+
     public Uni<QuizQuestion> findByIdForUpdate(Long id) {
         return find("id", id).withLock(LockModeType.PESSIMISTIC_WRITE).firstResult();
     }
@@ -40,22 +57,11 @@ public class QuizQuestionRepository implements PanacheRepository<QuizQuestion> {
         if (afterId < 0 || limit < 1 || limit > 100) {
             throw new IllegalArgumentException("Quiz candidate page requires afterId >= 0 and limit 1..100");
         }
-        return Panache.getSession().chain(session -> session.createNativeQuery("""
-                        SELECT q.id FROM quiz_questions q
-                        LEFT JOIN example_sentences e ON e.id = q.example_sentence_id
-                        WHERE q.status = 'PUBLISHED' AND q.id > :afterId
-                          AND (q.source_type = 'CUSTOM' OR (e.id IS NOT NULL AND
-                            q.validated_example_fingerprint = SHA2(CONCAT(e.japanese_reading, CHAR(0), CAST(e.updated_at AS CHAR)), 256)))
-                          AND (:levelId IS NULL OR EXISTS (
-                            SELECT 1 FROM quiz_question_levels ql WHERE ql.question_id = q.id AND ql.level_id = :levelId)
-                            OR EXISTS (SELECT 1 FROM quiz_question_lessons ql JOIN lessons l ON l.id = ql.lesson_id
-                                WHERE ql.question_id = q.id AND l.level_id = :levelId))
-                          AND (:lessonId IS NULL OR EXISTS (
-                            SELECT 1 FROM quiz_question_lessons ql JOIN lessons l ON l.id = ql.lesson_id
-                            WHERE ql.question_id = q.id AND ql.lesson_id = :lessonId
-                              AND (:levelId IS NULL OR l.level_id = :levelId)))
-                        ORDER BY q.id
-                        """, Long.class).setParameter("afterId", afterId).setParameter("levelId", levelId)
+        return Panache.getSession().chain(session -> session.createNativeQuery(
+                        "SELECT q.id " + PLAYABLE_FILTER + " AND q.id > :afterId ORDER BY q.id",
+                        Long.class
+                )
+                .setParameter("afterId", afterId).setParameter("levelId", levelId)
                 .setParameter("lessonId", lessonId).setMaxResults(limit).getResultList());
     }
 }
