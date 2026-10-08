@@ -3,18 +3,23 @@ package com.japaneselearning.quiz.player.resource;
 import com.japaneselearning.common.resource.BaseResource;
 import com.japaneselearning.quiz.player.dto.QuizSessionCreateRequest;
 import com.japaneselearning.quiz.player.service.QuizGameService;
+
 import io.smallrye.mutiny.Uni;
+
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
@@ -50,6 +55,31 @@ public class KanjiQuizResource extends BaseResource {
             @Valid
             QuizSessionCreateRequest request
     ) {
+        return games.create(subject(), request).map(this::success);
+    }
+
+    @GET
+    @Path("/sessions/{id}")
+    @Operation(summary = "Get an owned Kanji Quiz session")
+    public Uni<Response> quizSession(
+            @PathParam("id")
+            @Positive
+            Long id
+    ) {
+        return games.session(subject(), id).map(this::success);
+    }
+
+    @GET
+    @Path("/sessions/{id}/next")
+    @Operation(summary = "Get the next unanswered Kanji Quiz snapshot")
+    public Uni<Response> nextQuizQuestion(
+            @PathParam("id")
+            @Positive Long id
+    ) {
+        return games.next(subject(), id).map(this::success);
+    }
+
+    private String subject() {
         String subject = jwt.getSubject();
         if (
                 subject == null
@@ -59,6 +89,6 @@ public class KanjiQuizResource extends BaseResource {
             throw new NotAuthorizedException("Bearer");
         }
 
-        return games.create(subject, request).map(this::success);
+        return subject;
     }
 }

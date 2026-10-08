@@ -1,7 +1,7 @@
-# Kanji Quiz game configuration and creation (Phase 4.1)
+# Kanji Quiz configuration, creation and session reads (Phases 4.1-4.2)
 
-Both endpoints require the case-sensitive `User` or `Admin` role and use the existing
-API response/error envelope. No other Player operations are introduced.
+Configuration and creation require the case-sensitive `User` or `Admin` role and use the existing
+API response/error envelope. Session reads are described in the Phase 4.2 section below.
 
 ## Contracts
 
@@ -56,6 +56,44 @@ Session creation is not idempotent: repeating a successful POST creates a new se
 
 The hybrid Java/static contract and examples are verified through merged `/q/openapi`.
 
+## Session reads (Phase 4.2)
+
+`GET /api/v1/kanji-quiz/sessions/{id}` returns the common HTTP 200 envelope with:
+
+```json
+{"sessionId":42,"status":"IN_PROGRESS","questionCount":10,"answeredCount":3,"score":2}
+```
+
+Score is the number of correct submitted answers, read from immutable selected options.
+Answered count out of question count is session progress. No user-progress records or
+grading state are written. Both totals are zero before any answers exist.
+
+`GET /api/v1/kanji-quiz/sessions/{id}/next` returns:
+
+```json
+{"sessionId":42,"status":"IN_PROGRESS","question":{"sessionQuestionId":101,
+ "questionNumber":0,"sentenceReading":"がっこう","targetStart":0,"targetLength":4,
+ "options":[{"id":401,"text":"学校"},{"id":402,"text":"学交"},
+            {"id":403,"text":"校学"},{"id":404,"text":"学高"}]}}
+```
+
+Both endpoints require User or Admin and the same usable, exact JWT subject as creation.
+An Admin cannot read another subject's session. Missing and foreign IDs return the
+same 404 `QUIZ_SESSION_NOT_FOUND`. Nonpositive IDs return 400; malformed or overflowing
+path IDs follow the existing REST conversion behavior (404). Authentication/role
+failures use the existing 401/403 envelopes.
+
+The next question is the first snapshot without an answer, ordered by zero-based
+questionNumber. Options retain ascending snapshot ID order from the original shuffle.
+Target offsets and lengths are Unicode code points. No bank IDs, correctness flags,
+answer keys, target reading, or explanations appear. Reads remain valid after bank/source
+edits or deletion and never reshuffle, submit, advance, score, finish, or update progress.
+
+Completed or abandoned sessions are still readable; their next question is explicitly
+null. Exhausted or empty snapshot sets also return `question: null`, with the stored
+status unchanged. Each read uses a reactive transaction for a consistent database view.
+Answer submission and completion remain deferred.
+
 ## Selection, snapshots and concurrency
 
 The existing Phase 1 eligibility predicate is shared by configuration, candidate paging
@@ -83,7 +121,7 @@ Phase 1 immutable snapshot entities retain sentence, target, explanations, sourc
 and correct option independently of later bank/source edits or deletion. No migrations,
 triggers, new dependencies or changes to Vocabulary APIs are needed.
 
-## Verification and Phase 4.2 handoff
+## Verification and handoff
 
 `QuizGameMysqlTest` covers both sources, counts, explicit/implied/intersecting filters,
 randomized subsets/order/options, JWT ownership, validation, source invalidation,
@@ -109,11 +147,15 @@ The test profile's default password is `vocabulary-test`; override it with
 `-Dvocabulary.mysql.password` when needed.
 
 `QuizFoundationMysqlTest` continues to cover immutable history and snapshot constraints.
-OpenAPI tests fetch the live merged document and verify the two-operation scope, security,
+OpenAPI tests fetch the live merged document and verify the four-operation scope, security,
 request bounds, examples and response fields.
 
-Phase 4.2 must load sessions through the existing subject-scoped repository, serve only
-safe snapshot DTOs, and order questions by questionNumber and options by snapshot ID.
-It must never read current bank content to grade or expose internal correctness to players.
-Retrieval, next-question, answers, scoring, finish, history and progress remain deferred;
-full end-to-end game testing belongs to Phase 4.4. No foundation blocker is currently known.
+Phase 4.2 loads sessions through the subject-scoped repository and serves only safe
+snapshot DTOs. Focused `QuizSessionReadMysqlTest` coverage includes IDOR (including
+Admin, subject case and whitespace), persisted order, answered holes, score totals,
+repeated reads without mutation, terminal/empty sessions, and history after bank edits
+and deletion. Merged OpenAPI checks verify both read operations, response fields,
+nullable next questions, examples and security.
+
+Answer submission, grading mutations, finish, history and user-progress APIs remain
+deferred. Comprehensive end-to-end and MySQL regression verification belongs to Phase 4.4.
