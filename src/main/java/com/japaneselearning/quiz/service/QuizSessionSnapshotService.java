@@ -1,0 +1,122 @@
+package com.japaneselearning.quiz.service;
+
+import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.quiz.domain.ExampleReading;
+import com.japaneselearning.quiz.domain.QuestionOption;
+import com.japaneselearning.quiz.domain.QuestionSnapshot;
+import com.japaneselearning.quiz.domain.QuestionSource;
+import com.japaneselearning.quiz.domain.QuizQuestionRules;
+import com.japaneselearning.quiz.domain.QuizSessionStatus;
+import com.japaneselearning.quiz.entity.QuizQuestion;
+import com.japaneselearning.quiz.entity.QuizSession;
+import com.japaneselearning.quiz.repository.QuizQuestionOptionRepository;
+import com.japaneselearning.quiz.repository.QuizQuestionRepository;
+import com.japaneselearning.quiz.repository.QuizSessionQuestionRepository;
+import com.japaneselearning.quiz.repository.QuizSessionRepository;
+import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@ApplicationScoped
+public class QuizSessionSnapshotService {
+    private static final int MAX_SESSION_QUESTIONS = 100;
+    private final QuizQuestionRepository questions;
+    private final QuizQuestionOptionRepository options;
+    private final QuizSessionRepository sessions;
+    private final QuizSessionQuestionRepository snapshots;
+
+    public QuizSessionSnapshotService(
+            QuizQuestionRepository questions,
+            QuizQuestionOptionRepository options,
+            QuizSessionRepository sessions,
+            QuizSessionQuestionRepository snapshots
+    ) {
+        this.questions = questions;
+        this.options = options;
+        this.sessions = sessions;
+        this.snapshots = snapshots;
+    }
+
+    @WithTransaction
+    public Uni<QuizSession> create(String userSubject, List<Long> questionIds) {
+        if (userSubject == null
+                || userSubject.isBlank()
+                || userSubject.codePointCount(0, userSubject.length()) > 255
+        ) {
+            throw QuizQuestionRules.invalid(
+                    "userSubject",
+                    "A JWT subject of at most 255 code points is required"
+            );
+        }
+
+        if (questionIds == null
+                || questionIds.isEmpty()
+                || questionIds.size() > MAX_SESSION_QUESTIONS
+                || questionIds.stream().anyMatch(id -> id == null || id <= 0)
+                || questionIds.stream().distinct().count() != questionIds.size()
+        ) {
+            throw QuizQuestionRules.invalid(
+                    "questionIds",
+                    "Select 1 to 100 distinct persisted questions"
+            );
+        }
+
+        List<Long> selected = List.copyOf(questionIds);
+        // Acquire every question before any source; sorted locks also cover shared examples.
+        return Multi.createFrom().iterable(selected.stream().sorted().toList())
+                .onItem().transformToUniAndConcatenate(id -> questions.findByIdForUpdate(id)
+                        .onItem().ifNull().failWith(() -> new ResourceNotFoundException(
+                                "QUIZ_QUESTION_NOT_FOUND", "Quiz question not found"
+                        ))
+                )
+                .collect().asList().chain(locked -> lockSources(locked).chain(sources -> {
+                    Map<Long, QuizQuestion> byId = new HashMap<>();
+                    locked.forEach(question -> byId.put(question.id, question));
+                    return Multi.createFrom().iterable(selected)
+                            .onItem().transformToUniAndConcatenate(id -> options.findByQuestionId(id).map(values -> {
+                                QuizQuestion question = byId.get(id);
+
+                                return QuestionSnapshot.capture(
+                                        question,
+                                        sources.get(question.exampleSentenceId),
+                                        values.stream()
+                                                .map(option -> new QuestionOption(option.optionText, option.correct))
+                                                .toList());
+                            }))
+                            .collect()
+                            .asList();
+                })).chain(values -> persistSession(userSubject, values));
+    }
+
+    private Uni<Map<Long, ExampleReading>> lockSources(List<QuizQuestion> locked) {
+        Map<Long, ExampleReading> sources = new HashMap<>();
+        List<Long> ids = locked.stream()
+                .filter(question -> question.sourceType == QuestionSource.EXAMPLE)
+                .map(question -> question.exampleSentenceId)
+                .filter(java.util.Objects::nonNull)
+                .distinct().sorted().toList();
+
+        return Multi.createFrom().iterable(ids).onItem().transformToUniAndConcatenate(id ->
+                        questions.findExampleReadingForUpdate(id).invoke(reading -> sources.put(id, reading))
+                )
+                .collect().asList().replaceWith(sources);
+    }
+
+    private Uni<QuizSession> persistSession(String userSubject, List<QuestionSnapshot> values) {
+        QuizSession session = new QuizSession();
+
+        session.userSubject = userSubject;
+        session.status = QuizSessionStatus.IN_PROGRESS;
+        session.questionCount = values.size();
+
+        return sessions.persist(session).chain(() -> Multi.createFrom().range(0, values.size())
+                .onItem().transformToUniAndConcatenate(index -> snapshots.persistSnapshot(session.id, index, values.get(index)))
+                .collect().asList()
+        ).call(sessions::flush).replaceWith(session);
+    }
+}
