@@ -1,7 +1,9 @@
 package com.japaneselearning.quiz.player.resource;
 
 import com.japaneselearning.common.resource.BaseResource;
+import com.japaneselearning.quiz.player.dto.QuizAnswerRequest;
 import com.japaneselearning.quiz.player.dto.QuizSessionCreateRequest;
+import com.japaneselearning.quiz.player.service.QuizAnswerService;
 import com.japaneselearning.quiz.player.service.QuizGameService;
 
 import io.smallrye.mutiny.Uni;
@@ -32,10 +34,16 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class KanjiQuizResource extends BaseResource {
     private final QuizGameService games;
     private final JsonWebToken jwt;
+    private final QuizAnswerService answers;
 
-    public KanjiQuizResource(QuizGameService games, JsonWebToken jwt) {
+    public KanjiQuizResource(
+            QuizGameService games,
+            JsonWebToken jwt,
+            QuizAnswerService answers
+    ) {
         this.games = games;
         this.jwt = jwt;
+        this.answers = answers;
     }
 
     @GET
@@ -77,6 +85,23 @@ public class KanjiQuizResource extends BaseResource {
             @Positive Long id
     ) {
         return games.next(subject(), id).map(this::success);
+    }
+
+    @POST
+    @Path("/sessions/{id}/answers")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Submit the next Kanji Quiz snapshot answer")
+    @RequestBody(required = true)
+    public Uni<Response> submitQuizAnswer(
+            @PathParam("id")
+            @Positive
+            Long id,
+
+            @NotNull
+            @Valid
+            QuizAnswerRequest request
+    ) {
+        return answers.submit(subject(), id, request).map(this::success);
     }
 
     private String subject() {

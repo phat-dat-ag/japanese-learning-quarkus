@@ -46,7 +46,8 @@ class QuizSessionReadMysqlTest {
         String token = token("User", owner);
         String state =
                 text(
-                        "SELECT CONCAT(version, ':', updated_at, ':', status) FROM quiz_sessions WHERE id="
+                        "SELECT CONCAT(version, ':', updated_at, ':', status) FROM quiz_sessions"
+                                + " WHERE id="
                                 + session);
         long answers = number("SELECT COUNT(*) FROM quiz_answers");
         long progress = number("SELECT COUNT(*) FROM quiz_user_progress");
@@ -100,7 +101,8 @@ class QuizSessionReadMysqlTest {
         assertEquals(
                 state,
                 text(
-                        "SELECT CONCAT(version, ':', updated_at, ':', status) FROM quiz_sessions WHERE id="
+                        "SELECT CONCAT(version, ':', updated_at, ':', status) FROM quiz_sessions"
+                                + " WHERE id="
                                 + session));
         assertEquals(answers, number("SELECT COUNT(*) FROM quiz_answers"));
         assertEquals(progress, number("SELECT COUNT(*) FROM quiz_user_progress"));
@@ -238,7 +240,9 @@ class QuizSessionReadMysqlTest {
         String admin = token("Admin", owner);
         String marker = UUID.randomUUID().toString();
         sql(
-                "INSERT INTO example_sentences(japanese_text,japanese_reading,meaning_vi,meaning_en) VALUES ('"
+                "INSERT INTO"
+                        + " example_sentences(japanese_text,japanese_reading,meaning_vi,meaning_en)"
+                        + " VALUES ('"
                         + marker
                         + "','"
                         + READING
@@ -264,6 +268,10 @@ class QuizSessionReadMysqlTest {
                                                 4,
                                                 "targetReading",
                                                 READING,
+                                                "explanationVi",
+                                                "original vi",
+                                                "explanationEn",
+                                                "original en",
                                                 "levelIds",
                                                 List.of(),
                                                 "lessonIds",
@@ -332,11 +340,34 @@ class QuizSessionReadMysqlTest {
                 read(admin, session, "/next").jsonPath().getMap("data.question");
         assertEquals(READING, original.get("sentenceReading"));
         assertEquals(4, ((List<?>) original.get("options")).size());
+        Response bankQuestion = given().auth().oauth2(admin).get(bank + "/" + question);
+        bankQuestion.then().statusCode(200);
+        long changedOption =
+                bankQuestion.jsonPath().getLong("data.options.find { !it.correct }.id");
+        given().auth()
+                .oauth2(admin)
+                .contentType("application/json")
+                .body(
+                        Map.of(
+                                "version",
+                                bankQuestion.jsonPath().getLong("data.version"),
+                                "optionId",
+                                changedOption))
+                .put(bank + "/" + question + "/correct-option")
+                .then()
+                .statusCode(200);
         sql(
-                "UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.') WHERE id="
+                "UPDATE quiz_questions SET explanation_vi='edited vi', explanation_en='edited en'"
+                        + " WHERE id="
+                        + question);
+
+        sql(
+                "UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.') WHERE"
+                        + " id="
                         + example);
         sql(
-                "UPDATE quiz_question_options SET option_text=CONCAT(option_text,'-edited') WHERE question_id="
+                "UPDATE quiz_question_options SET option_text=CONCAT(option_text,'-edited') WHERE"
+                        + " question_id="
                         + question);
         assertEquals(original, read(admin, session, "/next").jsonPath().getMap("data.question"));
         sql("DELETE FROM quiz_questions WHERE id=" + question);
@@ -347,6 +378,24 @@ class QuizSessionReadMysqlTest {
                 .body("data.questionCount", equalTo(1))
                 .body("data.answeredCount", equalTo(0))
                 .body("data.score", equalTo(0));
+        long snapshotId = ((Number) original.get("sessionQuestionId")).longValue();
+        long correctOption =
+                number(
+                        "SELECT id FROM quiz_session_options WHERE session_question_id="
+                                + snapshotId
+                                + " AND is_correct=1");
+        given().auth()
+                .oauth2(admin)
+                .contentType("application/json")
+                .body(Map.of("sessionQuestionId", snapshotId, "selectedOptionId", correctOption))
+                .post(BASE + session + "/answers")
+                .then()
+                .statusCode(200)
+                .body("data.correct", equalTo(true))
+                .body("data.explanationVi", equalTo("original vi"))
+                .body("data.explanationEn", equalTo("original en"))
+                .body("data.correctOptionId", equalTo((int) correctOption))
+                .body("data.score", equalTo(1));
     }
 
     private void assertNoNext(String token, long session, String status) {
@@ -376,8 +425,9 @@ class QuizSessionReadMysqlTest {
         // Insert out of question order with a non-text-sorted option order.
         // NULL bank IDs represent immutable history after the bank question is deleted.
         sql(
-                "INSERT INTO quiz_session_questions(session_id,question_version,question_number,source_type,"
-                        + "sentence_reading,target_start,target_length,target_reading,explanation_vi) VALUES ("
+                "INSERT INTO"
+                        + " quiz_session_questions(session_id,question_version,question_number,source_type,sentence_reading,target_start,target_length,target_reading,explanation_vi)"
+                        + " VALUES ("
                         + session
                         + ",1,"
                         + number
@@ -394,7 +444,8 @@ class QuizSessionReadMysqlTest {
                                 + number);
         for (int choice : List.of(2, 0, 3, 1)) {
             sql(
-                    "INSERT INTO quiz_session_options(session_question_id,option_text,is_correct) VALUES ("
+                    "INSERT INTO quiz_session_options(session_question_id,option_text,is_correct)"
+                            + " VALUES ("
                             + id
                             + ",'choice-"
                             + choice
@@ -407,8 +458,8 @@ class QuizSessionReadMysqlTest {
 
     private void answer(long question, boolean correct) {
         sql(
-                "INSERT INTO quiz_answers(session_question_id,selected_option_id) SELECT session_question_id,id "
-                        + "FROM quiz_session_options WHERE session_question_id="
+                "INSERT INTO quiz_answers(session_question_id,selected_option_id) SELECT"
+                        + " session_question_id,id FROM quiz_session_options WHERE session_question_id="
                         + question
                         + " AND is_correct="
                         + (correct ? 1 : 0)

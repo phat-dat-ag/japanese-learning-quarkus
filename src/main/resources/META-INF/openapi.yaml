@@ -2415,7 +2415,7 @@ paths:
       "summary": "Create a randomized Kanji Quiz session"
       "tags":
         - "Kanji Quiz"
-      "description": "Requires User or Admin. Owner comes exclusively from verified JWT sub: case-sensitive, nonblank, at most 255 code points. Optional positive levelId and lessonId must exist; when both are supplied the lesson must belong to that level. Omitted/null filters are unrestricted. Level matching includes explicit level tags or assigned lessons at that level; lesson matching requires an explicit assignment. Filters intersect. Required questionCount is 1-100. Selects distinct PUBLISHED, source-valid EXAMPLE and CUSTOM questions without replacement in randomized order, independently shuffling options. Locks and revalidates selected questions, sources and classifications, then commits all immutable snapshots and session in one reactive transaction. Failure leaves no partial session. Response contains metadata only, no questions, options, explanations or correct answers. Concurrent changes can return 409; retry explicitly. Repeated successful POSTs create new sessions. Answers and completion are outside this phase."
+      "description": "Requires User or Admin. Owner comes exclusively from verified JWT sub: case-sensitive, nonblank, at most 255 code points. Optional positive levelId and lessonId must exist; when both are supplied the lesson must belong to that level. Omitted/null filters are unrestricted. Level matching includes explicit level tags or assigned lessons at that level; lesson matching requires an explicit assignment. Filters intersect. Required questionCount is 1-100. Selects distinct PUBLISHED, source-valid EXAMPLE and CUSTOM questions without replacement in randomized order, independently shuffling options. Locks and revalidates selected questions, sources and classifications, then commits all immutable snapshots and session in one reactive transaction. Failure leaves no partial session. Response contains metadata only, no questions, options, explanations or correct answers. Concurrent changes can return 409; retry explicitly. Repeated successful POSTs create new sessions. Answer submission uses the session answers endpoint; completion is separate."
       "security":
         -
           "bearerAuth": []
@@ -2668,6 +2668,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions/{id}/answers":
+    post:
+      operationId: submitQuizAnswer
+      summary: "Submit the next Kanji Quiz snapshot answer"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only submit to an owned session. Accepts session snapshot IDs, never bank IDs. Locks the owned session before checking the next unanswered question in persisted questionNumber order. Validates option membership and scores exclusively from immutable snapshots, unaffected by bank or source edits/deletion. Persists the answer atomically; score and progress are derived from committed answers. Concurrent submissions serialize and cannot double score. Returns the correct snapshot option and VI/EN explanations only for the accepted answer. Duplicate, out-of-order, exhausted, COMPLETED and ABANDONED submissions return 409 without changes. Last answer leaves session status IN_PROGRESS; finishing and user progress reporting are separate operations. Existing GET endpoints never reveal answer keys."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive owned session ID; malformed or overflowing path IDs return 404."
+          schema: {type: integer, format: int64, minimum: 1}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizAnswerRequest"
+            examples:
+              answer:
+                value: {sessionQuestionId: 101, selectedOptionId: 402}
+      responses:
+        "200":
+          description: "Answer committed; score counts correct submitted answers, remainingCount is questionCount minus answeredCount. Explanations may be null."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizAnswerResponse"
+              examples:
+                correct:
+                  value:
+                    success: true
+                    data: {sessionQuestionId: 101, correct: true, correctOptionId: 402, explanationVi: "Giai thich", explanationEn: "Explanation", score: 1, answeredCount: 1, remainingCount: 9}
+                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+                incorrect:
+                  value:
+                    success: true
+                    data: {sessionQuestionId: 101, correct: false, correctOptionId: 402, explanationVi: null, explanationEn: null, score: 0, answeredCount: 1, remainingCount: 9}
+                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+        "400":
+          description: "BAD_REQUEST - required positive snapshot IDs, positive session ID and valid JSON; QUIZ_ANSWER_INVALID - selected option does not belong to the current snapshot."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session missing or owned by another subject; malformed path IDs use NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_ANSWER_CONFLICT - duplicate or out-of-order question, exhausted or terminal session, or concurrent lock conflict. No answer is committed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - application/json required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; transaction rolls back and internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -2758,6 +2847,38 @@ components:
         format: int64
         minimum: 1
   schemas:
+    QuizAnswerRequest:
+      type: object
+      required: [sessionQuestionId, selectedOptionId]
+      properties:
+        sessionQuestionId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: "Current session question snapshot ID from GET next."
+        selectedOptionId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: "Option snapshot ID belonging to that question."
+    QuizAnswerResponse:
+      type: object
+      required: [sessionQuestionId, correct, correctOptionId, score, answeredCount, remainingCount]
+      properties:
+        sessionQuestionId: {type: integer, format: int64}
+        correct: {type: boolean}
+        correctOptionId: {type: integer, format: int64}
+        explanationVi:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        explanationEn:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        score: {type: integer, format: int64, minimum: 0, description: "Number of correct submitted answers."}
+        answeredCount: {type: integer, format: int64, minimum: 0}
+        remainingCount: {type: integer, format: int64, minimum: 0}
     QuizSessionResponse:
       type: object
       description: "Owned session summary; answeredCount out of questionCount is progress, score counts correct submitted answers."

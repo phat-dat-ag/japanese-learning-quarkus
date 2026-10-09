@@ -165,7 +165,7 @@ class OpenApiResourceContractTest {
                                                         documented.add(verb + " " + path.getKey());
                                                     }
                                                 }));
-        assertEquals(41, operations.size());
+        assertEquals(42, operations.size());
         assertEquals(operations, documented);
     }
 

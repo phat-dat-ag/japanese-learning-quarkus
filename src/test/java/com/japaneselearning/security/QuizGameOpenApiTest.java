@@ -29,27 +29,41 @@ class QuizGameOpenApiTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void mergedContractExposesOnlyFourPlayerOperationsAndSafeResponses() throws Exception {
-        JsonNode document = mapper.readTree(given().accept("application/json").get("/q/openapi")
-                .then().statusCode(200).extract().asString());
+    void mergedContractExposesOnlyFivePlayerOperationsAndSafeResponses() throws Exception {
+        JsonNode document =
+                mapper.readTree(
+                        given().accept("application/json")
+                                .get("/q/openapi")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .asString());
         Set<String> paths = new HashSet<>();
-        document.path("paths").fieldNames().forEachRemaining(path -> {
-            if (path.startsWith("/api/v1/kanji-quiz")) {
-                paths.add(path);
-            }
-        });
+        document.path("paths")
+                .fieldNames()
+                .forEachRemaining(
+                        path -> {
+                            if (path.startsWith("/api/v1/kanji-quiz")) {
+                                paths.add(path);
+                            }
+                        });
         assertEquals(
                 Set.of(
                         "/api/v1/kanji-quiz/config",
                         "/api/v1/kanji-quiz/sessions",
                         "/api/v1/kanji-quiz/sessions/{id}",
-                        "/api/v1/kanji-quiz/sessions/{id}/next"),
+                        "/api/v1/kanji-quiz/sessions/{id}/next",
+                        "/api/v1/kanji-quiz/sessions/{id}/answers"),
                 paths);
         for (String path : paths) {
             JsonNode operation =
                     document.path("paths")
                             .path(path)
-                            .path(path.equals("/api/v1/kanji-quiz/sessions") ? "post" : "get");
+                            .path(
+                                    path.equals("/api/v1/kanji-quiz/sessions")
+                                            || path.endsWith("/answers")
+                                            ? "post"
+                                            : "get");
             assertEquals("Kanji Quiz", operation.path("tags").get(0).asText());
             assertTrue(operation.path("description").asText().contains("User or Admin"));
             assertTrue(operation.path("security").get(0).has("bearerAuth"));
@@ -153,6 +167,65 @@ class QuizGameOpenApiTest {
                                 examples.at("/noNext/value/data"), QuizNextQuestionResponse.class);
                 org.junit.jupiter.api.Assertions.assertNull(exhausted.question());
             }
+        }
+    }
+
+    @Test
+    void answerContractDocumentsSnapshotInputFeedbackAndFailures() throws Exception {
+        JsonNode document =
+                mapper.readTree(
+                        given().accept("application/json")
+                                .get("/q/openapi")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .asString());
+        JsonNode operation =
+                document.path("paths")
+                        .path("/api/v1/kanji-quiz/sessions/{id}/answers")
+                        .path("post");
+        for (String status : List.of("200", "400", "401", "403", "404", "409", "415", "500")) {
+            assertTrue(operation.path("responses").has(status), status);
+        }
+        assertTrue(operation.at("/requestBody/required").asBoolean());
+        JsonNode schemas = document.at("/components/schemas");
+        JsonNode request = schemas.path("QuizAnswerRequest");
+        assertEquals(
+                Set.of("sessionQuestionId", "selectedOptionId"),
+                fields(request.path("properties")));
+        for (String field : List.of("sessionQuestionId", "selectedOptionId")) {
+            assertEquals(1, request.path("properties").path(field).path("minimum").asInt());
+            assertTrue(request.path("required").toString().contains(field));
+        }
+        var example =
+                mapper.treeToValue(
+                        operation.at(
+                                "/requestBody/content/application~1json/examples/answer/value"),
+                        com.japaneselearning.quiz.player.dto.QuizAnswerRequest.class);
+        assertEquals(101L, example.sessionQuestionId());
+        assertEquals(402L, example.selectedOptionId());
+        assertEquals(
+                Set.of(
+                        "sessionQuestionId",
+                        "correct",
+                        "correctOptionId",
+                        "explanationVi",
+                        "explanationEn",
+                        "score",
+                        "answeredCount",
+                        "remainingCount"),
+                fields(schemas.at("/QuizAnswerResponse/properties")));
+        for (String name : List.of("correct", "incorrect")) {
+            var feedback =
+                    mapper.treeToValue(
+                            operation.at(
+                                    "/responses/200/content/application~1json/examples/"
+                                            + name
+                                            + "/value/data"),
+                            com.japaneselearning.quiz.player.dto.QuizAnswerResponse.class);
+            assertEquals(name.equals("correct"), feedback.correct());
+            assertEquals(1, feedback.answeredCount());
+            assertEquals(9, feedback.remainingCount());
         }
     }
 
