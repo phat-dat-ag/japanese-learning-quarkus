@@ -137,7 +137,9 @@ class OpenApiResourceContractTest {
                     assertFalse(resolved.path("description").asText().isBlank(), label);
                     assertFalse(resolved.path("schema").isMissingNode(), label);
                 }
-                if (!verb.equals("get")) {
+                if (path.equals("/api/v1/kanji-quiz/sessions/{id}/finish")) {
+                    assertFalse(operation.has("requestBody"), label);
+                } else if (!verb.equals("get")) {
                     assertTrue(operation.at("/requestBody/required").asBoolean(), label);
                     assertEquals(1, operation.at("/requestBody/content").size(), label);
                 }
@@ -165,7 +167,7 @@ class OpenApiResourceContractTest {
                                                         documented.add(verb + " " + path.getKey());
                                                     }
                                                 }));
-        assertEquals(42, operations.size());
+        assertEquals(43, operations.size());
         assertEquals(operations, documented);
     }
 

@@ -23,12 +23,13 @@ class OpenApiSecurityTest {
 
     @Test
     void exposesOneHttpBearerSchemeWithoutAuthentication() {
-        JsonPath document = given().accept("application/json")
-                .get("/q/openapi")
-                .then()
-                .statusCode(200)
-                .extract()
-                .jsonPath();
+        JsonPath document =
+                given().accept("application/json")
+                        .get("/q/openapi")
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath();
         Map<String, Object> schemes = document.getMap("components.securitySchemes");
         assertEquals(Set.of("bearerAuth"), schemes.keySet());
         assertEquals("http", document.getString("components.securitySchemes.bearerAuth.type"));
@@ -96,6 +97,7 @@ class OpenApiSecurityTest {
         operations.put("/api/v1/kanji-quiz/sessions/{id}", "get");
         operations.put("/api/v1/kanji-quiz/sessions/{id}/next", "get");
         operations.put("/api/v1/kanji-quiz/sessions/{id}/answers", "post");
+        operations.put("/api/v1/kanji-quiz/sessions/{id}/finish", "post");
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach(
                 (path, method) -> {

@@ -1,11 +1,20 @@
 package com.japaneselearning.security;
 
+import static io.restassured.RestAssured.given;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import io.restassured.response.Response;
 import io.vertx.mutiny.mysqlclient.MySQLPool;
+
 import jakarta.inject.Inject;
+
 import org.jose4j.jwk.RsaJsonWebKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,12 +32,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 @TestProfile(VocabularyMysqlTestProfile.class)
@@ -64,13 +67,27 @@ class QuizGameMysqlTest {
         long archived = question(level, lesson, null, true);
         lifecycle(archived, "archive");
         Response config = config();
-        assertEquals(2, config.jsonPath().getInt("data.levels.find { it.id == " + level + " }.questionCount"));
-        assertEquals(2, config.jsonPath().getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
-        sql("UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.'), "
-                + "updated_at=DATE_ADD(updated_at, INTERVAL 1 SECOND) WHERE id=" + source);
-        assertEquals(1, config().jsonPath().getInt("data.levels.find { it.id == " + level + " }.questionCount"));
+        assertEquals(
+                2,
+                config.jsonPath()
+                        .getInt("data.levels.find { it.id == " + level + " }.questionCount"));
+        assertEquals(
+                2,
+                config.jsonPath()
+                        .getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
+        sql(
+                "UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.'), "
+                        + "updated_at=DATE_ADD(updated_at, INTERVAL 1 SECOND) WHERE id="
+                        + source);
+        assertEquals(
+                1,
+                config().jsonPath()
+                        .getInt("data.levels.find { it.id == " + level + " }.questionCount"));
         sql("DELETE FROM example_sentences WHERE id=" + source);
-        assertEquals(1, config().jsonPath().getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
+        assertEquals(
+                1,
+                config().jsonPath()
+                        .getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
         config.then().body("data.maxQuestionCount", equalTo(100));
     }
 
@@ -83,7 +100,8 @@ class QuizGameMysqlTest {
         Response response = config();
         assertEquals(before + 1, response.jsonPath().getLong("data.totalQuestions"));
         assertFalse(response.jsonPath().getList("data.levels.id", Long.class).contains(emptyLevel));
-        assertFalse(response.jsonPath().getList("data.lessons.id", Long.class).contains(emptyLesson));
+        assertFalse(
+                response.jsonPath().getList("data.lessons.id", Long.class).contains(emptyLesson));
         create(user, Map.of("questionCount", 1)).then().statusCode(200);
     }
 
@@ -95,14 +113,31 @@ class QuizGameMysqlTest {
         long explicit = question(level, null, null, true);
         long implied = question(null, lesson, null, true);
         long another = question(null, other, null, true);
-        long game = create(user, Map.of("levelId", level, "questionCount", 3)).then().statusCode(200)
-                .extract().jsonPath().getLong("data.sessionId");
-        assertEquals(Set.of(explicit, implied, another), new HashSet<>(numbers(
-                "SELECT question_id FROM quiz_session_questions WHERE session_id=" + game)));
-        long filtered = create(user, Map.of("levelId", level, "lessonId", lesson, "questionCount", 1))
-                .then().statusCode(200).extract().jsonPath().getLong("data.sessionId");
-        assertEquals(List.of(implied), numbers("SELECT question_id FROM quiz_session_questions WHERE session_id="
-                + filtered));
+        long game =
+                create(user, Map.of("levelId", level, "questionCount", 3))
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath()
+                        .getLong("data.sessionId");
+        assertEquals(
+                Set.of(explicit, implied, another),
+                new HashSet<>(
+                        numbers(
+                                "SELECT question_id FROM quiz_session_questions WHERE session_id="
+                                        + game)));
+        long filtered =
+                create(user, Map.of("levelId", level, "lessonId", lesson, "questionCount", 1))
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath()
+                        .getLong("data.sessionId");
+        assertEquals(
+                List.of(implied),
+                numbers(
+                        "SELECT question_id FROM quiz_session_questions WHERE session_id="
+                                + filtered));
     }
 
     @Test
@@ -116,16 +151,34 @@ class QuizGameMysqlTest {
         assertEquals(Set.of("sessionId", "status", "questionCount", "createdAt"), data.keySet());
         long session = response.jsonPath().getLong("data.sessionId");
         long snapshot = number("SELECT id FROM quiz_session_questions WHERE session_id=" + session);
-        assertEquals(4, number("SELECT COUNT(*) FROM quiz_session_options WHERE session_question_id=" + snapshot));
-        assertEquals(1, number("SELECT COUNT(*) FROM quiz_session_options WHERE is_correct=1 "
-                + "AND session_question_id=" + snapshot));
-        assertEquals(READING, text("SELECT sentence_reading FROM quiz_session_questions WHERE id=" + snapshot));
+        assertEquals(
+                4,
+                number(
+                        "SELECT COUNT(*) FROM quiz_session_options WHERE session_question_id="
+                                + snapshot));
+        assertEquals(
+                1,
+                number(
+                        "SELECT COUNT(*) FROM quiz_session_options WHERE is_correct=1 "
+                                + "AND session_question_id="
+                                + snapshot));
+        assertEquals(
+                READING,
+                text("SELECT sentence_reading FROM quiz_session_questions WHERE id=" + snapshot));
         lifecycle(question, "archive");
         sql("DELETE FROM example_sentences WHERE id=" + source);
-        assertEquals(READING, text("SELECT sentence_reading FROM quiz_session_questions WHERE id=" + snapshot));
-        assertEquals(1, number("SELECT COUNT(*) FROM quiz_session_options WHERE is_correct=1 "
-                + "AND session_question_id=" + snapshot));
-        create(user, Map.of("lessonId", lesson, "questionCount", 1)).then().statusCode(409)
+        assertEquals(
+                READING,
+                text("SELECT sentence_reading FROM quiz_session_questions WHERE id=" + snapshot));
+        assertEquals(
+                1,
+                number(
+                        "SELECT COUNT(*) FROM quiz_session_options WHERE is_correct=1 "
+                                + "AND session_question_id="
+                                + snapshot));
+        create(user, Map.of("lessonId", lesson, "questionCount", 1))
+                .then()
+                .statusCode(409)
                 .body("error.code", equalTo("QUIZ_INSUFFICIENT_QUESTIONS"));
     }
 
@@ -138,20 +191,39 @@ class QuizGameMysqlTest {
         Set<List<Long>> orders = new HashSet<>();
         Set<String> firstChoices = new HashSet<>();
         for (int i = 0; i < 12; i++) {
-            long game = create(user, Map.of("lessonId", lesson, "questionCount", 3)).then().statusCode(200)
-                    .extract().jsonPath().getLong("data.sessionId");
-            List<Long> selected = numbers("SELECT question_id FROM quiz_session_questions WHERE session_id="
-                    + game + " ORDER BY question_number");
+            long game =
+                    create(user, Map.of("lessonId", lesson, "questionCount", 3))
+                            .then()
+                            .statusCode(200)
+                            .extract()
+                            .jsonPath()
+                            .getLong("data.sessionId");
+            List<Long> selected =
+                    numbers(
+                            "SELECT question_id FROM quiz_session_questions WHERE session_id="
+                                    + game
+                                    + " ORDER BY question_number");
             assertEquals(3, new HashSet<>(selected).size());
             orders.add(selected);
-            for (long snapshot : numbers("SELECT id FROM quiz_session_questions WHERE session_id=" + game)) {
-                firstChoices.add(text("SELECT option_text FROM quiz_session_options WHERE session_question_id="
-                        + snapshot + " ORDER BY id LIMIT 1"));
-                assertEquals(4, number("SELECT COUNT(*) FROM quiz_session_options WHERE session_question_id="
-                        + snapshot));
+            for (long snapshot :
+                    numbers("SELECT id FROM quiz_session_questions WHERE session_id=" + game)) {
+                firstChoices.add(
+                        text(
+                                "SELECT option_text FROM quiz_session_options WHERE"
+                                        + " session_question_id="
+                                        + snapshot
+                                        + " ORDER BY id LIMIT 1"));
+                assertEquals(
+                        4,
+                        number(
+                                "SELECT COUNT(*) FROM quiz_session_options WHERE"
+                                        + " session_question_id="
+                                        + snapshot));
             }
         }
-        assertTrue(orders.size() > 1, "Repeated games must not always take the same ID-ordered prefix");
+        assertTrue(
+                orders.size() > 1,
+                "Repeated games must not always take the same ID-ordered prefix");
         assertTrue(firstChoices.size() > 1, "Option order must vary independently of bank order");
     }
 
@@ -160,13 +232,28 @@ class QuizGameMysqlTest {
         long lesson = lesson(level());
         question(null, lesson, null, true);
         for (String subject : List.of("Quiz-Owner", "quiz-owner")) {
-            long id = create(token("User", subject), Map.of("lessonId", lesson, "questionCount", 1,
-                    "userId", "attacker", "userSubject", "attacker"))
-                    .then().statusCode(200).extract().jsonPath().getLong("data.sessionId");
+            long id =
+                    create(
+                            token("User", subject),
+                            Map.of(
+                                    "lessonId",
+                                    lesson,
+                                    "questionCount",
+                                    1,
+                                    "userId",
+                                    "attacker",
+                                    "userSubject",
+                                    "attacker"))
+                            .then()
+                            .statusCode(200)
+                            .extract()
+                            .jsonPath()
+                            .getLong("data.sessionId");
             assertEquals(subject, text("SELECT user_subject FROM quiz_sessions WHERE id=" + id));
         }
         create(token("Admin", "game-admin"), Map.of("lessonId", lesson, "questionCount", 1))
-                .then().statusCode(200);
+                .then()
+                .statusCode(200);
     }
 
     @Test
@@ -174,16 +261,20 @@ class QuizGameMysqlTest {
         long level = level();
         long lesson = lesson(level);
         long before = number("SELECT COUNT(*) FROM quiz_sessions");
-        for (Map<String, Object> request : List.<Map<String, Object>>of(
-                Map.of(), Map.of("questionCount", 0), Map.of("questionCount", 101),
-                Map.of("questionCount", 1, "levelId", -1),
-                Map.of("questionCount", 1, "levelId", Long.MAX_VALUE),
-                Map.of("questionCount", 1, "lessonId", Long.MAX_VALUE),
-                Map.of("questionCount", 1, "levelId", level(), "lessonId", lesson)
-        )) {
+        for (Map<String, Object> request :
+                List.<Map<String, Object>>of(
+                        Map.of(),
+                        Map.of("questionCount", 0),
+                        Map.of("questionCount", 101),
+                        Map.of("questionCount", 1, "levelId", -1),
+                        Map.of("questionCount", 1, "levelId", Long.MAX_VALUE),
+                        Map.of("questionCount", 1, "lessonId", Long.MAX_VALUE),
+                        Map.of("questionCount", 1, "levelId", level(), "lessonId", lesson))) {
             create(user, request).then().statusCode(400);
         }
-        create(user, Map.of("lessonId", lesson, "questionCount", 1)).then().statusCode(409)
+        create(user, Map.of("lessonId", lesson, "questionCount", 1))
+                .then()
+                .statusCode(409)
                 .body("error.code", equalTo("QUIZ_INSUFFICIENT_QUESTIONS"));
         assertEquals(before, number("SELECT COUNT(*) FROM quiz_sessions"));
     }
@@ -196,10 +287,15 @@ class QuizGameMysqlTest {
         long snapshots = number("SELECT COUNT(*) FROM quiz_session_questions");
         long options = number("SELECT COUNT(*) FROM quiz_session_options");
         long existingSnapshot = number("SELECT COALESCE(MAX(id),0) FROM quiz_session_questions");
-        sql("ALTER TABLE quiz_session_options ADD CONSTRAINT ck_game_test_failure CHECK (session_question_id <= "
-                + existingSnapshot + " OR option_text <> 'choice-2')");
+        sql(
+                "ALTER TABLE quiz_session_options ADD CONSTRAINT ck_game_test_failure CHECK"
+                        + " (session_question_id <= "
+                        + existingSnapshot
+                        + " OR option_text <> 'choice-2')");
         try {
-            create(user, Map.of("lessonId", lesson, "questionCount", 1)).then().statusCode(409)
+            create(user, Map.of("lessonId", lesson, "questionCount", 1))
+                    .then()
+                    .statusCode(409)
                     .body("error.code", equalTo("QUIZ_GAME_CONFLICT"));
             assertEquals(sessions, number("SELECT COUNT(*) FROM quiz_sessions"));
             assertEquals(snapshots, number("SELECT COUNT(*) FROM quiz_session_questions"));
@@ -278,15 +374,21 @@ class QuizGameMysqlTest {
     void simultaneousSessionsRemainCompleteAndIndependent() throws Exception {
         long lesson = lesson(level());
         question(null, lesson, null, true);
-        var first = CompletableFuture.supplyAsync(() ->
-                create(user, Map.of("lessonId", lesson, "questionCount", 1)));
-        var second = CompletableFuture.supplyAsync(() ->
-                create(admin, Map.of("lessonId", lesson, "questionCount", 1)));
+        var first =
+                CompletableFuture.supplyAsync(
+                        () -> create(user, Map.of("lessonId", lesson, "questionCount", 1)));
+        var second =
+                CompletableFuture.supplyAsync(
+                        () -> create(admin, Map.of("lessonId", lesson, "questionCount", 1)));
         Set<Long> ids = new HashSet<>();
-        for (Response response : List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS))) {
-            long id = response.then().statusCode(200).extract().jsonPath().getLong("data.sessionId");
+        for (Response response :
+                List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS))) {
+            long id =
+                    response.then().statusCode(200).extract().jsonPath().getLong("data.sessionId");
             ids.add(id);
-            assertEquals(1, number("SELECT COUNT(*) FROM quiz_session_questions WHERE session_id=" + id));
+            assertEquals(
+                    1,
+                    number("SELECT COUNT(*) FROM quiz_session_questions WHERE session_id=" + id));
         }
         assertEquals(2, ids.size());
     }
@@ -294,8 +396,11 @@ class QuizGameMysqlTest {
     @Test
     void bothEndpointsRequireUserOrAdminAndSessionRequiresUsableSubject() throws Exception {
         given().get(BASE + "/config").then().statusCode(401);
-        given().contentType("application/json").body(Map.of("questionCount", 1))
-                .post(BASE + "/sessions").then().statusCode(401);
+        given().contentType("application/json")
+                .body(Map.of("questionCount", 1))
+                .post(BASE + "/sessions")
+                .then()
+                .statusCode(401);
         for (String role : List.of("Guest", "user", "admin")) {
             String rejected = token(role, "some-user");
             given().auth().oauth2(rejected).get(BASE + "/config").then().statusCode(403);
@@ -336,6 +441,106 @@ class QuizGameMysqlTest {
         return false;
     }
 
+    @Test
+    void completePlayerFlowPreservesBothSourcesAndAnswerSecrecy() {
+        long lesson = lesson(level());
+        long source = example();
+        question(null, lesson, source, true);
+        question(null, lesson, null, true);
+        assertEquals(
+                2,
+                config().jsonPath()
+                        .getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
+        Response created = create(user, Map.of("lessonId", lesson, "questionCount", 2));
+        created.then().statusCode(200);
+        assertEquals(
+                Set.of("sessionId", "status", "questionCount", "createdAt"),
+                created.jsonPath().getMap("data").keySet());
+        long session = created.jsonPath().getLong("data.sessionId");
+        String path = BASE + "/sessions/" + session;
+        given().auth()
+                .oauth2(user)
+                .get(path)
+                .then()
+                .statusCode(200)
+                .body("data.status", equalTo("IN_PROGRESS"))
+                .body("data.answeredCount", equalTo(0));
+        assertEquals(
+                2,
+                number(
+                        "SELECT COUNT(DISTINCT source_type) FROM quiz_session_questions WHERE"
+                                + " session_id="
+                                + session));
+        sql(
+                "UPDATE example_sentences SET japanese_reading=CONCAT(japanese_reading,'.'), "
+                        + "updated_at=DATE_ADD(updated_at, INTERVAL 1 SECOND) WHERE id="
+                        + source);
+        assertEquals(
+                1,
+                config().jsonPath()
+                        .getInt("data.lessons.find { it.id == " + lesson + " }.questionCount"));
+        create(user, Map.of("lessonId", lesson, "questionCount", 2)).then().statusCode(409);
+        for (int i = 0; i < 2; i++) {
+            Response next = given().auth().oauth2(user).get(path + "/next");
+            next.then().statusCode(200).body("data.question.questionNumber", equalTo(i));
+            assertEquals(
+                    Set.of(
+                            "sessionQuestionId",
+                            "questionNumber",
+                            "sentenceReading",
+                            "targetStart",
+                            "targetLength",
+                            "options"),
+                    next.jsonPath().getMap("data.question").keySet());
+            for (Map<String, Object> option :
+                    next.jsonPath().<Map<String, Object>>getList("data.question.options")) {
+                assertEquals(Set.of("id", "text"), option.keySet());
+            }
+            long snapshot = next.jsonPath().getLong("data.question.sessionQuestionId");
+            long choice =
+                    number(
+                            "SELECT MIN(id) FROM quiz_session_options WHERE session_question_id="
+                                    + snapshot
+                                    + " AND is_correct="
+                                    + (i == 0 ? 1 : 0));
+            given().auth()
+                    .oauth2(user)
+                    .contentType("application/json")
+                    .body(Map.of("sessionQuestionId", snapshot, "selectedOptionId", choice))
+                    .post(path + "/answers")
+                    .then()
+                    .statusCode(200)
+                    .body("data.correct", equalTo(i == 0))
+                    .body("data.score", equalTo(1))
+                    .body("data.answeredCount", equalTo(i + 1))
+                    .body("data.remainingCount", equalTo(1 - i));
+        }
+        given().auth()
+                .oauth2(user)
+                .post(path + "/finish")
+                .then()
+                .statusCode(200)
+                .body("data.status", equalTo("COMPLETED"))
+                .body("data.questionCount", equalTo(2))
+                .body("data.correctCount", equalTo(1))
+                .body("data.incorrectCount", equalTo(1))
+                .body("data.score", equalTo(1));
+        given().auth()
+                .oauth2(user)
+                .get(path)
+                .then()
+                .statusCode(200)
+                .body("data.status", equalTo("COMPLETED"))
+                .body("data.score", equalTo(1));
+        given().auth()
+                .oauth2(user)
+                .get(path + "/next")
+                .then()
+                .statusCode(200)
+                .body("data.status", equalTo("COMPLETED"))
+                .body("data.question", org.hamcrest.Matchers.nullValue());
+    }
+
     private Response config() {
         Response response = given().auth().oauth2(user).get(BASE + "/config");
         response.then().statusCode(200);
@@ -343,7 +548,11 @@ class QuizGameMysqlTest {
     }
 
     private Response create(String token, Map<String, Object> request) {
-        return given().auth().oauth2(token).contentType("application/json").body(request).post(BASE + "/sessions");
+        return given().auth()
+                .oauth2(token)
+                .contentType("application/json")
+                .body(request)
+                .post(BASE + "/sessions");
     }
 
     private long question(Long level, Long lesson, Long example, boolean published) {
@@ -363,9 +572,17 @@ class QuizGameMysqlTest {
         for (int i = 0; i < 4; i++) {
             options.add(Map.of("text", "choice-" + i, "correct", i == 0));
         }
-        long id = given().auth().oauth2(admin).contentType("application/json")
-                .body(Map.of("content", content, "options", options)).post(ADMIN)
-                .then().statusCode(200).extract().jsonPath().getLong("data.id");
+        long id =
+                given().auth()
+                        .oauth2(admin)
+                        .contentType("application/json")
+                        .body(Map.of("content", content, "options", options))
+                        .post(ADMIN)
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath()
+                        .getLong("data.id");
         if (published) {
             lifecycle(id, "publish");
         }
@@ -373,10 +590,22 @@ class QuizGameMysqlTest {
     }
 
     private void lifecycle(long id, String action) {
-        long version = given().auth().oauth2(admin).get(ADMIN + "/" + id).then().statusCode(200)
-                .extract().jsonPath().getLong("data.version");
-        given().auth().oauth2(admin).contentType("application/json").body(Map.of("version", version))
-                .post(ADMIN + "/" + id + "/" + action).then().statusCode(200);
+        long version =
+                given().auth()
+                        .oauth2(admin)
+                        .get(ADMIN + "/" + id)
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath()
+                        .getLong("data.version");
+        given().auth()
+                .oauth2(admin)
+                .contentType("application/json")
+                .body(Map.of("version", version))
+                .post(ADMIN + "/" + id + "/" + action)
+                .then()
+                .statusCode(200);
     }
 
     private String token(String role, String subject) throws Exception {
@@ -389,21 +618,38 @@ class QuizGameMysqlTest {
     private long level() {
         String code = UUID.randomUUID().toString().substring(0, 8);
         long order = number("SELECT MAX(display_order) FROM jlpt_levels") + 1;
-        sql("INSERT INTO jlpt_levels(code,name,display_order) VALUES ('" + code + "','Game test'," + order + ")");
+        sql(
+                "INSERT INTO jlpt_levels(code,name,display_order) VALUES ('"
+                        + code
+                        + "','Game test',"
+                        + order
+                        + ")");
         return number("SELECT id FROM jlpt_levels WHERE code='" + code + "'");
     }
 
     private long lesson(long level) {
         long order = number("SELECT COUNT(*) FROM lessons WHERE level_id=" + level) + 1;
-        sql("INSERT INTO lessons(level_id,lesson_number,title,display_order) VALUES (" + level
-                + "," + order + ",'Game test'," + order + ")");
+        sql(
+                "INSERT INTO lessons(level_id,lesson_number,title,display_order) VALUES ("
+                        + level
+                        + ","
+                        + order
+                        + ",'Game test',"
+                        + order
+                        + ")");
         return number("SELECT MAX(id) FROM lessons WHERE level_id=" + level);
     }
 
     private long example() {
         String marker = UUID.randomUUID().toString();
-        sql("INSERT INTO example_sentences(japanese_text,japanese_reading,meaning_vi,meaning_en) VALUES ('"
-                + marker + "','" + READING + "','vi','en')");
+        sql(
+                "INSERT INTO"
+                        + " example_sentences(japanese_text,japanese_reading,meaning_vi,meaning_en)"
+                        + " VALUES ('"
+                        + marker
+                        + "','"
+                        + READING
+                        + "','vi','en')");
         return number("SELECT id FROM example_sentences WHERE japanese_text='" + marker + "'");
     }
 
@@ -421,7 +667,11 @@ class QuizGameMysqlTest {
 
     private List<Long> numbers(String query) {
         List<Long> result = new ArrayList<>();
-        pool.query(query).execute().await().atMost(TIMEOUT).forEach(row -> result.add(row.getLong(0)));
+        pool.query(query)
+                .execute()
+                .await()
+                .atMost(TIMEOUT)
+                .forEach(row -> result.add(row.getLong(0)));
         return result;
     }
 }

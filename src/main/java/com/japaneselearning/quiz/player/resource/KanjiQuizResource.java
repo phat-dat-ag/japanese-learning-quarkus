@@ -104,6 +104,17 @@ public class KanjiQuizResource extends BaseResource {
         return answers.submit(subject(), id, request).map(this::success);
     }
 
+    @POST
+    @Path("/sessions/{id}/finish")
+    @Operation(summary = "Complete an answered Kanji Quiz session")
+    public Uni<Response> finishQuizSession(
+            @PathParam("id")
+            @Positive
+            Long id
+    ) {
+        return games.finish(subject(), id).map(this::success);
+    }
+
     private String subject() {
         String subject = jwt.getSubject();
         if (

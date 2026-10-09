@@ -11,6 +11,7 @@ import com.japaneselearning.quiz.player.dto.QuizGameConfigResponse;
 import com.japaneselearning.quiz.player.dto.QuizNextQuestionResponse;
 import com.japaneselearning.quiz.player.dto.QuizNextQuestionResponse.Option;
 import com.japaneselearning.quiz.player.dto.QuizNextQuestionResponse.Question;
+import com.japaneselearning.quiz.player.dto.QuizSessionCompletionResponse;
 import com.japaneselearning.quiz.player.dto.QuizSessionCreateRequest;
 import com.japaneselearning.quiz.player.dto.QuizSessionCreatedResponse;
 import com.japaneselearning.quiz.player.dto.QuizSessionResponse;
@@ -29,6 +30,9 @@ import jakarta.persistence.PessimisticLockException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.hibernate.exception.LockAcquisitionException;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @ApplicationScoped
@@ -111,6 +115,58 @@ public class QuizGameService {
                                 question
                         ))
                 );
+    }
+
+    @WithTransaction
+    public Uni<QuizSessionCompletionResponse> finish(String subject, Long id) {
+        // Share the answer submission lock before reading status or counts.
+        return sessions.findOwnedByIdForUpdate(id, subject)
+                .onItem()
+                .ifNull()
+                .failWith(() -> new ResourceNotFoundException(
+                        "QUIZ_SESSION_NOT_FOUND", "Quiz session not found"
+                ))
+                .chain(session -> {
+                    if (session.status != QuizSessionStatus.IN_PROGRESS) {
+                        throw finishConflict("Session no longer accepts completion");
+                    }
+
+                    return answers.countBySession(session.id)
+                            .chain(counts -> complete(session, counts));
+                })
+                .onFailure(failure ->
+                        failure instanceof LockAcquisitionException
+                                || failure instanceof PessimisticLockException
+                )
+                .transform(
+                        failure -> finishConflict("Concurrent session update; retry the request")
+                );
+    }
+
+    private Uni<QuizSessionCompletionResponse> complete(
+            QuizSession session,
+            QuizAnswerRepository.AnswerCounts counts
+    ) {
+        if (counts.answeredCount() != session.questionCount) {
+            throw finishConflict("All session questions must be answered before completion");
+        }
+
+        session.status = QuizSessionStatus.COMPLETED;
+        session.completedAt = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
+
+        return sessions.flush().replaceWith(() -> new QuizSessionCompletionResponse(
+                session.id,
+                session.status,
+                session.questionCount,
+                counts.correctCount(),
+                counts.answeredCount() - counts.correctCount(),
+                counts.correctCount(),
+                session.completedAt
+        ));
+    }
+
+    private ConflictException finishConflict(String message) {
+        return new ConflictException("QUIZ_FINISH_CONFLICT", message);
     }
 
     private Uni<Question> nextQuestion(QuizSession session) {

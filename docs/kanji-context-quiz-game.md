@@ -1,4 +1,4 @@
-# Kanji Quiz configuration, creation and session reads (Phases 4.1-4.2)
+# Kanji Quiz Player API (Phases 4.1-4.4)
 
 Configuration and creation require the case-sensitive `User` or `Admin` role and use the existing
 API response/error envelope. Session reads are described in the Phase 4.2 section below.
@@ -92,7 +92,7 @@ edits or deletion and never reshuffle, submit, advance, score, finish, or update
 Completed or abandoned sessions are still readable; their next question is explicitly
 null. Exhausted or empty snapshot sets also return `question: null`, with the stored
 status unchanged. Each read uses a reactive transaction for a consistent database view.
-Answer submission and completion remain deferred.
+Answer submission and explicit completion are described below.
 
 ## Selection, snapshots and concurrency
 
@@ -147,7 +147,7 @@ The test profile's default password is `vocabulary-test`; override it with
 `-Dvocabulary.mysql.password` when needed.
 
 `QuizFoundationMysqlTest` continues to cover immutable history and snapshot constraints.
-OpenAPI tests fetch the live merged document and verify the four-operation scope, security,
+OpenAPI tests fetch the live merged document and verify the six-operation scope, security,
 request bounds, examples and response fields.
 
 Phase 4.2 loads sessions through the subject-scoped repository and serves only safe
@@ -157,5 +157,89 @@ repeated reads without mutation, terminal/empty sessions, and history after bank
 and deletion. Merged OpenAPI checks verify both read operations, response fields,
 nullable next questions, examples and security.
 
-Answer submission, grading mutations, finish, history and user-progress APIs remain
-deferred. Comprehensive end-to-end and MySQL regression verification belongs to Phase 4.4.
+History and user-progress reporting remain deferred to Phase 5.
+
+## Answer submission (Phase 4.3)
+
+`POST /api/v1/kanji-quiz/sessions/{id}/answers` requires JSON snapshot IDs:
+
+```json
+{"sessionQuestionId":101,"selectedOptionId":402}
+```
+
+Only the next unanswered snapshot in persisted question order is accepted. The selected
+option must belong to that snapshot. HTTP 200 returns feedback in the common envelope:
+
+```json
+{"sessionQuestionId":101,"correct":false,"correctOptionId":401,
+ "explanationVi":null,"explanationEn":"Explanation","score":2,
+ "answeredCount":4,"remainingCount":6}
+```
+
+Correctness and nullable explanations come exclusively from immutable snapshots.
+Score and answered count are derived from persisted answers, not client values or
+mutable bank data. The session row is locked before reads or writes; answer insert
+and returned counts share one reactive transaction. Failures roll back. Concurrent
+submissions cannot double score. Last answer leaves status `IN_PROGRESS` until finish.
+
+- 400 `BAD_REQUEST`: malformed JSON or missing/nonpositive IDs.
+  `QUIZ_ANSWER_INVALID`: selected option is not part of the current snapshot.
+- 409 `QUIZ_ANSWER_CONFLICT`: duplicate, out-of-order, exhausted, terminal session,
+  or locking conflict. Rejection does not reveal the answer key.
+- 415: application/json required.
+- Ownership/security and sanitized server errors follow the contracts below.
+
+## Session completion (Phase 4.4)
+
+`POST /api/v1/kanji-quiz/sessions/{id}/finish` has no request body. Only an
+`IN_PROGRESS` session with all `questionCount` questions answered may complete.
+It returns HTTP 200 in the common envelope:
+
+```json
+{"sessionId":42,"status":"COMPLETED","questionCount":10,
+ "correctCount":7,"incorrectCount":3,"score":7,
+ "completedAt":"2026-10-09T10:15:30.123456"}
+```
+
+`questionCount` is the total; `correctCount + incorrectCount` equals that total.
+`score` equals `correctCount`. `completedAt` is the persisted UTC LocalDateTime,
+serialized without an offset at microsecond precision. The existing `COMPLETED`
+status is retained throughout the schema, Java enum, API and documentation.
+No migration or status rename is needed.
+
+Finish locks the same owned session row as answer submission before checking status
+or counting answers. It updates status and completion time atomically without rewriting
+questions, options, answers or scores. Concurrent finishes yield one success and one 409.
+A finish racing the last answer either sees the committed answer and completes, or
+returns premature 409; callers must retry explicitly after the answer succeeds.
+There is no automatic retry. Duplicate finish never replaces the original timestamp.
+Answers after completion return 409. GET session still returns the final score and
+`COMPLETED`; GET next returns `question: null`. Neither GET exposes answer keys.
+No `quiz_user_progress` records or history/progress endpoints are added.
+
+Shared player write errors:
+
+- 400 `BAD_REQUEST`: nonpositive session ID.
+- 401: missing/invalid JWT or blank/overlong subject; 403: wrong case-sensitive role.
+- 404 `QUIZ_SESSION_NOT_FOUND`: identical for missing and foreign sessions, including
+  Admin. Ownership compares the exact verified JWT subject. Malformed/overflowing
+  path IDs follow existing REST conversion behavior and return 404 `NOT_FOUND`.
+- 409 `QUIZ_FINISH_CONFLICT`: premature finish, already completed/abandoned session,
+  or locking failure. No completion is committed.
+- 500: unexpected failure; transaction rolls back and internal details stay sanitized.
+
+## Phase 4 verification
+
+`QuizFinishMysqlTest` checks final totals/time, unchanged snapshot and answer rows,
+read secrecy after completion, premature/duplicate/abandoned rejection, exact ownership,
+rollback after a database failure, two simultaneous finishes, and finish/answer races
+observed at the actual MySQL row lock. `QuizGameMysqlTest` also exercises config ->
+create -> retrieve -> next -> answer -> finish with both EXAMPLE and CUSTOM snapshots
+and source invalidation during a game. Existing creation, retrieval, answer, foundation,
+Admin and import tests cover randomization, answer secrecy and immutable data after edits.
+Merged OpenAPI tests verify all six player operations, including bodyless finish.
+
+Run focused tests first, then one `mvn verify` with real isolated MySQL after changes
+stabilize. Apply and validate V1-V7 through external Flyway; production startup does
+not run migrations. Test-only failure injection uses temporary triggers removed in
+`finally`; no production triggers are introduced.

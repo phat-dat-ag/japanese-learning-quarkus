@@ -29,7 +29,7 @@ class QuizGameOpenApiTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void mergedContractExposesOnlyFivePlayerOperationsAndSafeResponses() throws Exception {
+    void mergedContractExposesOnlySixPlayerOperationsAndSafeResponses() throws Exception {
         JsonNode document =
                 mapper.readTree(
                         given().accept("application/json")
@@ -53,7 +53,8 @@ class QuizGameOpenApiTest {
                         "/api/v1/kanji-quiz/sessions",
                         "/api/v1/kanji-quiz/sessions/{id}",
                         "/api/v1/kanji-quiz/sessions/{id}/next",
-                        "/api/v1/kanji-quiz/sessions/{id}/answers"),
+                        "/api/v1/kanji-quiz/sessions/{id}/answers",
+                        "/api/v1/kanji-quiz/sessions/{id}/finish"),
                 paths);
         for (String path : paths) {
             JsonNode operation =
@@ -62,6 +63,7 @@ class QuizGameOpenApiTest {
                             .path(
                                     path.equals("/api/v1/kanji-quiz/sessions")
                                             || path.endsWith("/answers")
+                                            || path.endsWith("/finish")
                                             ? "post"
                                             : "get");
             assertEquals("Kanji Quiz", operation.path("tags").get(0).asText());
@@ -227,6 +229,63 @@ class QuizGameOpenApiTest {
             assertEquals(1, feedback.answeredCount());
             assertEquals(9, feedback.remainingCount());
         }
+    }
+
+    @Test
+    void completionContractHasNoBodyAndDocumentsFinalCountsAndErrors() throws Exception {
+        JsonNode document =
+                mapper.readTree(
+                        given().accept("application/json")
+                                .get("/q/openapi")
+                                .then()
+                                .statusCode(200)
+                                .extract()
+                                .asString());
+        JsonNode operation =
+                document.path("paths").path("/api/v1/kanji-quiz/sessions/{id}/finish").path("post");
+        assertFalse(operation.has("requestBody"));
+        assertTrue(operation.path("security").get(0).has("bearerAuth"));
+        for (String code : List.of("200", "400", "401", "403", "404", "409", "500")) {
+            assertTrue(operation.path("responses").has(code), code);
+        }
+        JsonNode properties =
+                document.at("/components/schemas/QuizSessionCompletionResponse/properties");
+        assertEquals(
+                Set.of(
+                        "sessionId",
+                        "status",
+                        "questionCount",
+                        "correctCount",
+                        "incorrectCount",
+                        "score",
+                        "completedAt"),
+                fields(properties));
+        assertEquals("COMPLETED", properties.at("/status/enum/0").asText());
+        JsonNode data =
+                operation.at(
+                        "/responses/200/content/application~1json/examples/completed/value/data");
+        var completed =
+                new ObjectMapper()
+                        .findAndRegisterModules()
+                        .treeToValue(
+                                data,
+                                com.japaneselearning.quiz.player.dto.QuizSessionCompletionResponse
+                                        .class);
+        assertEquals(
+                com.japaneselearning.quiz.domain.QuizSessionStatus.COMPLETED, completed.status());
+        assertEquals(
+                completed.questionCount(), completed.correctCount() + completed.incorrectCount());
+        assertEquals(completed.correctCount(), completed.score());
+        assertEquals(
+                java.time.LocalDateTime.parse("2026-10-09T10:15:30.123456"),
+                completed.completedAt());
+        assertTrue(
+                operation.at("/responses/404/description").asText().contains("owned by another"));
+        assertTrue(
+                operation
+                        .at("/responses/409/description")
+                        .asText()
+                        .contains("QUIZ_FINISH_CONFLICT"));
     }
 
     private Set<String> fields(JsonNode properties) {

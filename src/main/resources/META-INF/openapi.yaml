@@ -2673,7 +2673,7 @@ paths:
       operationId: submitQuizAnswer
       summary: "Submit the next Kanji Quiz snapshot answer"
       tags: ["Kanji Quiz"]
-      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only submit to an owned session. Accepts session snapshot IDs, never bank IDs. Locks the owned session before checking the next unanswered question in persisted questionNumber order. Validates option membership and scores exclusively from immutable snapshots, unaffected by bank or source edits/deletion. Persists the answer atomically; score and progress are derived from committed answers. Concurrent submissions serialize and cannot double score. Returns the correct snapshot option and VI/EN explanations only for the accepted answer. Duplicate, out-of-order, exhausted, COMPLETED and ABANDONED submissions return 409 without changes. Last answer leaves session status IN_PROGRESS; finishing and user progress reporting are separate operations. Existing GET endpoints never reveal answer keys."
+      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only submit to an owned session. Accepts session snapshot IDs, never bank IDs. Locks the owned session before checking the next unanswered question in persisted questionNumber order. Validates option membership and scores exclusively from immutable snapshots, unaffected by bank or source edits/deletion. Persists the answer atomically; score and progress are derived from committed answers. Concurrent submissions serialize and cannot double score. Returns the correct snapshot option and VI/EN explanations only for the accepted answer. Duplicate, out-of-order, exhausted, COMPLETED and ABANDONED submissions return 409 without changes. Last answer leaves session status IN_PROGRESS; use POST /sessions/{id}/finish to complete; user progress reporting is outside this API. Existing GET endpoints never reveal answer keys."
       security:
         - bearerAuth: []
       parameters:
@@ -2753,6 +2753,75 @@ paths:
                 $ref: "#/components/schemas/AdminEditErrorResponse"
         "500":
           description: "Unexpected server failure; transaction rolls back and internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions/{id}/finish":
+    post:
+      operationId: finishQuizSession
+      summary: "Complete an answered Kanji Quiz session"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only finish an owned session. No request body is required or used. Locks the same owned session row as answer submission, then verifies IN_PROGRESS and that every question is answered. Atomically persists COMPLETED and completedAt in UTC. Returns final score (correct answer count), questionCount (total), correctCount and incorrectCount from immutable answer/option snapshots. Duplicate, premature, exhausted-but-already-completed and ABANDONED completion attempts return 409. Concurrent answer/finish requests serialize: finish either sees the committed last answer and succeeds or rejects as premature and must be retried explicitly. Concurrent finish requests yield one success and one conflict. Snapshot and answer rows are never rewritten; later bank/source edits do not affect totals. GET session remains readable with COMPLETED and unchanged score; GET next returns question null without answer keys. No history or user-progress reporting is implemented."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive owned session ID; malformed or overflowing path IDs return 404."
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        "200":
+          description: "Completion committed. questionCount equals correctCount plus incorrectCount; score equals correctCount. completedAt is the stored UTC timestamp, serialized without an offset consistently with existing Quiz timestamps."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizSessionCompletionResponse"
+              examples:
+                completed:
+                  value:
+                    success: true
+                    data: {sessionId: 42, status: COMPLETED, questionCount: 10, correctCount: 7, incorrectCount: 3, score: 7, completedAt: "2026-10-09T10:15:30.123456"}
+                    meta: {timestamp: "2026-10-09T10:15:30Z", traceId: "trace-example", correlationId: "correlation-example"}
+        "400":
+          description: "BAD_REQUEST - session ID must be positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session does not exist or is owned by another subject; malformed path IDs use NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_FINISH_CONFLICT - not all questions answered, session already COMPLETED or ABANDONED, or concurrent lock failure. No completion is committed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; completion transaction rolls back and internal details are not exposed."
           content:
             application/json:
               schema:
@@ -2847,6 +2916,17 @@ components:
         format: int64
         minimum: 1
   schemas:
+    QuizSessionCompletionResponse:
+      type: object
+      required: [sessionId, status, questionCount, correctCount, incorrectCount, score, completedAt]
+      properties:
+        sessionId: {type: integer, format: int64}
+        status: {type: string, enum: [COMPLETED], description: "Stored completion status."}
+        questionCount: {type: integer, minimum: 1, description: "Total number of session questions."}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0}
+        score: {type: integer, format: int64, minimum: 0, description: "Equal to correctCount."}
+        completedAt: {type: string, description: "Persisted UTC LocalDateTime with microsecond precision, without an offset."}
     QuizAnswerRequest:
       type: object
       required: [sessionQuestionId, selectedOptionId]
