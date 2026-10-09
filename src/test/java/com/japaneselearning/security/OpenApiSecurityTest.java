@@ -98,6 +98,8 @@ class OpenApiSecurityTest {
         operations.put("/api/v1/kanji-quiz/sessions/{id}/next", "get");
         operations.put("/api/v1/kanji-quiz/sessions/{id}/answers", "post");
         operations.put("/api/v1/kanji-quiz/sessions/{id}/finish", "post");
+        operations.put("/api/v1/kanji-quiz/history", "get");
+        operations.put("/api/v1/kanji-quiz/history/{sessionId}", "get");
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach(
                 (path, method) -> {

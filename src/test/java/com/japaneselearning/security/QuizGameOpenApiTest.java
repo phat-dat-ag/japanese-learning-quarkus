@@ -29,7 +29,7 @@ class QuizGameOpenApiTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void mergedContractExposesOnlySixPlayerOperationsAndSafeResponses() throws Exception {
+    void mergedContractExposesOnlyEightPlayerOperationsAndSafeResponses() throws Exception {
         JsonNode document =
                 mapper.readTree(
                         given().accept("application/json")
@@ -54,7 +54,9 @@ class QuizGameOpenApiTest {
                         "/api/v1/kanji-quiz/sessions/{id}",
                         "/api/v1/kanji-quiz/sessions/{id}/next",
                         "/api/v1/kanji-quiz/sessions/{id}/answers",
-                        "/api/v1/kanji-quiz/sessions/{id}/finish"),
+                        "/api/v1/kanji-quiz/sessions/{id}/finish",
+                        "/api/v1/kanji-quiz/history",
+                        "/api/v1/kanji-quiz/history/{sessionId}"),
                 paths);
         for (String path : paths) {
             JsonNode operation =

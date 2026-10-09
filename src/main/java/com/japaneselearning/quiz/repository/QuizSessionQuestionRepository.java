@@ -101,4 +101,19 @@ public class QuizSessionQuestionRepository implements PanacheRepository<QuizSess
                                         .getResultList()
                 );
     }
+
+    public Uni<List<QuizSessionOption>> findOptionsBySessionId(Long sessionId) {
+        return Panache.getSession()
+                .chain(session -> session.createQuery(
+                                        """
+                                                select o from QuizSessionOption o
+                                                join QuizSessionQuestion q on q.id = o.sessionQuestionId
+                                                where q.sessionId = :id order by q.questionNumber, o.id
+                                                """,
+                                        QuizSessionOption.class
+                                )
+                                .setParameter("id", sessionId)
+                                .getResultList()
+                );
+    }
 }

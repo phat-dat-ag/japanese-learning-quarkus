@@ -5,6 +5,7 @@ import com.japaneselearning.quiz.player.dto.QuizAnswerRequest;
 import com.japaneselearning.quiz.player.dto.QuizSessionCreateRequest;
 import com.japaneselearning.quiz.player.service.QuizAnswerService;
 import com.japaneselearning.quiz.player.service.QuizGameService;
+import com.japaneselearning.quiz.player.service.QuizHistoryService;
 
 import io.smallrye.mutiny.Uni;
 
@@ -13,12 +14,14 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -35,15 +38,18 @@ public class KanjiQuizResource extends BaseResource {
     private final QuizGameService games;
     private final JsonWebToken jwt;
     private final QuizAnswerService answers;
+    private final QuizHistoryService history;
 
     public KanjiQuizResource(
             QuizGameService games,
             JsonWebToken jwt,
-            QuizAnswerService answers
+            QuizAnswerService answers,
+            QuizHistoryService history
     ) {
         this.games = games;
         this.jwt = jwt;
         this.answers = answers;
+        this.history = history;
     }
 
     @GET
@@ -58,32 +64,21 @@ public class KanjiQuizResource extends BaseResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Operation(summary = "Create a randomized Kanji Quiz session")
     @RequestBody(required = true)
-    public Uni<Response> createQuizSession(
-            @NotNull
-            @Valid
-            QuizSessionCreateRequest request
-    ) {
+    public Uni<Response> createQuizSession(@NotNull @Valid QuizSessionCreateRequest request) {
         return games.create(subject(), request).map(this::success);
     }
 
     @GET
     @Path("/sessions/{id}")
     @Operation(summary = "Get an owned Kanji Quiz session")
-    public Uni<Response> quizSession(
-            @PathParam("id")
-            @Positive
-            Long id
-    ) {
+    public Uni<Response> quizSession(@PathParam("id") @Positive Long id) {
         return games.session(subject(), id).map(this::success);
     }
 
     @GET
     @Path("/sessions/{id}/next")
     @Operation(summary = "Get the next unanswered Kanji Quiz snapshot")
-    public Uni<Response> nextQuizQuestion(
-            @PathParam("id")
-            @Positive Long id
-    ) {
+    public Uni<Response> nextQuizQuestion(@PathParam("id") @Positive Long id) {
         return games.next(subject(), id).map(this::success);
     }
 
@@ -93,13 +88,8 @@ public class KanjiQuizResource extends BaseResource {
     @Operation(summary = "Submit the next Kanji Quiz snapshot answer")
     @RequestBody(required = true)
     public Uni<Response> submitQuizAnswer(
-            @PathParam("id")
-            @Positive
-            Long id,
-
-            @NotNull
-            @Valid
-            QuizAnswerRequest request
+            @PathParam("id") @Positive Long id,
+            @NotNull @Valid QuizAnswerRequest request
     ) {
         return answers.submit(subject(), id, request).map(this::success);
     }
@@ -107,21 +97,31 @@ public class KanjiQuizResource extends BaseResource {
     @POST
     @Path("/sessions/{id}/finish")
     @Operation(summary = "Complete an answered Kanji Quiz session")
-    public Uni<Response> finishQuizSession(
-            @PathParam("id")
-            @Positive
-            Long id
-    ) {
+    public Uni<Response> finishQuizSession(@PathParam("id") @Positive Long id) {
         return games.finish(subject(), id).map(this::success);
+    }
+
+    @GET
+    @Path("/history")
+    @Operation(summary = "List owned completed Kanji Quiz sessions")
+    public Uni<Response> quizHistory(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        return history.list(subject(), page, size).map(this::success);
+    }
+
+    @GET
+    @Path("/history/{sessionId}")
+    @Operation(summary = "Get owned completed Kanji Quiz history")
+    public Uni<Response> quizHistoryDetail(@PathParam("sessionId") @Positive Long sessionId) {
+        return history.detail(subject(), sessionId).map(this::success);
     }
 
     private String subject() {
         String subject = jwt.getSubject();
-        if (
-                subject == null
-                        || subject.isBlank()
-                        || subject.codePointCount(0, subject.length()) > 255
-        ) {
+        if (subject == null
+                || subject.isBlank()
+                || subject.codePointCount(0, subject.length()) > 255) {
             throw new NotAuthorizedException("Bearer");
         }
 
