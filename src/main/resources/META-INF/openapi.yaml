@@ -2826,6 +2826,123 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/progress":
+    get:
+      operationId: quizProgress
+      summary: "Get owned completed Kanji Quiz statistics"
+      tags: ["Kanji Quiz"]
+      description: >-
+        Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
+        255 Unicode code points). No userId, parameters or request body are accepted as identity.
+        Admin has no ownership bypass. Read-only reactive transaction over COMPLETED session,
+        question, answer and option snapshots; never reads mutable bank or vocabulary data.
+        completedSessions counts each session once, answeredCount counts submitted answers,
+        correctCount uses selected snapshot option correctness, incorrectCount is answeredCount
+        minus correctCount. accuracyPercentage is 100 * correctCount / answeredCount, weighted
+        by answers, not an average of session percentages. Score units are correct answers per
+        session (one point per correct answer), matching history: bestScore is the maximum
+        session score and averageScore is total correctCount / completedSessions. Decimal values
+        round HALF_UP to two decimal places. Empty history returns all numeric values as zero
+        and latestCompletedAt null; division by zero returns zero. latestCompletedAt is the
+        maximum completion timestamp, serialized as UTC LocalDateTime without an offset.
+        One database aggregate query; no per-session loading or persisted aggregate writes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Completed-session statistics in the common response envelope."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: {$ref: "#/components/schemas/QuizProgressResponse"}
+              examples:
+                success:
+                  value: {"success": true, "data": {"completedSessions": 2, "answeredCount": 6, "correctCount": 4, "incorrectCount": 2, "accuracyPercentage": 66.67, "bestScore": 3, "averageScore": 2.00, "latestCompletedAt": "2026-10-10T10:15:30.123456"}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                empty:
+                  value: {"success": true, "data": {"completedSessions": 0, "answeredCount": 0, "correctCount": 0, "incorrectCount": 0, "accuracyPercentage": 0.00, "bestScore": 0, "averageScore": 0.00, "latestCompletedAt": null}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+  "/api/v1/kanji-quiz/progress/breakdown":
+    get:
+      operationId: quizProgressBreakdown
+      summary: "Get owned completed Kanji Quiz classification statistics"
+      tags: ["Kanji Quiz"]
+      description: >-
+        Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
+        255 Unicode code points); Admin has no ownership bypass. No userId, parameters or request
+        body are accepted as identity. Read-only reactive transaction, counting only COMPLETED
+        sessions. Returns independent levels and lessons arrays using immutable classifications
+        captured at session creation for both CUSTOM and EXAMPLE questions. A level is the union
+        of explicit level assignments and levels implied by assigned lessons, deduplicated per
+        question. Lesson buckets group by captured (levelId, lessonId); if a lesson later moves,
+        its original level remains in historical snapshots. Level buckets have lessonId null.
+        Each session counts once per bucket when it contains at least one question in that bucket;
+        each answered question counts once per distinct classification. Multiple classifications
+        and mixed sessions intentionally contribute to several buckets. Bucket session and answer
+        totals are NOT additive; never sum them for overall statistics. Multiple lessons in one
+        level do not multiply that level's counts. The two dimensions are queried independently
+        to avoid a level-by-lesson cross product. UNKNOWN means historical classifications were
+        never captured, never inferred from the mutable bank. UNASSIGNED means classifications
+        were captured but none exist in that dimension. Both have null IDs. A level-only CUSTOM
+        question is ASSIGNED in levels and UNASSIGNED in lessons. Missing lesson assignments do
+        not create fake lessons. Counts use answer/option snapshots; incorrectCount is answered
+        minus correct, accuracyPercentage is 100 * correct / answered rounded HALF_UP to two
+        decimals, or zero when unanswered. Empty history returns two empty arrays; empty buckets
+        are omitted. Both arrays sort by classification (ASSIGNED, UNASSIGNED, UNKNOWN), then
+        levelId ascending, then lessonId ascending. Two grouped database queries with one
+        consistent transaction view; no history loading, N+1 queries or writes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Independent, potentially overlapping classification buckets."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: {$ref: "#/components/schemas/QuizProgressBreakdownResponse"}
+              examples:
+                success:
+                  value: {"success": true, "data": {"levels": [{"classification": "ASSIGNED", "levelId": 1, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}], "lessons": [{"classification": "UNASSIGNED", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}]}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                empty:
+                  value: {"success": true, "data": {"levels": [], "lessons": []}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
   "/api/v1/kanji-quiz/history":
     get:
       operationId: quizHistory
@@ -3043,6 +3160,52 @@ components:
         format: int64
         minimum: 1
   schemas:
+    QuizProgressResponse:
+      type: object
+      required: [completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage, bestScore, averageScore, latestCompletedAt]
+      properties:
+        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct owned COMPLETED sessions."}
+        answeredCount: {type: integer, format: int64, minimum: 0}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0, description: "answeredCount minus correctCount."}
+        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
+        bestScore: {type: integer, format: int64, minimum: 0, description: "Maximum correct-answer count in one completed session; zero for empty history."}
+        averageScore: {type: number, minimum: 0, description: "Correct answers per completed session, HALF_UP to two decimals; zero for empty history. Not a percentage."}
+        latestCompletedAt:
+          description: "Latest completion, UTC LocalDateTime without offset; null for empty history."
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+    QuizProgressBreakdownResponse:
+      type: object
+      required: [levels, lessons]
+      properties:
+        levels:
+          type: array
+          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+        lessons:
+          type: array
+          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+    QuizProgressBucket:
+      type: object
+      required: [classification, levelId, lessonId, completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage]
+      properties:
+        classification: {type: string, enum: [ASSIGNED, UNASSIGNED, UNKNOWN], description: "UNKNOWN: never captured. UNASSIGNED: captured with no assignment in this dimension."}
+        levelId:
+          description: "Captured level ID for ASSIGNED; otherwise null."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        lessonId:
+          description: "Captured lesson ID for ASSIGNED lesson buckets; otherwise null."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct sessions containing this classification; not additive across buckets."}
+        answeredCount: {type: integer, format: int64, minimum: 0, description: "Each answer once per bucket; may overlap other buckets."}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0}
+        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
     QuizHistorySummary:
       type: object
       required: [sessionId, status, levelId, lessonId, completedAt, questionCount, correctCount, incorrectCount, score]

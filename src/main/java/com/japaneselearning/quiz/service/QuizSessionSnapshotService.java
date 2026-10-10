@@ -9,14 +9,17 @@ import com.japaneselearning.quiz.domain.QuizQuestionRules;
 import com.japaneselearning.quiz.domain.QuizSessionStatus;
 import com.japaneselearning.quiz.entity.QuizQuestion;
 import com.japaneselearning.quiz.entity.QuizSession;
+import com.japaneselearning.quiz.repository.QuizClassificationSnapshotRepository;
 import com.japaneselearning.quiz.repository.QuizGameRepository;
 import com.japaneselearning.quiz.repository.QuizQuestionOptionRepository;
 import com.japaneselearning.quiz.repository.QuizQuestionRepository;
 import com.japaneselearning.quiz.repository.QuizSessionQuestionRepository;
 import com.japaneselearning.quiz.repository.QuizSessionRepository;
+
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.ArrayList;
@@ -33,19 +36,22 @@ public class QuizSessionSnapshotService {
     private final QuizQuestionOptionRepository options;
     private final QuizSessionRepository sessions;
     private final QuizSessionQuestionRepository snapshots;
+    private final QuizClassificationSnapshotRepository classifications;
 
     public QuizSessionSnapshotService(
             QuizQuestionRepository questions,
             QuizQuestionOptionRepository options,
             QuizSessionRepository sessions,
             QuizSessionQuestionRepository snapshots,
-            QuizGameRepository games
+            QuizGameRepository games,
+            QuizClassificationSnapshotRepository classifications
     ) {
         this.games = games;
         this.questions = questions;
         this.options = options;
         this.sessions = sessions;
         this.snapshots = snapshots;
+        this.classifications = classifications;
     }
 
     @WithTransaction
@@ -152,10 +158,12 @@ public class QuizSessionSnapshotService {
         session.questionCount = values.size();
 
         return sessions.persist(session).chain(() -> Multi.createFrom().range(0, values.size())
-                .onItem().transformToUniAndConcatenate(index ->
-                        snapshots.persistSnapshot(session.id, index, values.get(index))
-                )
-                .collect().asList()
-        ).call(sessions::flush).replaceWith(session);
+                        .onItem().transformToUniAndConcatenate(index ->
+                                snapshots.persistSnapshot(session.id, index, values.get(index))
+                        )
+                        .collect().asList()
+                ).call(sessions::flush)
+                .call(() -> classifications.capture(session.id))
+                .replaceWith(session);
     }
 }

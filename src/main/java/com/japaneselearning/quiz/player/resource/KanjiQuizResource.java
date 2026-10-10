@@ -6,6 +6,7 @@ import com.japaneselearning.quiz.player.dto.QuizSessionCreateRequest;
 import com.japaneselearning.quiz.player.service.QuizAnswerService;
 import com.japaneselearning.quiz.player.service.QuizGameService;
 import com.japaneselearning.quiz.player.service.QuizHistoryService;
+import com.japaneselearning.quiz.player.service.QuizProgressService;
 
 import io.smallrye.mutiny.Uni;
 
@@ -39,17 +40,20 @@ public class KanjiQuizResource extends BaseResource {
     private final JsonWebToken jwt;
     private final QuizAnswerService answers;
     private final QuizHistoryService history;
+    private final QuizProgressService progress;
 
     public KanjiQuizResource(
             QuizGameService games,
             JsonWebToken jwt,
             QuizAnswerService answers,
-            QuizHistoryService history
+            QuizHistoryService history,
+            QuizProgressService progress
     ) {
         this.games = games;
         this.jwt = jwt;
         this.answers = answers;
         this.history = history;
+        this.progress = progress;
     }
 
     @GET
@@ -88,9 +92,7 @@ public class KanjiQuizResource extends BaseResource {
     @Operation(summary = "Submit the next Kanji Quiz snapshot answer")
     @RequestBody(required = true)
     public Uni<Response> submitQuizAnswer(
-            @PathParam("id") @Positive Long id,
-            @NotNull @Valid QuizAnswerRequest request
-    ) {
+            @PathParam("id") @Positive Long id, @NotNull @Valid QuizAnswerRequest request) {
         return answers.submit(subject(), id, request).map(this::success);
     }
 
@@ -115,6 +117,20 @@ public class KanjiQuizResource extends BaseResource {
     @Operation(summary = "Get owned completed Kanji Quiz history")
     public Uni<Response> quizHistoryDetail(@PathParam("sessionId") @Positive Long sessionId) {
         return history.detail(subject(), sessionId).map(this::success);
+    }
+
+    @GET
+    @Path("/progress")
+    @Operation(summary = "Get owned completed Kanji Quiz statistics")
+    public Uni<Response> quizProgress() {
+        return progress.overall(subject()).map(this::success);
+    }
+
+    @GET
+    @Path("/progress/breakdown")
+    @Operation(summary = "Get owned completed Kanji Quiz classification statistics")
+    public Uni<Response> quizProgressBreakdown() {
+        return progress.breakdown(subject()).map(this::success);
     }
 
     private String subject() {
