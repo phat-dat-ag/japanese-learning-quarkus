@@ -5,7 +5,7 @@ info:
   description: >-
     Authenticated learner queries and Admin editing/import APIs. Supply an Auth Service JWT access token.
     Role names are case-sensitive. Success responses wrap data with success and meta; errors wrap error
-    with success=false and meta. Null object fields are omitted. Numeric IDs are Java int64 values;
+    with success=false and meta. Null object fields are omitted except explicitly nullable next-question results. Numeric IDs are Java int64 values;
     Angular clients should avoid precision loss for IDs beyond JavaScript's safe integer range.
 tags:
   - name: Flashcards
@@ -30,6 +30,10 @@ tags:
     description: Admin-only JLPT level, lesson and part-of-speech assignments.
   - name: Admin Vocabulary Kanji
     description: Admin-only kanji assignments, metadata and nested kanji readings.
+  - name: Admin Kanji Quiz
+    description: Admin-only question bank, independent options and publication lifecycle.
+  - name: Kanji Quiz
+    description: User/Admin game configuration, immutable session creation and ownership-scoped session reads.
 security:
   - bearerAuth: [ ]
 # Each tag follows one Resource class. Static schemas supply the typed data hidden by Uni<Response>.
@@ -1490,6 +1494,1582 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  "/api/v1/admin/kanji-quiz/questions":
+    post:
+      operationId: "createQuizQuestion"
+      summary: "Create a draft Kanji Quiz question"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Creates one DRAFT with four options and one correct. EXAMPLE references an existing reading; CUSTOM owns its sentence. Duplicate source and target range returns 409; different targets are allowed. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizQuestionCreateRequest"
+            examples:
+              custom:
+                summary: "Standalone CUSTOM draft"
+                value:
+                  content:
+                    sourceType: "CUSTOM"
+                    sentenceReading: "\u304c\u3063\u3053\u3046\u3078\u3044\u304f"
+                    targetStart: 0
+                    targetLength: 4
+                    targetReading: "\u304c\u3063\u3053\u3046"
+                    levelIds: [ ]
+                    lessonIds: [ ]
+                  options:
+                    - text: "\u5b66\u6821"
+                      correct: true
+                    - text: "\u5b66\u751f"
+                      correct: false
+                    - text: "\u5148\u751f"
+                      correct: false
+                    - text: "\u96fb\u8eca"
+                      correct: false
+              example:
+                summary: "EXAMPLE draft; source ID 1 must match the target"
+                value:
+                  content:
+                    sourceType: "EXAMPLE"
+                    targetStart: 0
+                    targetLength: 4
+                    targetReading: "\u304c\u3063\u3053\u3046"
+                    levelIds: [ ]
+                    lessonIds: [ ]
+                    exampleId: 1
+                  options:
+                    - text: "\u5b66\u6821"
+                      correct: true
+                    - text: "\u5b66\u751f"
+                      correct: false
+                    - text: "\u5148\u751f"
+                      correct: false
+                    - text: "\u96fb\u8eca"
+                      correct: false
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+    get:
+      operationId: "listQuizQuestions"
+      summary: "Search the Admin question bank"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Returns full Admin details, newest ID first. Filters combine with AND; no filter means all sources/statuses, including stale PUBLISHED questions. A tagged lesson implies its level. Both levelId and lessonId require that lesson to belong to that level. Keyword is a literal trimmed substring of reading, targetReading or VI/EN explanations, not SQL wildcards. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "sourceType"
+          in: "query"
+          description: "Optional exact source type."
+          schema:
+            type: "string"
+            enum:
+              - "EXAMPLE"
+              - "CUSTOM"
+            description: "Immutable after creation."
+        - name: "status"
+          in: "query"
+          description: "Optional editorial status, independent of source validity."
+          schema:
+            type: "string"
+            enum:
+              - "DRAFT"
+              - "PUBLISHED"
+              - "ARCHIVED"
+        - name: "levelId"
+          in: "query"
+          description: "Optional JLPT level ID, not level code."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - name: "lessonId"
+          in: "query"
+          description: "Optional lesson ID, not lesson number."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - name: "vocabularyId"
+          in: "query"
+          description: "Optional assigned vocabulary ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - name: "exampleId"
+          in: "query"
+          description: "Optional source example ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - name: "keyword"
+          in: "query"
+          description: "Optional literal substring; trimmed; blank ignored."
+          schema:
+            type: "string"
+            maxLength: 200
+        - name: "page"
+          in: "query"
+          description: "Zero-based page; (page + 1) * size must fit int32."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 0
+            default: 0
+        - name: "size"
+          in: "query"
+          description: "Page size 1-100."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionListSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionListResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+  "/api/v1/admin/kanji-quiz/questions/{id}":
+    get:
+      operationId: "getQuizQuestion"
+      summary: "Get full Admin question details and correct answer"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Includes stable option IDs and correctness. EXAMPLE returns live reading plus sourceInvalidated; missing sources omit sentenceReading. Historical sessions are never changed. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+    put:
+      operationId: "updateQuizQuestion"
+      summary: "Replace question content and demote to draft"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Replaces content/classifications, not options. Source type is immutable. EXAMPLE forbids sentenceReading; change exampleId to repair a detached source. CUSTOM edits its own reading. Validate targets and options; published edits demote to DRAFT. Archived questions require unpublish first. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizQuestionUpdateRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+                  content:
+                    sourceType: "CUSTOM"
+                    sentenceReading: "\u304c\u3063\u3053\u3046\u3078\u3044\u304f"
+                    targetStart: 0
+                    targetLength: 4
+                    targetReading: "\u304c\u3063\u3053\u3046"
+                    levelIds: [ ]
+                    lessonIds: [ ]
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/{id}/options/{optionId}":
+    put:
+      operationId: "updateQuizOption"
+      summary: "Update one owned option text"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Only option text changes. Stable ID and correctness preserved; another question's option returns 404. NFKC duplicates return 400. Demotes to DRAFT and preserves history. Archived questions require unpublish first. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - name: "optionId"
+          in: "path"
+          required: true
+          description: "Stable option ID owned by the question."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizOptionTextRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+                  text: "\u5927\u5b66"
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/{id}/correct-option":
+    put:
+      operationId: "changeQuizCorrectOption"
+      summary: "Atomically change the correct option"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Requires an option owned by this question (otherwise 404). Changes correctness atomically under a question lock and demotes to DRAFT. Snapshots unchanged. Archived questions require unpublish first. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizCorrectOptionRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+                  optionId: 2
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/{id}/publish":
+    post:
+      operationId: "publishQuizQuestion"
+      summary: "Publish a Kanji Quiz question"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Validates and publishes DRAFT or revalidates PUBLISHED under question/source locks. Requires four NFKC-distinct options, exactly one correct, and exact code-point kana target. Source changes require explicit revalidation. ARCHIVED returns 409; unpublish first. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizVersionRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionPublishedSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/{id}/unpublish":
+    post:
+      operationId: "unpublishQuizQuestion"
+      summary: "Unpublish a Kanji Quiz question"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Sets DRAFT and clears validation. Also restores ARCHIVED to editable DRAFT. Existing snapshots preserved. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizVersionRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionDraftSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/{id}/archive":
+    post:
+      operationId: "archiveQuizQuestion"
+      summary: "Archive a Kanji Quiz question"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Sets ARCHIVED and clears validation, excluding new games. Retains question/options and all session history; no delete endpoint. All mutations require the current version except creation. Failed writes roll back completely."
+      security:
+        - bearerAuth: [ ]
+      parameters:
+        - name: "id"
+          in: "path"
+          required: true
+          description: "Positive question ID."
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/QuizVersionRequest"
+            examples:
+              request:
+                value:
+                  version: 0
+      responses:
+        "200":
+          description: "Success with the common ApiResponse envelope."
+          content:
+            "application/json":
+              examples:
+                success:
+                  $ref: '#/components/examples/QuizQuestionArchivedSuccess'
+              schema:
+                allOf:
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizQuestionResponse"
+        "400":
+          description: "BAD_REQUEST for malformed JSON or Jakarta validation; QUIZ_QUESTION_INVALID for domain validation, filters or pagination."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_QUESTION_NOT_FOUND, QUIZ_OPTION_NOT_FOUND, QUIZ_REFERENCE_NOT_FOUND; NOT_FOUND for unparseable numeric path/query parameters."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_QUESTION_CONFLICT for stale version, duplicate source/target, immutable source type, archived edit, or concurrent reference/constraint conflict."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus500"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - send application/json."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/admin/kanji-quiz/questions/import":
+    post:
+      operationId: "importQuizQuestions"
+      summary: "Import draft Kanji Quiz questions with per-item results"
+      tags:
+        - "Admin Kanji Quiz"
+      description: "Requires the case-sensitive Admin role. Upload multipart field file containing a JSON array of the existing create contract. Both EXAMPLE and CUSTOM remain DRAFT; source sentences are never edited. Syntax, file and count checks finish before any writes. Each item then uses its own independent reactive transaction, without an outer transaction. Expected validation, reference and duplicate/conflict failures roll back only that item; processing continues in input order. HTTP 200 includes partial success and all-item failure. Errors contain zero-based field paths and stable codes. Multiple Bean Validation errors are collected where feasible; domain validation may report the first error. Limits: quiz.import.max-file-bytes (QUIZ_IMPORT_MAX_FILE_BYTES, default 1048576 bytes) and quiz.import.max-items (QUIZ_IMPORT_MAX_ITEMS, default 100). File overflow returns 413; count violations return 400. Server/proxy limits may reject earlier. Malformed syntax, duplicate JSON keys, empty arrays, trailing content and non-array roots reject the whole request before processing. Invalid item shapes, unknown fields and scalar type errors become FAILED results. Unexpected infrastructure errors stop processing with 500; earlier commits remain. Retrying a batch may therefore produce duplicate results."
+      security:
+        -
+          bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              required:
+                - "file"
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+                  description: "Required JSON file containing a nonempty array of Phase 2 QuizQuestionCreateRequest objects, not an envelope. File media type application/json or application/octet-stream; name/extension do not determine validity. Unknown fields, scalar coercion and non-object items produce FAILED results. Duplicate JSON keys and trailing JSON reject the request before processing. Example file content: [{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}, {\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+                  contentMediaType: "application/json"
+                  contentSchema:
+                    "$ref": "#/components/schemas/QuizQuestionImportArray"
+            encoding:
+              file:
+                contentType: "application/json, application/octet-stream"
+            examples:
+              custom:
+                summary: "One CUSTOM question"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+              example:
+                summary: "One existing EXAMPLE question"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+              mixed:
+                summary: "Mixed source batch"
+                description: "Save the file value as JSON and upload it using the file field. EXAMPLE IDs must exist with matching readings."
+                value:
+                  file: "[{\"content\": {\"sourceType\": \"CUSTOM\", \"sentenceReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}, {\"content\": {\"sourceType\": \"EXAMPLE\", \"exampleId\": 1, \"targetStart\": 0, \"targetLength\": 4, \"targetReading\": \"\\u304c\\u3063\\u3053\\u3046\", \"levelIds\": [], \"lessonIds\": []}, \"options\": [{\"text\": \"\\u5b66\\u6821\", \"correct\": true}, {\"text\": \"\\u5b66\\u751f\", \"correct\": false}, {\"text\": \"\\u5148\\u751f\", \"correct\": false}, {\"text\": \"\\u96fb\\u8eca\", \"correct\": false}]}]"
+      responses:
+        "200":
+          description: "Accepted batch, including partial success or all-item failure. Each IMPORTED item is independently committed as DRAFT. total equals imported plus failed; results preserve input order."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    "$ref": "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        "$ref": "#/components/schemas/QuizImportResponse"
+              examples:
+                success:
+                  "$ref": "#/components/examples/QuizQuestionImportSuccess"
+                allSuccess:
+                  "$ref": "#/components/examples/QuizQuestionImportAllSuccess"
+                allFailed:
+                  "$ref": "#/components/examples/QuizQuestionImportAllFailed"
+        "400":
+          description: "QUIZ_IMPORT_INVALID for malformed JSON, ambiguous duplicate keys, invalid top-level structure, empty arrays, unsupported file media type or item limit. BAD_REQUEST for a missing multipart file. No items are processed. Item validation/reference/conflict errors are returned in HTTP 200 results."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+              examples:
+                indexed:
+                  "$ref": "#/components/examples/QuizQuestionImportInvalid"
+        "413":
+          description: "PAYLOAD_TOO_LARGE - uploaded file exceeds configured byte limit, or a lower server/proxy request limit."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - request must use multipart/form-data. An unsupported file-part media type returns 400."
+          content:
+            "application/json":
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus401"
+        "403":
+          "$ref": "#/components/responses/AdminEditErrorResponseStatus403"
+        "500":
+          description: "Unexpected infrastructure failure stops processing. Earlier committed items remain; the standard sanitized error envelope is returned."
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/config":
+    "get":
+      "operationId": "quizConfiguration"
+      "summary": "Get playable Kanji Quiz configuration"
+      "tags":
+        - "Kanji Quiz"
+      "description": "Requires User or Admin. Returns current PUBLISHED, source-valid EXAMPLE and CUSTOM counts. Only levels and lessons with positive counts are listed; totalQuestions also includes unclassified questions. Explicit level tags or the current level of any assigned lesson match a level. Counts use distinct IDs, can overlap and must not be summed to derive total. Levels follow master display order; lessons follow level ID and lesson display order. Empty banks return zero and empty lists. Counts are advisory; creation rechecks availability. No answers or user identities are exposed."
+      "security":
+        -
+          "bearerAuth": []
+      "responses":
+        "200":
+          "description": "Operation completed successfully."
+          "content":
+            "application/json":
+              "schema":
+                "allOf":
+                  -
+                    "$ref": "#/components/schemas/AdminEditResponse"
+                  -
+                    "type": "object"
+                    "required":
+                      - "data"
+                    "properties":
+                      "data":
+                        "$ref": "#/components/schemas/QuizGameConfigResponse"
+              "examples":
+                "success":
+                  "value":
+                    "success": true
+                    "data":
+                      "totalQuestions": 25
+                      "maxQuestionCount": 100
+                      "levels":
+                        -
+                          "id": 1
+                          "code": "N5"
+                          "name": "JLPT N5"
+                          "questionCount": 20
+                      "lessons":
+                        -
+                          "id": 1
+                          "levelId": 1
+                          "lessonNumber": 1
+                          "title": "Lesson 1"
+                          "questionCount": 10
+                    "meta":
+                      "timestamp": "2026-10-08T00:00:00Z"
+                      "traceId": "trace-example"
+                      "correlationId": "correlation-example"
+        "401":
+          "description": "UNAUTHORIZED - a valid JWT is required."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          "description": "FORBIDDEN - requires the case-sensitive User or Admin role."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          "description": "Unexpected server failure; internal details are not exposed."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions":
+    "post":
+      "operationId": "createQuizSession"
+      "summary": "Create a randomized Kanji Quiz session"
+      "tags":
+        - "Kanji Quiz"
+      "description": "Requires User or Admin. Owner comes exclusively from verified JWT sub: case-sensitive, nonblank, at most 255 code points. Optional positive levelId and lessonId must exist; when both are supplied the lesson must belong to that level. Omitted/null filters are unrestricted. Level matching includes explicit level tags or assigned lessons at that level; lesson matching requires an explicit assignment. Filters intersect. Required questionCount is 1-100. Selects distinct PUBLISHED, source-valid EXAMPLE and CUSTOM questions without replacement in randomized order, independently shuffling options. Locks and revalidates selected questions, sources and classifications, then commits all immutable snapshots and session in one reactive transaction. Failure leaves no partial session. Response contains metadata only, no questions, options, explanations or correct answers. Concurrent changes can return 409; retry explicitly. Repeated successful POSTs create new sessions. Answer submission uses the session answers endpoint; completion is separate."
+      "security":
+        -
+          "bearerAuth": []
+      "responses":
+        "200":
+          "description": "Operation completed successfully."
+          "content":
+            "application/json":
+              "schema":
+                "allOf":
+                  -
+                    "$ref": "#/components/schemas/AdminEditResponse"
+                  -
+                    "type": "object"
+                    "required":
+                      - "data"
+                    "properties":
+                      "data":
+                        "$ref": "#/components/schemas/QuizSessionCreatedResponse"
+              "examples":
+                "success":
+                  "value":
+                    "success": true
+                    "data":
+                      "sessionId": 42
+                      "status": "IN_PROGRESS"
+                      "questionCount": 10
+                      "createdAt": "2026-10-08T00:00:00"
+                    "meta":
+                      "timestamp": "2026-10-08T00:00:00Z"
+                      "traceId": "trace-example"
+                      "correlationId": "correlation-example"
+        "401":
+          "description": "UNAUTHORIZED - JWT missing/invalid, missing sub, or unusable blank/overlong subject."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          "description": "FORBIDDEN - requires the case-sensitive User or Admin role."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          "description": "Unexpected server failure; internal details are not exposed."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "400":
+          "description": "BAD_REQUEST for invalid JSON/count/positive-ID validation; QUIZ_GAME_INVALID for nonexistent references or level/lesson mismatch. No session is created."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          "description": "QUIZ_INSUFFICIENT_QUESTIONS when fewer than requested match (message gives counts); QUIZ_GAME_CONFLICT for concurrent bank or persistence conflict. Creation rolls back; retry explicitly."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          "description": "UNSUPPORTED_MEDIA_TYPE - request must be application/json."
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/AdminEditErrorResponse"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/QuizSessionCreateRequest"
+            "examples":
+              "filtered":
+                "summary": "Ten questions from a lesson"
+                "value":
+                  "levelId": 1
+                  "lessonId": 1
+                  "questionCount": 10
+              "unfiltered":
+                "summary": "Any playable questions"
+                "value":
+                  "questionCount": 5
+  "/api/v1/kanji-quiz/sessions/{id}":
+    get:
+      operationId: quizSession
+      summary: "Get an owned Kanji Quiz session"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Looks up the session by ID and exact case-sensitive subject; Admin has no ownership bypass. Missing and foreign sessions return the same 404. Returns persisted status and questionCount, with answeredCount and score (number of correct submitted answers) derived only from immutable session answers/options. answeredCount out of questionCount is current progress; this does not change scores or user progress. Empty sessions report zero answeredCount and score. Completed and abandoned sessions remain readable. GET never advances, finishes or mutates a session."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive session ID owned by the JWT subject. Nonpositive IDs return 400; malformed or overflowing path IDs return 404 under the existing REST conversion convention."
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: "Read-only session result."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizSessionResponse"
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      sessionId: 42
+                      status: IN_PROGRESS
+                      questionCount: 10
+                      answeredCount: 3
+                      score: 2
+                    meta:
+                      timestamp: "2026-10-08T00:00:00Z"
+                      traceId: "trace-example"
+                      correlationId: "correlation-example"
+        "400":
+          description: "BAD_REQUEST - session ID must be positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session does not exist or is owned by another subject; malformed path IDs use the existing NOT_FOUND error."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions/{id}/next":
+    get:
+      operationId: nextQuizQuestion
+      summary: "Get the next unanswered Kanji Quiz snapshot"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Ownership rules and 404 response are identical to session retrieval, including for Admin. Returns the first unanswered immutable session question ordered by zero-based questionNumber; options retain their persisted ascending snapshot ID order from the creation shuffle. IDs refer to session snapshots, never bank rows. targetStart and targetLength use Unicode code points. No correctness, correctOptionId, targetReading, explanation or answer key is exposed. question is null when there are no unanswered snapshots, including an empty session, or when status is COMPLETED or ABANDONED. Status remains unchanged even when all questions are answered. Repeated GETs do not submit answers, reshuffle options, advance, score or finish the game."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive session ID owned by the JWT subject. Nonpositive IDs return 400; malformed or overflowing path IDs return 404 under the existing REST conversion convention."
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: "Read-only session result."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizNextQuestionResponse"
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      sessionId: 42
+                      status: IN_PROGRESS
+                      question:
+                        sessionQuestionId: 101
+                        questionNumber: 0
+                        sentenceReading: "がっこう"
+                        targetStart: 0
+                        targetLength: 4
+                        options:
+                          - {id: 401, text: "学校"}
+                          - {id: 402, text: "学交"}
+                          - {id: 403, text: "校学"}
+                          - {id: 404, text: "学高"}
+                    meta:
+                      timestamp: "2026-10-08T00:00:00Z"
+                      traceId: "trace-example"
+                      correlationId: "correlation-example"
+                noNext:
+                  value:
+                    success: true
+                    data:
+                      sessionId: 42
+                      status: COMPLETED
+                      question: null
+                    meta:
+                      timestamp: "2026-10-08T00:00:00Z"
+                      traceId: "trace-example"
+                      correlationId: "correlation-example"
+        "400":
+          description: "BAD_REQUEST - session ID must be positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session does not exist or is owned by another subject; malformed path IDs use the existing NOT_FOUND error."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions/{id}/answers":
+    post:
+      operationId: submitQuizAnswer
+      summary: "Submit the next Kanji Quiz snapshot answer"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only submit to an owned session. Accepts session snapshot IDs, never bank IDs. Locks the owned session before checking the next unanswered question in persisted questionNumber order. Validates option membership and scores exclusively from immutable snapshots, unaffected by bank or source edits/deletion. Persists the answer atomically; score and progress are derived from committed answers. Concurrent submissions serialize and cannot double score. Returns the correct snapshot option and VI/EN explanations only for the accepted answer. Duplicate, out-of-order, exhausted, COMPLETED and ABANDONED submissions return 409 without changes. Last answer leaves session status IN_PROGRESS; use POST /sessions/{id}/finish to complete; user progress reporting is outside this API. Existing GET endpoints never reveal answer keys."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive owned session ID; malformed or overflowing path IDs return 404."
+          schema: {type: integer, format: int64, minimum: 1}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuizAnswerRequest"
+            examples:
+              answer:
+                value: {sessionQuestionId: 101, selectedOptionId: 402}
+      responses:
+        "200":
+          description: "Answer committed; score counts correct submitted answers, remainingCount is questionCount minus answeredCount. Explanations may be null."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizAnswerResponse"
+              examples:
+                correct:
+                  value:
+                    success: true
+                    data: {sessionQuestionId: 101, correct: true, correctOptionId: 402, explanationVi: "Giai thich", explanationEn: "Explanation", score: 1, answeredCount: 1, remainingCount: 9}
+                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+                incorrect:
+                  value:
+                    success: true
+                    data: {sessionQuestionId: 101, correct: false, correctOptionId: 402, explanationVi: null, explanationEn: null, score: 0, answeredCount: 1, remainingCount: 9}
+                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+        "400":
+          description: "BAD_REQUEST - required positive snapshot IDs, positive session ID and valid JSON; QUIZ_ANSWER_INVALID - selected option does not belong to the current snapshot."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session missing or owned by another subject; malformed path IDs use NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_ANSWER_CONFLICT - duplicate or out-of-order question, exhausted or terminal session, or concurrent lock conflict. No answer is committed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE - application/json required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; transaction rolls back and internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/sessions/{id}/finish":
+    post:
+      operationId: finishQuizSession
+      summary: "Complete an answered Kanji Quiz session"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only finish an owned session. No request body is required or used. Locks the same owned session row as answer submission, then verifies IN_PROGRESS and that every question is answered. Atomically persists COMPLETED and completedAt in UTC. Returns final score (correct answer count), questionCount (total), correctCount and incorrectCount from immutable answer/option snapshots. Duplicate, premature, exhausted-but-already-completed and ABANDONED completion attempts return 409. Concurrent answer/finish requests serialize: finish either sees the committed last answer and succeeds or rejects as premature and must be retried explicitly. Concurrent finish requests yield one success and one conflict. Snapshot and answer rows are never rewritten; later bank/source edits do not affect totals. GET session remains readable with COMPLETED and unchanged score; GET next returns question null without answer keys. Completed sessions are included in the read-only history and progress endpoints; completion does not write persisted user-progress aggregates."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: "Positive owned session ID; malformed or overflowing path IDs return 404."
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        "200":
+          description: "Completion committed. questionCount equals correctCount plus incorrectCount; score equals correctCount. completedAt is the stored UTC timestamp, serialized without an offset consistently with existing Quiz timestamps."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizSessionCompletionResponse"
+              examples:
+                completed:
+                  value:
+                    success: true
+                    data: {sessionId: 42, status: COMPLETED, questionCount: 10, correctCount: 7, incorrectCount: 3, score: 7, completedAt: "2026-10-09T10:15:30.123456"}
+                    meta: {timestamp: "2026-10-09T10:15:30Z", traceId: "trace-example", correlationId: "correlation-example"}
+        "400":
+          description: "BAD_REQUEST - session ID must be positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - valid JWT with nonblank subject of at most 255 Unicode code points required."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session does not exist or is owned by another subject; malformed path IDs use NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "QUIZ_FINISH_CONFLICT - not all questions answered, session already COMPLETED or ABANDONED, or concurrent lock failure. No completion is committed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; completion transaction rolls back and internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/progress":
+    get:
+      operationId: quizProgress
+      summary: "Get owned completed Kanji Quiz statistics"
+      tags: ["Kanji Quiz"]
+      description: >-
+        Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
+        255 Unicode code points). No userId, parameters or request body are accepted as identity.
+        Admin has no ownership bypass. Read-only reactive transaction over COMPLETED session,
+        question, answer and option snapshots; never reads mutable bank or vocabulary data.
+        completedSessions counts each session once, answeredCount counts submitted answers,
+        correctCount uses selected snapshot option correctness, incorrectCount is answeredCount
+        minus correctCount. accuracyPercentage is 100 * correctCount / answeredCount, weighted
+        by answers, not an average of session percentages. Score units are correct answers per
+        session (one point per correct answer), matching history: bestScore is the maximum
+        session score and averageScore is total correctCount / completedSessions. Decimal values
+        round HALF_UP to two decimal places. Empty history returns all numeric values as zero
+        and latestCompletedAt null; division by zero returns zero. latestCompletedAt is the
+        maximum completion timestamp, serialized as UTC LocalDateTime without an offset.
+        One database aggregate query; no per-session loading or persisted aggregate writes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Completed-session statistics in the common response envelope."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: {$ref: "#/components/schemas/QuizProgressResponse"}
+              examples:
+                success:
+                  value: {"success": true, "data": {"completedSessions": 2, "answeredCount": 6, "correctCount": 4, "incorrectCount": 2, "accuracyPercentage": 66.67, "bestScore": 3, "averageScore": 2.00, "latestCompletedAt": "2026-10-10T10:15:30.123456"}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                empty:
+                  value: {"success": true, "data": {"completedSessions": 0, "answeredCount": 0, "correctCount": 0, "incorrectCount": 0, "accuracyPercentage": 0.00, "bestScore": 0, "averageScore": 0.00, "latestCompletedAt": null}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+  "/api/v1/kanji-quiz/progress/breakdown":
+    get:
+      operationId: quizProgressBreakdown
+      summary: "Get owned completed Kanji Quiz classification statistics"
+      tags: ["Kanji Quiz"]
+      description: >-
+        Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
+        255 Unicode code points); Admin has no ownership bypass. No userId, parameters or request
+        body are accepted as identity. Read-only reactive transaction, counting only COMPLETED
+        sessions. Returns independent levels and lessons arrays using immutable classifications
+        captured at session creation for both CUSTOM and EXAMPLE questions. A level is the union
+        of explicit level assignments and levels implied by assigned lessons, deduplicated per
+        question. Lesson buckets group by captured (levelId, lessonId); if a lesson later moves,
+        its original level remains in historical snapshots. Level buckets have lessonId null.
+        Each session counts once per bucket when it contains at least one question in that bucket;
+        each answered question counts once per distinct classification. Multiple classifications
+        and mixed sessions intentionally contribute to several buckets. Bucket session and answer
+        totals are NOT additive; never sum them for overall statistics. Multiple lessons in one
+        level do not multiply that level's counts. The two dimensions are queried independently
+        to avoid a level-by-lesson cross product. UNKNOWN means historical classifications were
+        never captured, never inferred from the mutable bank. UNASSIGNED means classifications
+        were captured but none exist in that dimension. Both have null IDs. A level-only CUSTOM
+        question is ASSIGNED in levels and UNASSIGNED in lessons. Missing lesson assignments do
+        not create fake lessons. Counts use answer/option snapshots; incorrectCount is answered
+        minus correct, accuracyPercentage is 100 * correct / answered rounded HALF_UP to two
+        decimals, or zero when unanswered. Empty history returns two empty arrays; empty buckets
+        are omitted. Both arrays sort by classification (ASSIGNED, UNASSIGNED, UNKNOWN), then
+        levelId ascending, then lessonId ascending. Two grouped database queries with one
+        consistent transaction view; no history loading, N+1 queries or writes.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Independent, potentially overlapping classification buckets."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: {$ref: "#/components/schemas/QuizProgressBreakdownResponse"}
+              examples:
+                success:
+                  value: {"success": true, "data": {"levels": [{"classification": "ASSIGNED", "levelId": 1, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}], "lessons": [{"classification": "UNASSIGNED", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}]}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                empty:
+                  value: {"success": true, "data": {"levels": [], "lessons": []}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+  "/api/v1/kanji-quiz/history":
+    get:
+      operationId: quizHistory
+      summary: "List owned completed Kanji Quiz sessions"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub (nonblank, at most 255 Unicode code points). Ownership uses exact case-sensitive subject equality, including for Admin. Read-only reactive transaction; no sessions, answers, scores or user progress are changed. Returns only owned COMPLETED sessions, ordered by completedAt descending then sessionId descending for deterministic ties. Zero-based page defaults to 0; size defaults to 20 and must be 1-100. page must be nonnegative and page*size must fit a signed 32-bit offset. Empty or out-of-range pages return HTTP 200 with items empty and accurate totals; a user with no history has totalPages=0. Counts are batched for the bounded page, avoiding N+1 queries. Offset pages can shift if new completions occur between requests; each response uses one consistent transaction. Summary questionCount is the total, score equals correctCount, and incorrectCount equals questionCount minus correctCount. levelId and lessonId are explicitly null because the existing schema does not retain original creation filters; these are never inferred from mutable data. Times use existing UTC LocalDateTime serialization without an offset."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: "Zero-based page; page times size must not exceed 2147483647."
+          schema: {"type": "integer", "format": "int32", "default": 0, "minimum": 0}
+        - name: size
+          in: query
+          required: false
+          description: "Number of sessions per page, from 1 through 100."
+          schema: {"type": "integer", "format": "int32", "default": 20, "minimum": 1, "maximum": 100}
+      responses:
+        "200":
+          description: "Read-only completed-session history in the common response envelope."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizHistoryListResponse"
+              examples:
+                success:
+                  value: {"success": true, "data": {"items": [{"sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1}], "page": 0, "size": 20, "totalElements": 1, "totalPages": 1}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                empty:
+                  value: {"success": true, "data": {"items": [], "page": 0, "size": 20, "totalElements": 0, "totalPages": 0}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "400":
+          description: "QUIZ_HISTORY_INVALID - negative page, size outside 1-100, or page*size exceeding 2147483647. Includes field validation details."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "NOT_FOUND - malformed or overflowing integer query parameters, following existing REST conversion conventions."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/kanji-quiz/history/{sessionId}":
+    get:
+      operationId: quizHistoryDetail
+      summary: "Get owned completed Kanji Quiz history"
+      tags: ["Kanji Quiz"]
+      description: "Requires User or Admin and a usable verified JWT sub (nonblank, at most 255 Unicode code points). Ownership uses exact case-sensitive subject equality, including for Admin. Read-only reactive transaction; no sessions, answers, scores or user progress are changed. Only COMPLETED sessions are available; missing, foreign, IN_PROGRESS and ABANDONED sessions return the identical QUIZ_SESSION_NOT_FOUND 404. Returns session summary and immutable question/answer snapshots ordered by original questionNumber; option snapshot IDs ascending preserve the original shuffle. selectedOptionId and correctOptionId refer to the returned options. Correctness, sentence, target offsets (Unicode code points), explanations and answer time come only from immutable snapshots, never live question-bank, vocabulary, classification or example tables. Nullable explanations are included. Existing game GET responses remain answer-key safe. Summary questionCount is the total, score equals correctCount, and incorrectCount equals questionCount minus correctCount. levelId and lessonId are explicitly null because the existing schema does not retain original creation filters; these are never inferred from mutable data. Times use existing UTC LocalDateTime serialization without an offset."
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: "Positive owned completed session ID. Malformed or overflowing IDs return 404."
+          schema: {type: integer, format: int64, minimum: 1}
+      responses:
+        "200":
+          description: "Read-only completed-session history in the common response envelope."
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AdminEditResponse"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/QuizHistoryDetailResponse"
+              examples:
+                success:
+                  value: {"success": true, "data": {"session": {"sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1}, "questions": [{"sessionQuestionId": 101, "questionNumber": 0, "sentenceReading": "reading", "targetStart": 0, "targetLength": 7, "options": [{"id": 401, "text": "wrong"}, {"id": 402, "text": "correct"}, {"id": 403, "text": "wrong-2"}, {"id": 404, "text": "wrong-3"}], "selectedOptionId": 402, "correctOptionId": 402, "correct": true, "explanationVi": null, "explanationEn": "Explanation", "answeredAt": "2026-10-09T10:15:29"}]}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+        "400":
+          description: "BAD_REQUEST - sessionId must be positive."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - requires case-sensitive User or Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "QUIZ_SESSION_NOT_FOUND - session is missing, owned by another subject or not COMPLETED; identical response. Malformed/overflowing path IDs use NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "Unexpected server failure; internal details are not exposed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -1580,6 +3160,720 @@ components:
         format: int64
         minimum: 1
   schemas:
+    QuizProgressResponse:
+      type: object
+      required: [completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage, bestScore, averageScore, latestCompletedAt]
+      properties:
+        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct owned COMPLETED sessions."}
+        answeredCount: {type: integer, format: int64, minimum: 0}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0, description: "answeredCount minus correctCount."}
+        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
+        bestScore: {type: integer, format: int64, minimum: 0, description: "Maximum correct-answer count in one completed session; zero for empty history."}
+        averageScore: {type: number, minimum: 0, description: "Correct answers per completed session, HALF_UP to two decimals; zero for empty history. Not a percentage."}
+        latestCompletedAt:
+          description: "Latest completion, UTC LocalDateTime without offset; null for empty history."
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+    QuizProgressBreakdownResponse:
+      type: object
+      required: [levels, lessons]
+      properties:
+        levels:
+          type: array
+          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+        lessons:
+          type: array
+          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+    QuizProgressBucket:
+      type: object
+      required: [classification, levelId, lessonId, completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage]
+      properties:
+        classification: {type: string, enum: [ASSIGNED, UNASSIGNED, UNKNOWN], description: "UNKNOWN: never captured. UNASSIGNED: captured with no assignment in this dimension."}
+        levelId:
+          description: "Captured level ID for ASSIGNED; otherwise null."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        lessonId:
+          description: "Captured lesson ID for ASSIGNED lesson buckets; otherwise null."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct sessions containing this classification; not additive across buckets."}
+        answeredCount: {type: integer, format: int64, minimum: 0, description: "Each answer once per bucket; may overlap other buckets."}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0}
+        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
+    QuizHistorySummary:
+      type: object
+      required: [sessionId, status, levelId, lessonId, completedAt, questionCount, correctCount, incorrectCount, score]
+      properties:
+        sessionId: {type: integer, format: int64}
+        status: {type: string, enum: [COMPLETED]}
+        levelId:
+          description: "Unavailable original JLPT selection; null for existing sessions. Never inferred from current bank data."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        lessonId:
+          description: "Unavailable original lesson selection; null for existing sessions. Never inferred from current bank data."
+          anyOf:
+            - {type: integer, format: int64}
+            - {type: "null"}
+        completedAt: {type: string, description: "Stored UTC LocalDateTime without offset."}
+        questionCount: {type: integer, minimum: 1, description: "Total session questions."}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0}
+        score: {type: integer, format: int64, minimum: 0, description: "Equal to correctCount."}
+    QuizHistoryListResponse:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/QuizHistorySummary"}
+        page: {type: integer, format: int32, minimum: 0}
+        size: {type: integer, format: int32, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, format: int64, minimum: 0}
+    QuizHistoryDetailResponse:
+      type: object
+      required: [session, questions]
+      properties:
+        session: {$ref: "#/components/schemas/QuizHistorySummary"}
+        questions:
+          type: array
+          items: {$ref: "#/components/schemas/QuizHistoryQuestion"}
+    QuizHistoryQuestion:
+      type: object
+      required: [sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options, selectedOptionId, correctOptionId, correct, explanationVi, explanationEn, answeredAt]
+      properties:
+        sessionQuestionId: {type: integer, format: int64}
+        questionNumber: {type: integer, minimum: 0}
+        sentenceReading: {type: string}
+        targetStart: {type: integer, minimum: 0, description: "Unicode code point offset."}
+        targetLength: {type: integer, minimum: 1, description: "Unicode code point length."}
+        options:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items: {$ref: "#/components/schemas/QuizPlayerOption"}
+        selectedOptionId: {type: integer, format: int64}
+        correctOptionId: {type: integer, format: int64}
+        correct: {type: boolean}
+        explanationVi:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        explanationEn:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        answeredAt: {type: string, description: "Stored UTC LocalDateTime without offset."}
+    QuizSessionCompletionResponse:
+      type: object
+      required: [sessionId, status, questionCount, correctCount, incorrectCount, score, completedAt]
+      properties:
+        sessionId: {type: integer, format: int64}
+        status: {type: string, enum: [COMPLETED], description: "Stored completion status."}
+        questionCount: {type: integer, minimum: 1, description: "Total number of session questions."}
+        correctCount: {type: integer, format: int64, minimum: 0}
+        incorrectCount: {type: integer, format: int64, minimum: 0}
+        score: {type: integer, format: int64, minimum: 0, description: "Equal to correctCount."}
+        completedAt: {type: string, description: "Persisted UTC LocalDateTime with microsecond precision, without an offset."}
+    QuizAnswerRequest:
+      type: object
+      required: [sessionQuestionId, selectedOptionId]
+      properties:
+        sessionQuestionId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: "Current session question snapshot ID from GET next."
+        selectedOptionId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: "Option snapshot ID belonging to that question."
+    QuizAnswerResponse:
+      type: object
+      required: [sessionQuestionId, correct, correctOptionId, score, answeredCount, remainingCount]
+      properties:
+        sessionQuestionId: {type: integer, format: int64}
+        correct: {type: boolean}
+        correctOptionId: {type: integer, format: int64}
+        explanationVi:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        explanationEn:
+          anyOf:
+            - {type: string}
+            - {type: "null"}
+        score: {type: integer, format: int64, minimum: 0, description: "Number of correct submitted answers."}
+        answeredCount: {type: integer, format: int64, minimum: 0}
+        remainingCount: {type: integer, format: int64, minimum: 0}
+    QuizSessionResponse:
+      type: object
+      description: "Owned session summary; answeredCount out of questionCount is progress, score counts correct submitted answers."
+      required: [sessionId, status, questionCount, answeredCount, score]
+      properties:
+        sessionId: {type: integer, format: int64, minimum: 1}
+        status: {type: string, enum: [IN_PROGRESS, COMPLETED, ABANDONED]}
+        questionCount: {type: integer, format: int32, minimum: 1}
+        answeredCount: {type: integer, format: int64, minimum: 0}
+        score: {type: integer, format: int64, minimum: 0}
+    QuizNextQuestionResponse:
+      type: object
+      description: "Safe next snapshot; question is explicitly null for terminal or exhausted sessions."
+      required: [sessionId, status, question]
+      properties:
+        sessionId: {type: integer, format: int64, minimum: 1}
+        status: {type: string, enum: [IN_PROGRESS, COMPLETED, ABANDONED]}
+        question:
+          anyOf:
+            - $ref: "#/components/schemas/QuizPlayerQuestion"
+            - type: "null"
+    QuizPlayerQuestion:
+      type: object
+      description: "Immutable session snapshot without answer keys or explanations."
+      required: [sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options]
+      properties:
+        sessionQuestionId: {type: integer, format: int64, minimum: 1}
+        questionNumber: {type: integer, format: int32, minimum: 0, description: "Zero-based persisted session order."}
+        sentenceReading: {type: string}
+        targetStart: {type: integer, format: int32, minimum: 0, description: "Zero-based Unicode code-point offset."}
+        targetLength: {type: integer, format: int32, minimum: 1, description: "Length in Unicode code points."}
+        options:
+          type: array
+          minItems: 4
+          maxItems: 4
+          description: "Creation-time shuffled order, retained by ascending snapshot option ID."
+          items:
+            $ref: "#/components/schemas/QuizPlayerOption"
+    QuizPlayerOption:
+      type: object
+      description: "Snapshot option ID and display text only."
+      required: [id, text]
+      properties:
+        id: {type: integer, format: int64, minimum: 1}
+        text: {type: string}
+    "QuizSessionCreateRequest":
+      "type": "object"
+      "description": "Identity comes only from JWT sub. Unknown fields follow existing server policy and are ignored. Filters are optional."
+      "required":
+        - "questionCount"
+      "properties":
+        "levelId":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+          "description": "Existing JLPT level ID; null/omitted means any level."
+        "lessonId":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+          "description": "Existing lesson ID; must belong to levelId when both are supplied."
+        "questionCount":
+          "type": "integer"
+          "format": "int32"
+          "minimum": 1
+          "maximum": 100
+    "QuizSessionCreatedResponse":
+      "type": "object"
+      "description": "Metadata only; no answer-bearing content."
+      "required":
+        - "sessionId"
+        - "status"
+        - "questionCount"
+        - "createdAt"
+      "properties":
+        "sessionId":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+        "status":
+          "type": "string"
+          "enum":
+            - "IN_PROGRESS"
+        "questionCount":
+          "type": "integer"
+          "format": "int32"
+          "minimum": 1
+          "maximum": 100
+        "createdAt":
+          "type": "string"
+          "description": "UTC local date-time, matching existing Quiz timestamps; no timezone suffix."
+          "example": "2026-10-08T00:00:00"
+    "QuizGameLevel":
+      "type": "object"
+      "description": ""
+      "required":
+        - "id"
+        - "code"
+        - "name"
+        - "questionCount"
+      "properties":
+        "id":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+        "code":
+          "type": "string"
+        "name":
+          "type": "string"
+        "questionCount":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+    "QuizGameLesson":
+      "type": "object"
+      "description": ""
+      "required":
+        - "id"
+        - "levelId"
+        - "lessonNumber"
+        - "title"
+        - "questionCount"
+      "properties":
+        "id":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+        "levelId":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+        "lessonNumber":
+          "type": "integer"
+          "format": "int32"
+          "minimum": 1
+        "title":
+          "type": "string"
+        "questionCount":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 1
+    "QuizGameConfigResponse":
+      "type": "object"
+      "description": "Distinct playable counts. Classification counts overlap; unclassified questions contribute only to total."
+      "required":
+        - "totalQuestions"
+        - "maxQuestionCount"
+        - "levels"
+        - "lessons"
+      "properties":
+        "totalQuestions":
+          "type": "integer"
+          "format": "int64"
+          "minimum": 0
+        "maxQuestionCount":
+          "type": "integer"
+          "format": "int32"
+          "minimum": 1
+          "maximum": 100
+        "levels":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/QuizGameLevel"
+        "lessons":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/QuizGameLesson"
+    QuizQuestionImportArray:
+      type: "array"
+      minItems: 1
+      description: "File JSON array. Maximum item count is configurable (quiz.import.max-items, default 100), not a fixed schema maximum. Each item uses the existing Phase 2 create contract."
+      items:
+        "$ref": "#/components/schemas/QuizQuestionCreateRequest"
+    QuizImportError:
+      "type": "object"
+      "required":
+        - "field"
+        - "code"
+        - "message"
+      "properties":
+        "field":
+          "type": "string"
+        "code":
+          "type": "string"
+        "message":
+          "type": "string"
+      "description": "Absolute zero-based field path and safe error code/message. Codes include QUIZ_ITEM_INVALID, QUIZ_ITEM_JSON_INVALID and existing Phase 2 business codes."
+    QuizImportResult:
+      "type": "object"
+      "required":
+        - "index"
+        - "status"
+      "properties":
+        "index":
+          "type": "integer"
+          "minimum": 0
+        "status":
+          "type": "string"
+          "enum":
+            - "IMPORTED"
+            - "FAILED"
+        "questionId":
+          "type": "integer"
+          "minimum": 1
+          "format": "int64"
+        "version":
+          "type": "integer"
+          "minimum": 0
+          "format": "int64"
+        "errors":
+          "type": "array"
+          "minItems": 1
+          "items":
+            "$ref": "#/components/schemas/QuizImportError"
+      "oneOf":
+        -
+          "required":
+            - "questionId"
+            - "version"
+          "properties":
+            "status":
+              "const": "IMPORTED"
+          "not":
+            "required":
+              - "errors"
+        -
+          "required":
+            - "errors"
+          "properties":
+            "status":
+              "const": "FAILED"
+          "not":
+            "anyOf":
+              -
+                "required":
+                  - "questionId"
+              -
+                "required":
+                  - "version"
+      "description": "One result per input item. Successful identifiers appear only after commit; failed items have errors and no identifiers."
+    QuizImportResponse:
+      "type": "object"
+      "required":
+        - "total"
+        - "imported"
+        - "failed"
+        - "results"
+      "properties":
+        "total":
+          "type": "integer"
+          "minimum": 1
+        "imported":
+          "type": "integer"
+          "minimum": 0
+        "failed":
+          "type": "integer"
+          "minimum": 0
+        "results":
+          "type": "array"
+          "minItems": 1
+          "items":
+            "$ref": "#/components/schemas/QuizImportResult"
+      "description": "Accepted batch: total = imported + failed = results.size. Results retain input order, including when all items fail."
+    QuizQuestionContentRequest:
+      type: "object"
+      description: "Complete editable content, not a patch. Omitted optional fields are cleared. EXAMPLE never edits source reading. Source type is immutable."
+      required:
+        - "sourceType"
+        - "targetStart"
+        - "targetLength"
+        - "targetReading"
+        - "levelIds"
+        - "lessonIds"
+      properties:
+        sourceType:
+          type: "string"
+          enum:
+            - "EXAMPLE"
+            - "CUSTOM"
+          description: "Immutable after creation."
+        exampleId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          description: "Required for EXAMPLE, forbidden for CUSTOM. Existing source owned by Vocabulary."
+        vocabularyId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          description: "Optional; for EXAMPLE it must be assigned to the source example."
+        sentenceReading:
+          type: "string"
+          maxLength: 1000
+          description: "CUSTOM only, required; forbidden for EXAMPLE. Limits count Unicode code points."
+        targetStart:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Zero-based Unicode code-point offset, not UTF-16 or grapheme index."
+        targetLength:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          description: "Unicode code-point length; must fit the sentence."
+        targetReading:
+          type: "string"
+          maxLength: 200
+          description: "Exact selected segment, Hiragana/Katakana with voicing/prolonged marks. No source normalization."
+        explanationVi:
+          type: "string"
+          maxLength: 2000
+        explanationEn:
+          type: "string"
+          maxLength: 2000
+        levelIds:
+          type: "array"
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+          description: "Explicit existing JLPT level IDs; required, may be empty."
+        lessonIds:
+          type: "array"
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+          description: "Explicit existing lesson IDs; each lesson also implies its current level. Required, may be empty."
+    QuizOptionRequest:
+      type: "object"
+      description: "One of exactly four options, exactly one correct. No display order."
+      required:
+        - "text"
+        - "correct"
+      properties:
+        text:
+          type: "string"
+          maxLength: 200
+          description: "Nonblank, no surrounding whitespace; NFKC-distinct within question."
+        correct:
+          type: "boolean"
+    QuizQuestionCreateRequest:
+      type: "object"
+      description: "Creates a DRAFT; publication is explicit. Duplicate source identity and target range returns 409, including archived questions."
+      required:
+        - "content"
+        - "options"
+      properties:
+        content:
+          "$ref": "#/components/schemas/QuizQuestionContentRequest"
+        options:
+          type: "array"
+          minItems: 4
+          maxItems: 4
+          items:
+            "$ref": "#/components/schemas/QuizOptionRequest"
+    QuizQuestionUpdateRequest:
+      type: "object"
+      description: "Replaces content/classifications; options keep stable IDs. Successful edits demote to DRAFT."
+      required:
+        - "version"
+        - "content"
+      properties:
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Required current response version. Stale versions return 409; treat increments as opaque."
+        content:
+          "$ref": "#/components/schemas/QuizQuestionContentRequest"
+    QuizOptionTextRequest:
+      type: "object"
+      description: "Changes only text of an option owned by this question; demotes to DRAFT."
+      required:
+        - "version"
+        - "text"
+      properties:
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Required current response version. Stale versions return 409; treat increments as opaque."
+        text:
+          type: "string"
+          maxLength: 200
+    QuizCorrectOptionRequest:
+      type: "object"
+      description: "Atomically selects one owned option as correct; demotes to DRAFT."
+      required:
+        - "version"
+        - "optionId"
+      properties:
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Required current response version. Stale versions return 409; treat increments as opaque."
+        optionId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+    QuizVersionRequest:
+      type: "object"
+      description: "Lifecycle command with optimistic concurrency precondition."
+      required:
+        - "version"
+      properties:
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Required current response version. Stale versions return 409; treat increments as opaque."
+    QuizOptionResponse:
+      type: "object"
+      description: "Stable bank option ID; array order has no presentation meaning."
+      required:
+        - "id"
+        - "text"
+        - "correct"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        text:
+          type: "string"
+          maxLength: 200
+        correct:
+          type: "boolean"
+    QuizQuestionResponse:
+      type: "object"
+      description: "Full Admin-only details. Correct answers must not be exposed by future Player APIs. Null fields omitted."
+      required:
+        - "id"
+        - "version"
+        - "sourceType"
+        - "status"
+        - "targetStart"
+        - "targetLength"
+        - "targetReading"
+        - "sourceInvalidated"
+        - "eligibleForNewGames"
+        - "levelIds"
+        - "lessonIds"
+        - "options"
+        - "createdAt"
+        - "updatedAt"
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        sourceType:
+          type: "string"
+          enum:
+            - "EXAMPLE"
+            - "CUSTOM"
+          description: "Immutable after creation."
+        status:
+          type: "string"
+          enum:
+            - "DRAFT"
+            - "PUBLISHED"
+            - "ARCHIVED"
+        exampleId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        vocabularyId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        sentenceReading:
+          type: "string"
+          maxLength: 1000
+          description: "Current source reading for EXAMPLE, owned reading for CUSTOM; omitted if source was deleted."
+        targetStart:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        targetLength:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        targetReading:
+          type: "string"
+          maxLength: 200
+        explanationVi:
+          type: "string"
+          maxLength: 2000
+        explanationEn:
+          type: "string"
+          maxLength: 2000
+        sourceInvalidated:
+          type: "boolean"
+          description: "EXAMPLE missing, never validated, or fingerprint changed. CUSTOM is false."
+        eligibleForNewGames:
+          type: "boolean"
+          description: "PUBLISHED and source validation is current; session creation rechecks under locks."
+        levelIds:
+          type: "array"
+          items:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        lessonIds:
+          type: "array"
+          items:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        options:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/QuizOptionResponse"
+        createdAt:
+          type: "string"
+          description: "UTC local ISO-8601 timestamp."
+        updatedAt:
+          type: "string"
+          description: "UTC local ISO-8601 timestamp."
+    QuizQuestionListResponse:
+      type: "object"
+      description: "Newest ID first; zero-based pagination inside data. Empty page for unmatched filters."
+      required:
+        - "items"
+        - "page"
+        - "size"
+        - "totalElements"
+        - "totalPages"
+      properties:
+        items:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/QuizQuestionResponse"
+        page:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        size:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        totalElements:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          format: "int64"
+          minimum: 0
     JlptLevelResponse:
       type: object
       required: [ code, name ]
@@ -2475,6 +4769,240 @@ components:
         meta:
           $ref: '#/components/schemas/ResponseMeta'
   examples:
+    QuizQuestionImportSuccess:
+      "summary": "Partial success: first question committed, second rejected"
+      "value":
+        "success": true
+        "data":
+          "total": 2
+          "imported": 1
+          "failed": 1
+          "results":
+            -
+              "index": 0
+              "status": "IMPORTED"
+              "questionId": 11
+              "version": 1
+            -
+              "index": 1
+              "status": "FAILED"
+              "errors":
+                -
+                  "field": "[1].content.targetReading"
+                  "code": "QUIZ_QUESTION_INVALID"
+                  "message": "Target reading must exactly match the selected segment"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportAllSuccess:
+      "summary": "All questions committed"
+      "value":
+        "success": true
+        "data":
+          "total": 2
+          "imported": 2
+          "failed": 0
+          "results":
+            -
+              "index": 0
+              "status": "IMPORTED"
+              "questionId": 11
+              "version": 1
+            -
+              "index": 1
+              "status": "IMPORTED"
+              "questionId": 12
+              "version": 1
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportAllFailed:
+      "summary": "Accepted array with every item rejected"
+      "value":
+        "success": true
+        "data":
+          "total": 1
+          "imported": 0
+          "failed": 1
+          "results":
+            -
+              "index": 0
+              "status": "FAILED"
+              "errors":
+                -
+                  "field": "[0].content.targetReading"
+                  "code": "QUIZ_QUESTION_INVALID"
+                  "message": "Target reading must exactly match the selected segment"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionImportInvalid:
+      "summary": "Invalid top-level file; no items processed"
+      "value":
+        "success": false
+        "error":
+          "code": "QUIZ_IMPORT_INVALID"
+          "message": "Invalid quiz import; no questions processed"
+          "details":
+            -
+              "field": "file"
+              "message": "Expected a JSON array"
+        "meta":
+          "timestamp": "2026-10-08T00:00:00Z"
+          "traceId": "trace-example"
+          "correlationId": "correlation-example"
+    QuizQuestionDraftSuccess:
+      summary: "DRAFT question details"
+      value:
+        success: true
+        data:
+          id: 1
+          version: 1
+          sourceType: "CUSTOM"
+          status: "DRAFT"
+          sentenceReading: "\u304c\u3063\u3053\u3046"
+          targetStart: 0
+          targetLength: 4
+          targetReading: "\u304c\u3063\u3053\u3046"
+          sourceInvalidated: false
+          eligibleForNewGames: false
+          levelIds: [ ]
+          lessonIds: [ ]
+          options:
+            - id: 1
+              text: "\u5b66\u6821"
+              correct: true
+            - id: 2
+              text: "\u5b66\u751f"
+              correct: false
+            - id: 3
+              text: "\u5148\u751f"
+              correct: false
+            - id: 4
+              text: "\u96fb\u8eca"
+              correct: false
+          createdAt: "2026-10-08T00:00:00"
+          updatedAt: "2026-10-08T00:00:00"
+        meta:
+          timestamp: "2026-10-08T00:00:00Z"
+          traceId: "trace-example"
+          correlationId: "correlation-example"
+    QuizQuestionPublishedSuccess:
+      summary: "PUBLISHED question details"
+      value:
+        success: true
+        data:
+          id: 1
+          version: 1
+          sourceType: "CUSTOM"
+          status: "PUBLISHED"
+          sentenceReading: "\u304c\u3063\u3053\u3046"
+          targetStart: 0
+          targetLength: 4
+          targetReading: "\u304c\u3063\u3053\u3046"
+          sourceInvalidated: false
+          eligibleForNewGames: true
+          levelIds: [ ]
+          lessonIds: [ ]
+          options:
+            - id: 1
+              text: "\u5b66\u6821"
+              correct: true
+            - id: 2
+              text: "\u5b66\u751f"
+              correct: false
+            - id: 3
+              text: "\u5148\u751f"
+              correct: false
+            - id: 4
+              text: "\u96fb\u8eca"
+              correct: false
+          createdAt: "2026-10-08T00:00:00"
+          updatedAt: "2026-10-08T00:00:00"
+        meta:
+          timestamp: "2026-10-08T00:00:00Z"
+          traceId: "trace-example"
+          correlationId: "correlation-example"
+    QuizQuestionArchivedSuccess:
+      summary: "ARCHIVED question details"
+      value:
+        success: true
+        data:
+          id: 1
+          version: 1
+          sourceType: "CUSTOM"
+          status: "ARCHIVED"
+          sentenceReading: "\u304c\u3063\u3053\u3046"
+          targetStart: 0
+          targetLength: 4
+          targetReading: "\u304c\u3063\u3053\u3046"
+          sourceInvalidated: false
+          eligibleForNewGames: false
+          levelIds: [ ]
+          lessonIds: [ ]
+          options:
+            - id: 1
+              text: "\u5b66\u6821"
+              correct: true
+            - id: 2
+              text: "\u5b66\u751f"
+              correct: false
+            - id: 3
+              text: "\u5148\u751f"
+              correct: false
+            - id: 4
+              text: "\u96fb\u8eca"
+              correct: false
+          createdAt: "2026-10-08T00:00:00"
+          updatedAt: "2026-10-08T00:00:00"
+        meta:
+          timestamp: "2026-10-08T00:00:00Z"
+          traceId: "trace-example"
+          correlationId: "correlation-example"
+    QuizQuestionListSuccess:
+      summary: "One matching question"
+      value:
+        success: true
+        data:
+          items:
+            - id: 1
+              version: 1
+              sourceType: "CUSTOM"
+              status: "DRAFT"
+              sentenceReading: "\u304c\u3063\u3053\u3046"
+              targetStart: 0
+              targetLength: 4
+              targetReading: "\u304c\u3063\u3053\u3046"
+              sourceInvalidated: false
+              eligibleForNewGames: false
+              levelIds: [ ]
+              lessonIds: [ ]
+              options:
+                - id: 1
+                  text: "\u5b66\u6821"
+                  correct: true
+                - id: 2
+                  text: "\u5b66\u751f"
+                  correct: false
+                - id: 3
+                  text: "\u5148\u751f"
+                  correct: false
+                - id: 4
+                  text: "\u96fb\u8eca"
+                  correct: false
+              createdAt: "2026-10-08T00:00:00"
+              updatedAt: "2026-10-08T00:00:00"
+          page: 0
+          size: 20
+          totalElements: 1
+          totalPages: 1
+        meta:
+          timestamp: "2026-10-08T00:00:00Z"
+          traceId: "trace-example"
+          correlationId: "correlation-example"
     VocabularyImport:
       summary: One vocabulary with required nested data
       description: Referenced N5 lesson 1 and the noun part-of-speech code must already exist. Optional primitive fields default to false or 0.
