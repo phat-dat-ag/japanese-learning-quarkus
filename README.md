@@ -1,458 +1,282 @@
-# Japanese Learning Service
+# Japanese Learning Backend
 
-A backend microservice for the Japanese Learning application, built with Java 17, Quarkus, Hibernate Reactive Panache, and MySQL.
+Quarkus backend for the Japanese Learning application. This repository builds one application (`com.japaneselearning:backend`), containing vocabulary management, flashcard queries, and Kanji Context Quiz features. These are Java packages within one deployment, not independently runnable Maven modules.
 
-## Modules
+In the wider system, Angular provides the frontend and .NET owns authentication and user management. This application consumes the authentication service's public JWKS and verifies bearer tokens locally. Angular and .NET source code, API Gateway routing, and full-system orchestration are outside this repository.
 
-- **Flashcard:** retrieves vocabulary lists and detailed flashcards.
-- **Vocabulary:** imports vocabulary JSON and provides JLPT levels and lessons.
-- **Common:** shared API responses, business exceptions, and request tracing.
+## Technology stack
 
-## Run Locally
-
-Start MySQL and apply the Flyway migrations in `src/main/resources/db/migration/` separately. The application does not generate the database schema.
-
-Set these environment variables, or add them to a local `.env` file:
-
-```env
-DB_USERNAME=your_username
-DB_PASSWORD=your_password
-DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
-```
-
-Start the service with the Maven Wrapper:
-
-```sh
-./mvnw quarkus:dev
-```
-
-On Windows PowerShell, use `.\mvnw.cmd` instead of `./mvnw`. The default address is `http://localhost:8080`.
-
-## Docker
-
-Build from this service directory (only Docker is required on the host):
-
-```sh
-docker build -t japanese-learning-vocabulary:local .
-```
-
-The root Dockerfile builds the default Quarkus fast-jar with Java 17 and the
-pinned Maven Wrapper, then copies only `quarkus-app` into the UBI 9 OpenJDK 17
-runtime. It runs as non-root UID 185 on `0.0.0.0:8080`. Maven and the JDK are
-build-stage tools; the final image contains the Java runtime. Tests are run
-separately using the commands below and are skipped during image packaging.
-
-Supply these existing variables at runtime, for example through a local,
-untracked `.env.docker` passed with `--env-file`:
-
-| Variable | Container value |
+| Component | Implementation |
 | --- | --- |
-| `DB_USERNAME` | Required MySQL application username |
-| `DB_PASSWORD` | Required MySQL application password |
-| `DB_REACTIVE_URL` | Required, e.g. `mysql://mysql:3306/japanese_learning` |
-| `AUTH_SERVER_URL` | Auth service's internal HTTP base URL, e.g. `http://user-service:8080`; use its actual service name and container port |
-| `AUTH_JWKS_URL` | Optional full public JWKS URL; defaults to `${AUTH_SERVER_URL}/.well-known/jwks.json` |
-| `AUTH_JWT_ISSUER` | Must match issued tokens; default `JapaneseLearning.User` |
-| `AUTH_JWT_AUDIENCE` | Must match issued tokens; default `JapaneseLearning` |
+| Java | Java 17 compilation target; root container uses JDK/runtime 17 |
+| Quarkus | 3.38.2, managed by the Quarkus BOM |
+| Maven | Wrapper distribution 3.9.16; wrapper 3.3.4 with distribution checksum |
+| HTTP and JSON | Quarkus REST, Jackson, Jakarta Validation |
+| Dependency injection | Quarkus ArC/CDI |
+| Persistence | Hibernate Reactive Panache, Mutiny, reactive MySQL client |
+| Database | MySQL 8-compatible schema; quiz migrations use `utf8mb4_0900_bin` and CHECK constraints |
+| Migrations | Versioned Flyway SQL; executed externally, with no Flyway dependency/plugin in this application |
+| Security | Quarkus OIDC bearer-token resource server, RS256 JWT verification |
+| API and operations | SmallRye OpenAPI, Swagger UI, SmallRye Health, Micrometer Prometheus |
+| Tests | JUnit Jupiter via `quarkus-junit`, REST Assured, jose4j token fixtures; Surefire/Failsafe 3.5.6 |
+| Containers | Root multi-stage Dockerfile with pinned Java 17 build/runtime images |
 
-Set `AUTH_SERVER_URL` or an absolute `AUTH_JWKS_URL` to the Docker-reachable Auth
-service; the local-development localhost default cannot reach another container.
-Only public JWKS is needed. Do not supply signing keys or client secrets.
+Library versions other than explicitly pinned Maven plugins are managed by the Quarkus BOM. The repository does not pin a MySQL server or external Flyway version.
 
-After MySQL, the separate root-owned Flyway service, and Auth are ready, run on
-their shared Docker network (replace `japanese-learning` with its actual name):
+## Architecture
 
-```sh
-docker run --rm --name vocabulary --network japanese-learning --env-file .env.docker --mount type=volume,source=vocabulary_api_logs,target=/deployments/data/logs -p 8080:8080 japanese-learning-vocabulary:local
-```
-
-MySQL remains reactive. Schema generation is disabled and this image does not
-execute Flyway; the orchestration repository owns migrations. TLS terminates at
-the future gateway/deployment layer.
-
-Existing SmallRye Health routes are `/q/health`, `/q/health/live`, and
-`/q/health/ready` on port 8080. Use liveness for process checks and readiness for
-traffic admission (including the built-in reactive datasource check). The aggregate
-`/q/health` also reflects readiness and is not a liveness probe.
-`HealthResponseFilter` retains only overall status and each check's name/status,
-omitting raw datasource exception data without replacing or duplicating checks.
-HTTP status remains 200 for UP and 503 for DOWN. `HealthResponseFilterTest`
-verifies redaction and HTTP integration. No dependencies were added.
-A MySQL outage fails readiness while liveness stays UP; later successful probes
-restore readiness. The root Compose readiness probe discards response bodies.
-JWKS is fetched at initialization, after Compose waits for .NET readiness.
-Continuous JWKS availability is deliberately not a health dependency: known
-cached keys allow verification during an Auth outage, while unknown keys that
-require a refresh cannot be verified until JWKS is available again. Health probes
-do not contact Auth, and this is not whole-system readiness.
-Verify readiness, real .NET-issued User/Admin tokens, and the
-Admin import against the shared network during orchestration integration.
-
-## API
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| GET | `/api/v1/flashcards` | List flashcards; filter by `level`, `lesson`, `page`, and `size` (User or Admin) |
-| GET | `/api/v1/flashcards/{id}` | Retrieve a flashcard (User or Admin) |
-| GET | `/api/v1/jlpt-levels` | List JLPT levels (User or Admin) |
-| GET | `/api/v1/lessons?level=N5` | List lessons by level (User or Admin) |
-| POST | `/api/vocabularies/import` | Import JSON using the multipart field `file` (Admin only) |
-
-Success and error responses include trace and correlation IDs. Clients may supply `X-Trace-Id` and `X-Correlation-Id` headers.
-
-## Test and Build
-
-```sh
-./mvnw test
-./mvnw package
-```
-
-Build output is written to `target/`.
-
-## JWT resource server
-
-Quarkus 3.38.2 uses `quarkus-oidc` in bearer-token service mode. The Auth Service
-need not implement OIDC discovery: Quarkus fetches its configured JWKS endpoint,
-selects the public key by JWT `kid`, and verifies tokens locally. Discovery,
-JWT/opaque-token introspection, and OIDC Dev Services are disabled. No client
-secret, private key, login implementation, or per-request Auth Service call is used.
-
-| Environment variable | Default |
+| Feature area | Responsibility |
 | --- | --- |
+| `vocabulary` | JLPT levels, lesson management, atomic vocabulary imports, and Admin editing of vocabulary and related content |
+| `flashcard` | Paginated vocabulary cards and detailed readings, meanings, examples, kanji, and pitch accents |
+| `quiz` | Admin question authoring/import/publication; player sessions, answers, completion, history, and progress |
+| `common` | Response envelopes, centralized exception handling, configuration validation, tracing, health filtering, metrics, and logging |
+
+Resources handle HTTP and validation, services orchestrate business rules, and repositories perform reactive persistence. Service methods use `Uni` and reactive session/transaction boundaries. DTOs and service assemblers construct API views; there is no separate mapper package or mapping framework. Imports move file parsing off the event loop.
+
+All feature areas share the configured MySQL datasource. Flashcards read vocabulary entities; quizzes can reference vocabulary/examples and store session snapshots and user progress. User ownership comes from the JWT subject, without a local authentication service or per-request user-service lookup.
+
+```mermaid
+flowchart LR
+    Client[API client with bearer JWT] --> REST[Quarkus REST resources]
+    REST --> Services[Vocabulary, flashcard and quiz services]
+    Services --> Repositories[Reactive repositories]
+    Repositories --> DB[(MySQL)]
+    REST --> Security[Quarkus OIDC token verification]
+    Security -->|Fetch public signing keys| Auth[External .NET JWKS endpoint]
+```
+
+### API Gateway boundary
+
+No Gateway application, proxy resource, routing table, or downstream forwarding client is implemented here. The routes below belong directly to this backend. Gateway URLs, path rewriting, Angular proxy/CORS setup, TLS termination, and Gateway authentication behavior must be obtained from the owning repository. No application CORS configuration is supplied here.
+
+## Prerequisites
+
+- JDK 17 with `JAVA_HOME` set for local Maven execution. A separate Maven installation is unnecessary when using the wrapper.
+- Network access to retrieve the pinned Maven distribution and Maven dependencies on first use.
+- A MySQL 8 server supporting the migration syntax and an externally managed Flyway runner for real application/database testing.
+- A reachable .NET public JWKS endpoint and valid User/Admin tokens for normal API use. Default automated tests supply their own JWKS server.
+- Docker only for container builds/runs or infrastructure managed outside this repository. The root image build does not require a host JDK.
+
+## Getting started
+
+1. Open the Quarkus checkout containing this README and `pom.xml`. If accessed through a parent checkout, enter its `quarkus` directory. Repository clone URLs and submodule initialization instructions are not defined here.
+2. Start your MySQL instance, create a UTF-8 application database and application account, then apply all migrations as described under [Database and persistence](#database-and-persistence).
+3. Start the external authentication service and confirm its configured public JWKS URL is reachable from the machine/container running Quarkus.
+4. Create an untracked `.env` in this directory, replacing the placeholders with your local configuration:
+
+   ```dotenv
+   DB_USERNAME=<application-database-user>
+   DB_PASSWORD=<local-database-password>
+   DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
+   AUTH_SERVER_URL=http://localhost:5116
+   AUTH_JWT_ISSUER=JapaneseLearning.User
+   AUTH_JWT_AUDIENCE=JapaneseLearning
+   ```
+
+5. Start all implemented Quarkus features together:
+
+   ```sh
+   ./mvnw quarkus:dev
+   ```
+
+   On Windows PowerShell, use `.\mvnw.cmd quarkus:dev`. Maven resolves dependencies as part of the command; no separate dependency-install step is required.
+
+6. Open `http://localhost:8080/q/swagger-ui`, authorize with a raw access token, and explore the API. Use `http://localhost:8080/q/health/ready` to check readiness.
+
+There is no Compose file or command in this checkout that starts Angular, .NET, MySQL, migrations, and Quarkus together. Supply those external services before starting this application.
+
+## Environment configuration
+
+Runtime defaults live in [application.properties](src/main/resources/application.properties). Use environment variables or a local `.env`; keep credentials out of source control. The application validates required settings at startup and reports the offending property name without echoing its value.
+
+| Variable | Default / requirement |
+| --- | --- |
+| `DB_USERNAME` | Required, nonblank MySQL username |
+| `DB_PASSWORD` | Required, nonblank password, supplied separately from the URL |
+| `DB_REACTIVE_URL` | Required; `mysql://host:3306/database_name` |
 | `AUTH_SERVER_URL` | `http://localhost:5116` |
-| `AUTH_JWKS_URL` | `${AUTH_SERVER_URL}/.well-known/jwks.json` |
-| `AUTH_JWT_ISSUER` | `JapaneseLearning.User` |
-| `AUTH_JWT_AUDIENCE` | `JapaneseLearning` |
+| `AUTH_JWKS_URL` | `${AUTH_SERVER_URL}/.well-known/jwks.json`; override with a full HTTP(S) URL |
+| `AUTH_JWT_ISSUER` | `JapaneseLearning.User`; must match the token issuer |
+| `AUTH_JWT_AUDIENCE` | `JapaneseLearning`; must match the token audience |
+| `VOCABULARY_IMPORT_MAX_BATCH_SIZE` | `500` items per vocabulary batch |
+| `APP_LOG_LEVEL` | `INFO` for application packages |
+| `APP_LOG_FILE_ENABLED` | `true`; disabled by default in the test profile |
+| `APP_LOG_DIR` | `logs`; root image overrides to `/deployments/data/logs` |
+| `APP_LOG_FILE` | `application.log` |
+| `APP_LOG_RETENTION_DAYS` | `30`, must be positive |
 
-For Docker, set `AUTH_SERVER_URL=http://user-service:<port>` or override the
-complete `AUTH_JWKS_URL`. Use HTTPS for production JWKS transport outside a trusted
-local network. No cryptographic key material belongs in Quarkus configuration.
+URL validation rejects embedded credentials, query strings, and fragments. Database URLs must use `mysql`, not `jdbc:mysql`, with a simple database-name path. Auth/JWKS URLs must be absolute HTTP(S) URLs. Even with an explicit JWKS URL, the auth-server setting must remain valid.
 
-Only RS256 is accepted. Issuer, audience, subject, and expiration are required;
-expired tokens and future `nbf` values are rejected with zero clock grace. Keep
-service clocks synchronized. The principal is the immutable `sub`. `iat` is not
-required because the .NET `TokenService` explicitly disables default token times
-and supplies only `Expires`. Its standard outbound claim mapping serializes
-`ClaimTypes.Role` as `role`; `quarkus.oidc.roles.role-claim-path=role` maps `User`
-and `Admin` directly to Quarkus roles, including `@RolesAllowed("User")` and
-`@RolesAllowed("Admin")`. No custom claim parser is needed.
+Additional properties declared in code are `quiz.import.max-file-bytes` (default `1048576`) and `quiz.import.max-items` (default `100`). They bound quiz file imports; see the [quiz import contract](docs/kanji-context-quiz-import.md).
 
-Quarkus fetches and caches the JWKS at initialization. An unknown `kid` triggers
-refresh subject to its default 10-minute forced-refresh throttle
-(`quarkus.oidc.token.forced-jwk-refresh-interval`); known keys are reused without
-per-request JWKS retrieval. Publish new keys before using them and retain old
-public keys until their tokens expire. There is no introspection fallback.
-The specific `OidcProvider` logger is set to ERROR because its verification
-warnings can contain the rejected bearer token; this also suppresses its other
-warnings. Avoid enabling token-bearing diagnostic logging in production.
+Development mode uses the standard `dev` profile. Packaged runs use `prod`; there are no separate development/production property files. Tests add [test configuration](src/test/resources/application.properties), disable datasource Dev Services, start Hibernate offline, and use database doubles unless an explicit MySQL test profile is enabled. OIDC Dev Services are disabled for all profiles.
 
-All application REST resources use the centralized default policy
-`quarkus.security.jaxrs.default-roles-allowed=User,Admin`. A new unannotated REST
-operation therefore requires one of these application roles. The import method's
-explicit `@RolesAllowed("Admin")` overrides that default. No per-method User/Admin
-annotations or additional role mapping are needed.
+The current configuration sets `quarkus.swagger-ui.always-include=true`, including Swagger UI in packaged builds. It also disables Hibernate schema generation. Deployment owners should account for the exposed documentation and operational routes.
 
-| Resource | Operation | Allowed roles |
-| --- | --- | --- |
-| `FlashcardResource` | `GET /api/v1/flashcards` | User, Admin |
-| `FlashcardResource` | `GET /api/v1/flashcards/{id}` | User, Admin |
-| `JlptLevelResource` | `GET /api/v1/jlpt-levels` | User, Admin |
-| `LessonResource` | `GET /api/v1/lessons?level=N5` | User, Admin |
-| `VocabularyResource` | `POST /api/vocabularies/import` | Admin |
+## Project structure
 
-Missing/invalid tokens receive 401; authenticated users without an allowed role
-receive 403. Business response wrappers and exception mappers are unchanged.
-Swagger UI, OpenAPI, and health are infrastructure routes outside this REST
-policy. Default proactive authentication still checks a bearer token if one is
-supplied to an otherwise public route.
-
-SmallRye OpenAPI explicitly defines one HTTP bearer scheme named `bearerAuth`,
-with `scheme: bearer` and `bearerFormat: JWT`. Automatic OIDC scheme generation is
-disabled. `META-INF/openapi.yaml` supplies a global `security: [{bearerAuth: []}]`
-requirement inherited by every application operation, including import. Bearer
-security has no OAuth scopes; the import's Admin restriction is enforced at runtime.
-Swagger accepts only the raw token and automatically adds `Authorization: Bearer`.
-Swagger UI retains Quarkus's default dev/test availability; this change does not
-enable it in production builds.
-
-### Automated security tests
-
-`JwtSecurityTest` exercises the production resources with real signed tokens and
-security interceptors. CDI test service alternatives isolate database operations.
-`JwksTestResource` runs an ephemeral loopback HTTP server with two generated RSA
-public keys; private keys exist only in test memory. The resource is shared with
-Quarkus tests so the existing suite needs no running Auth Service. Test datasource
-configuration disables database startup connections and Dev Services.
-
-The JWT suite covers all normal APIs with User/Admin tokens and missing tokens,
-non-application roles, import authorization, malformed tokens, wrong issuer/audience,
-expired/missing expiration, future `nbf`, wrong RSA key, unknown `kid`, HS256,
-RS512, JWKS cache reuse/key selection, and preventing a `groups=Admin` claim from
-overriding `role=User`. The test tokens omit `iat` like .NET. Existing flashcard
-HTTP tests use the same signed-token fixture while retaining their business and
-response assertions.
-
-`OpenApiSecurityTest` checks the exact single bearer scheme, effective security
-requirements on all five operations, and anonymous access to OpenAPI, Swagger UI,
-and health liveness. OpenAPI operation-level requirements may be omitted because
-the specification defines inheritance from the root security requirement.
-
-Commands used for verification (PowerShell, from this repository):
-
-```powershell
-.\mvnw.cmd -B -ntp test "-Dtest=JwtSecurityTest,OpenApiSecurityTest,FlashcardResourceTest"
-.\mvnw.cmd -B -ntp package
-.\mvnw.cmd -B -ntp package -DskipTests
-git diff --check
+```text
+.
+|-- pom.xml                         # Single application build
+|-- mvnw / mvnw.cmd                 # Unix / Windows Maven launchers
+|-- .mvn/wrapper/                   # Pinned Maven distribution
+|-- Dockerfile                     # Supported source-to-runtime image build
+|-- docs/                          # Vocabulary editing and quiz contracts
+|-- src/main/java/com/japaneselearning/
+|   |-- common/                    # config, exception/handler, response,
+|   |                              # resource, web, health, metrics, logging
+|   |-- flashcard/                 # resource, service, repository, dto
+|   |-- vocabulary/                # resource, service, repository, entity,
+|   |                              # dto, importer, logging, admin
+|   `-- quiz/                      # admin/player resources, services and DTOs;
+|                                  # domain, entity, repository, service
+|-- src/main/resources/
+|   |-- application.properties
+|   |-- META-INF/openapi.yaml      # Static contract merged with annotations
+|   |-- META-INF/services/         # Configuration interceptor registration
+|   |-- db/migration/              # Flyway V1-V8
+|   `-- data/vocabulary/n5.json    # Vocabulary import data, not auto-seeded
+|-- src/main/docker/               # Additional packaging templates
+`-- src/test/                      # Unit, HTTP/security and opt-in MySQL tests
 ```
 
-Step 8.10 validation: the complete suite and packaging passed (80 tests, zero
-failures/errors/skips) using `./mvnw verify -Dquarkus.http.test-port=0`
-(`.\mvnw.cmd` on Windows). The ephemeral test port avoids conflicting with a
-running development API on port 8081. The reader test now uses its own fixture,
-and the validator's valid fixture includes the required lesson. Missing multipart
-uploads now use Jakarta Bean Validation and return 400 after authorization.
-Fresh migrations do not create lessons. Lesson rows are application/domain data
-and must be provisioned through the lesson-management workflow before imports
-reference them.
-No formatter or static-analysis plugin is configured in the existing Maven build.
+Security enforcement primarily uses configuration and resource annotations; there is no production `security` package. The test `security` package contains JWT/JWKS fixtures and HTTP/integration coverage.
 
-### Manual .NET integration (PowerShell)
+## Authentication and authorization
 
-Run commands from the Quarkus repository. Prerequisites: configured .NET database
-and signing keys, an existing User account, and Quarkus MySQL with the existing
-migrations/seeds applied. The optional Admin import writes dictionary data; use a
-development database. Quarkus itself needs only the public JWKS endpoint.
+The .NET service owns login, user accounts, and token issuance. Quarkus only requires its public signing keys. Configure the issuer/audience and JWKS URL to match that service; do not provide private signing keys or client secrets to this backend.
 
-1. In terminal A, start .NET using its HTTP launch profile:
+**Authentication:** OIDC runs in bearer-token service mode with discovery and JWT/opaque-token introspection disabled. Verification accepts RS256, requires a subject and expiration, validates issuer/audience, and rejects expired tokens and future `nbf` values with zero clock grace. `iat` is not required. The principal is `sub`. JWKS keys are cached; cached-key verification does not require a network call for every request. Key refresh still requires a reachable JWKS endpoint.
 
-   ```powershell
-   dotnet run --project ../dotnet/src/JapaneseLearning.User.Api/JapaneseLearning.User.Api.csproj --launch-profile http
-   ```
+**Authorization:** the default application REST policy allows `User` or `Admin`. Roles come from the case-sensitive `role` claim. Explicit Admin annotations protect vocabulary writes, lesson writes, and quiz administration. Player quiz operations accept either application role and scope session/history/progress access to the authenticated subject.
 
-2. In terminal B, confirm the public JWKS and log in for a newly issued token:
+Missing/invalid tokens produce 401; a valid identity without the required role produces 403. Health and API documentation routes are outside the default application REST role policy. Supplying an invalid bearer token to a public route can still trigger proactive authentication failure.
 
-   ```powershell
-   Invoke-RestMethod http://localhost:5116/.well-known/jwks.json | ConvertTo-Json -Depth 5
-   # Expect an RSA signing key with kid japanese-learning-local-1, n and e; no private components.
-   $userCredential = Get-Credential -Message 'Existing User account: enter email and password'
-   $loginBody = @{
-       email = $userCredential.UserName
-       password = $userCredential.GetNetworkCredential().Password
-   } | ConvertTo-Json
-   $login = Invoke-RestMethod -Method Post -Uri http://localhost:5116/api/auth/login -ContentType application/json -Body $loginBody
-   $userToken = $login.accessToken
-   ```
+The `OidcProvider` logger is deliberately restricted to ERROR because verification warnings can contain rejected tokens. Keep service clocks synchronized and avoid enabling token-bearing diagnostic logs.
 
-3. In terminal C, set the existing database variables (or use the local `.env`)
-   and start Quarkus:
+## Database and persistence
 
-   ```powershell
-   $env:AUTH_SERVER_URL = 'http://localhost:5116'
-   $env:AUTH_JWKS_URL = 'http://localhost:5116/.well-known/jwks.json'
-   $env:AUTH_JWT_ISSUER = 'JapaneseLearning.User'
-   $env:AUTH_JWT_AUDIENCE = 'JapaneseLearning'
-   .\mvnw.cmd quarkus:dev
-   ```
+One reactive MySQL datasource supports vocabulary, lessons, flashcards, and quizzes. Hibernate's schema-management strategy is `none`: starting the application does not create or migrate tables.
 
-4. In terminal B, check authentication and User authorization:
+Initialize a database with the external Flyway runner:
 
-   ```powershell
-   curl.exe -i http://localhost:8080/api/v1/jlpt-levels
-   # Expected: 401
-   curl.exe -i -H "Authorization: Bearer $userToken" http://localhost:8080/api/v1/jlpt-levels
-   # Expected: 200 and the existing ApiResponse with JLPT levels
-   curl.exe -i -H "Authorization: Bearer $userToken" -F "file=@src/main/resources/data/vocabulary/n5.json;type=application/json" http://localhost:8080/api/vocabularies/import
-   # Expected: 403
-   ```
+1. Create the chosen application database and separate runtime/migration credentials through your infrastructure setup.
+2. Configure the runner's MySQL JDBC connection and migration location to this checkout's `src/main/resources/db/migration` directory.
+3. Apply migrations in version order, currently V1 through V8, and confirm Flyway validation succeeds before starting Quarkus.
+4. Point `DB_REACTIVE_URL` at the same database using the reactive `mysql://` URL format.
 
-5. If an Admin account is available, obtain its token and test the actual import:
+V1-V5 define vocabulary/master data and lessons; V6-V8 add quiz persistence, Admin identity fields, and classification snapshots. V2 seeds JLPT levels and parts of speech. Migrations do not populate lessons or import `n5.json`: create lessons through the Admin lesson APIs before importing vocabulary that references them.
 
-   ```powershell
-   $adminCredential = Get-Credential -Message 'Existing Admin account: enter email and password'
-   $adminBody = @{
-       email = $adminCredential.UserName
-       password = $adminCredential.GetNetworkCredential().Password
-   } | ConvertTo-Json
-   $adminLogin = Invoke-RestMethod -Method Post -Uri http://localhost:5116/api/auth/login -ContentType application/json -Body $adminBody
-   $adminToken = $adminLogin.accessToken
-   curl.exe -i -H "Authorization: Bearer $adminToken" -F "file=@src/main/resources/data/vocabulary/n5.json;type=application/json" http://localhost:8080/api/vocabularies/import
-   # Expected: 200 and the existing ApiResponse with import totals
-   ```
+Use MySQL with support for `utf8mb4_0900_bin` and enforced CHECK constraints; compatibility with MariaDB or older MySQL versions is not established. The Flyway runner/version and infrastructure launch command are not included here, so use the owning environment's migration procedure. Never edit an applied migration; add a new versioned SQL file.
 
-These commands validate the real .NET-issued token using public JWKS information.
-The real .NET-to-Quarkus JWKS flow and User/import denial were manually verified by the developer. The automated suite remains independent of that service.
+Vocabulary JSON-body and multipart imports share one reactive transaction, with a default 500-item limit. Existing normalized words must retain matching level/lesson assignments; only new examples are appended, while existing core metadata remains unchanged. Use the Admin editing APIs for changes. The `updated` result counts existing vocabulary processed, even if its examples were already present. Concurrent example additions are not protected by a database uniqueness constraint and can race.
 
-### Manual Swagger verification
+## API documentation
 
-Start the Auth Service and Quarkus in development mode using the commands above;
-obtain fresh User and Admin access tokens through .NET. Use a development database
-with the existing schema and seeds for successful business responses.
+With the default local port:
 
-1. Open `http://localhost:8080/q/swagger-ui/` without credentials. The page must load.
-   `http://localhost:8080/q/openapi?format=json` must also load without credentials.
-2. Click **Authorize**. Confirm a single **bearerAuth (http, Bearer)** entry with a
-   token input; no OAuth login or username/password flow should be offered.
-3. If already authorized, click **Logout**, then **Close**. Expand
-   `GET /api/v1/jlpt-levels`, click **Try it out**, then **Execute**. Expect **401**.
-4. Click **Authorize**, paste only the raw User JWT (`eyJ...`) into **Value**,
-   click **Authorize**, then **Close**. Do not type `Bearer `.
-5. Execute `GET /api/v1/jlpt-levels` again. Expect **200**. The generated curl or
-   browser Network request must contain `Authorization: Bearer eyJ...` with one
-   Bearer prefix. Flashcards and lessons use the same policy.
-6. Expand `POST /api/vocabularies/import`, click **Try it out**, and select
-   `src/main/resources/data/vocabulary/n5.json` in the **file** input. Execute with
-   the User token. Expect **403**.
-7. In **Authorize**, click **Logout**, paste a raw Admin JWT, authorize, and close.
-   Execute `GET /api/v1/jlpt-levels` again. Expect **200**.
-8. Execute the import again with the same valid file. Expect **200** and import
-   totals when the development database is ready. This performs an actual import.
-   A business/database error after authorization is separate from a 401/403.
+| Endpoint | Purpose |
+| --- | --- |
+| `http://localhost:8080/q/openapi` | Generated OpenAPI document |
+| `http://localhost:8080/q/swagger-ui` | Interactive requests; paste the raw JWT into Authorize |
+| `http://localhost:8080/q/health` | Aggregate health |
+| `http://localhost:8080/q/health/live` | Liveness |
+| `http://localhost:8080/q/health/ready` | Readiness, including datasource health |
+| `http://localhost:8080/q/metrics` | Prometheus metrics |
 
-The Swagger browser interaction must be checked manually; automated HTTP tests
-verify its availability, the generated scheme, and the authorization matrix.
+SmallRye OpenAPI combines [the static document](src/main/resources/META-INF/openapi.yaml) with resource annotations. Vocabulary Admin resources are excluded from annotation scanning because their contracts are defined statically. A global `bearerAuth` requirement describes application authentication; runtime role checks remain authoritative.
 
+| API group | Base route | Access |
+| --- | --- | --- |
+| Flashcard list/detail | `/api/v1/flashcards` | User or Admin |
+| JLPT catalogue | `/api/v1/jlpt-levels` | User or Admin |
+| Lesson lookup/management | `/api/v1/lessons` | Reads: User/Admin; writes: Admin |
+| Vocabulary JSON/file imports | `/api/vocabularies`, `/api/vocabularies/import` | Admin |
+| Vocabulary editing and relationships | `/api/v1/admin/vocabularies/{vocabularyId}` | Admin |
+| Quiz question authoring/import/publication | `/api/v1/admin/kanji-quiz/questions` | Admin |
+| Quiz configuration, sessions, answers, history, progress | `/api/v1/kanji-quiz` | User or Admin, subject-scoped |
 
-### Vocabulary batch import rules
+For example, `GET /api/v1/flashcards?level=N5&page=0&size=20` lists cards; multipart vocabulary imports use a `file` part. Preserve the existing unversioned vocabulary import path when integrating clients.
 
-Admin clients may submit a JSON array of the existing vocabulary import objects to
-`POST /api/vocabularies` (`application/json`) or upload that array as the `file`
-part of `POST /api/vocabularies/import`. Both use one shared, atomic operation.
-The default maximum is 500 items; override `VOCABULARY_IMPORT_MAX_BATCH_SIZE` when needed.
+Business responses use `ApiResponse` with `success`, `data` or `error`, and metadata including timestamp, trace ID, and correlation ID. Null fields are generally omitted. Clients may supply `X-Trace-Id` and `X-Correlation-Id`; centralized handlers normalize error responses. Infrastructure routes have their own formats.
 
-Vocabulary identity is the existing database lookup by `normalizedWord` (including
-its database collation semantics), protected by the unique `normalized_word` constraint.
-New vocabulary is fully created. Existing vocabulary must have exactly the same
-sets of level codes and `(level, lessonNumber)` assignments, regardless of order.
-Only examples are processed for matching existing vocabulary; core fields and all
-other relations remain unchanged, even when the payload supplies different metadata.
-Referenced lessons must already exist. Duplicate words within a batch are rejected.
+Detailed feature contracts:
 
-Assignment mismatches return HTTP 400 through the normal `ApiResponse` error wrapper,
-with code `VALIDATION_ERROR` and `levels`/`lessons` details showing existing and requested
-assignments. Known assignment conflicts are checked before writes. Every batch uses
-one reactive transaction, so later persistence failures also roll back earlier writes.
+- [Admin vocabulary editing](docs/admin-vocabulary-edit.md)
+- [Quiz administration](docs/kanji-context-quiz-admin.md) and [file import](docs/kanji-context-quiz-import.md)
+- [Quiz gameplay](docs/kanji-context-quiz-game.md), [history](docs/kanji-context-quiz-history.md), and [progress](docs/kanji-context-quiz-progress.md)
 
-Examples are appended only when their exact `(japaneseText, japaneseReading, targetText)`
-combination is new for that vocabulary. Translations and display order do not participate
-in identity, and existing examples are never rewritten. Duplicates within one payload
-are also ignored. The response remains `data: {total, created, updated}`: `created`
-counts new vocabulary; `updated` counts matching existing vocabulary processed for
-examples, even when all examples already existed.
+## Available commands
 
-The database still protects concurrent creation of the same normalized word. When
-Hibernate identifies that specific unique constraint, the API returns HTTP 409 with
-`VOCABULARY_ALREADY_EXISTS`; unrelated failures are not swallowed. Example identity
-has no database unique constraint: simultaneous example additions to the same vocabulary
-can still race. Concurrent imports and external assignment edits are not serialized.
+Run from this repository root. Replace `./mvnw` with `.\mvnw.cmd` in PowerShell. There are no module-specific Maven commands.
 
-### Optional MySQL import regression tests
+| Task | Command |
+| --- | --- |
+| Development mode | `./mvnw quarkus:dev` |
+| Compile | `./mvnw compile` |
+| Default tests | `./mvnw test` |
+| Focused tests | `./mvnw test "-Dtest=JwtSecurityTest,OpenApiSecurityTest,FlashcardResourceTest"` |
+| Full Maven verification lifecycle | `./mvnw verify "-Dquarkus.http.test-port=0"` |
+| Package with default tests | `./mvnw package` |
+| Package without executing tests | `./mvnw package -DskipTests` |
+| Run packaged fast-jar | `java -jar target/quarkus-app/quarkus-run.jar` |
+| Build root container image | `docker build -t japanese-learning-backend:local .` |
 
-The default suite uses database doubles. `VocabularyMysqlImportTest` additionally
-exercises the real repositories and transaction interceptor for both transports,
-including repeated imports, untouched metadata, assignment matching, example identity,
-and rollback after an example insert fails. No production database is needed.
+These commands follow the checked-in build configuration; they are not a record of tests or builds executed during documentation maintenance.
 
-Initialize a disposable MySQL 8.0 database named `vocabulary_import_test` using the
-existing migrations V1 through V5. The tests create their own lesson and vocabulary
-fixtures. Set the local port and test root password, then run from PowerShell:
+## Testing
+
+The default suite contains plain JUnit tests and `@QuarkusTest` HTTP tests using REST Assured. Tests cover business rules, response contracts, JWT roles/claims, OpenAPI, configuration, logging, metrics, and health. Service/repository alternatives and offline Hibernate startup avoid a live database for the default suite. `JwksTestResource` starts an ephemeral loopback HTTP server and generates RSA keys in memory, so a running .NET service is unnecessary.
+
+Real-database tests are opt-in and exercise persistence, rollback, concurrency, Admin editing, and quiz lifecycle behavior. Provision a **disposable** database named exactly `vocabulary_import_test`, apply all current migrations through V8, and provide its test root password. The test profile hardcodes username `root` and rejects URLs not ending in `/vocabulary_import_test`. Tests write fixtures and may modify/delete data.
 
 ```powershell
-.\mvnw.cmd verify "-Dvocabulary.mysql.tests=true" `
+.\mvnw.cmd verify "-Dquarkus.http.test-port=0" "-Dvocabulary.mysql.tests=true" `
   "-Dvocabulary.mysql.url=mysql://127.0.0.1:3306/vocabulary_import_test" `
   "-Dvocabulary.mysql.password=<test-root-password>"
 ```
 
-Without the opt-in property, the MySQL test class is skipped. Remove the disposable
-database/container after testing.
+Without `vocabulary.mysql.tests=true`, database tests are skipped. They are named `*Test` and run through Surefire; `-DskipITs=false` alone does not enable them. Failsafe is configured, with `skipITs=true` by default, but no `@QuarkusIntegrationTest` packaged-application tests are present. No coverage-reporting, formatter, or static-analysis plugin is configured.
 
+## Build and deployment
 
-### Admin vocabulary editing
+The default package is a Quarkus fast-jar. Deploy the complete `target/quarkus-app/` directory, not just `quarkus-run.jar`, and supply the same runtime configuration as for development.
 
-See [Admin vocabulary editing](docs/admin-vocabulary-edit.md) for the endpoint matrix,
-request/response contracts, shared-data protections, validation rules, and MySQL tests.
-The feature is backend-only and provides no DELETE APIs.
+The root Dockerfile builds from source with the pinned Maven Wrapper and Java 17, skips tests during packaging, then copies only the fast-jar application into the UBI 9 OpenJDK 17 runtime. It runs as UID 185 and listens on `0.0.0.0:8080`. `.dockerignore` excludes local credentials, key material, tests, and build output.
 
-## Application logging
-
-Application code uses JBoss Logging with a private static final class logger.
-The root INFO level covers Quarkus and application lifecycle messages. Set
-`APP_LOG_LEVEL=DEBUG` for application diagnostics without enabling framework
-debug logs. Existing safe exception logging emits ERROR once with bounded code
-locations and correlation/trace IDs, never raw exception messages.
-
-Write-service methods opt into `LogVocabularyOperation`. Its interceptor runs
-outside the existing transaction interceptor, so INFO outcomes follow successful
-commit without changing transaction boundaries. Events identify the operation
-(e.g. `vocabulary.reading.update`), numeric IDs, and counts only. Lesson batches
-and imports emit one summary; nested lesson creates are suppressed using
-subscription-local Mutiny context, which is removed on completion or cancellation.
-Partial lesson batches, write conflicts, rejected vocabulary imports and oversized
-lesson files use WARN. Ordinary missing resources and validation rejections,
-flashcard/lesson/JLPT reads, and existing pre-commit import diagnostics use DEBUG.
-Unexpected failures are left to the existing central ERROR handler (or
-`BatchItemErrors` for recovered batch failures), with no duplicate service ERROR.
-Resources, per-item import helpers, health probes and authentication flows gain
-no additional INFO logs. No request/response objects, file paths, exception
-messages, headers, tokens, or uploaded text are serialized by operation logging.
-
-Console and file logging are both enabled. The default file is
-`logs/application.log`, relative to the process working directory. Override
-`APP_LOG_DIR` and `APP_LOG_FILE`, or use `QUARKUS_LOG_FILE_PATH` for a complete
-path. `APP_LOG_FILE_ENABLED=false` disables the file handler and cleanup.
-Tests disable file logging by default. Both handlers preserve correlation IDs
-and use 8192-entry asynchronous queues with discard on overflow to avoid blocking
-reactive request threads. Overload or abrupt process termination can lose queued
-logs; these logs are operational diagnostics, not a durable audit trail.
-
-The built-in Quarkus handler appends across restarts and rotates daily on the
-first log event after midnight in the JVM timezone, producing
-`application.log.yyyy-MM-dd`. A zero backup index disables size-based rotation
-and count-based deletion; it does not disable daily rotation. There is no daily
-file-size or total disk-size cap: provision and monitor storage for peak 30-day
-volume. See the [Quarkus logging configuration](https://quarkus.io/guides/logging/).
-
-A dedicated daemon worker scans at startup and hourly, deleting only matching
-daily archives whose last-modified time is older than 30 days
-(`APP_LOG_RETENTION_DAYS` overrides this). It never deletes the active file,
-recurses into directories, or follows archive symlinks. Cleanup retries after a
-WARN on failure; messages omit filesystem paths and exception contents. Expiry
-can lag by up to an hour while running; while stopped, archives remain until
-the next startup. Keep the configured daily suffix: incompatible suffixes fail
-startup to avoid silently breaking retention. Use one log file/directory per
-application instance and do not let external rotators rename these files.
-
-No payloads, uploaded contents, arbitrary URLs, headers, credentials or JWTs
-are added to application logs. The existing OIDC provider ERROR override remains
-because its verification warnings may contain rejected tokens. Avoid enabling
-global framework DEBUG/TRACE or SQL bind logging in production.
-
-### Docker file logging
-
-The image sets `APP_LOG_DIR=/deployments/data/logs`, so Docker writes
-`/deployments/data/logs/application.log` while local runs retain
-`logs/application.log`. The image creates the log directory as UID 185, GID 0,
-mode 0750. A fresh Docker named volume inherits this ownership on first mount;
-the runtime remains non-root and does not need a root startup script.
-
-Root Compose mounts `vocabulary_api_logs` at `/deployments/data/logs` and sets
-`APP_LOG_DIR` to that path. The production overlay inherits the mount. This
-keeps the root filesystem read-only and persists both active and rotated logs
-across container recreation. Console logging remains enabled, with Docker's
-console retention managed separately.
-
-After rebuilding the image, recreate the service from the repository root:
+After building, prepare an ignored `.env.docker` containing the variables documented above. Database and Auth hosts must be reachable **from the container**; `localhost` inside it does not refer to the host or another service. On an existing shared network, for example `japanese-learning`, run:
 
 ```sh
-docker compose up -d --build --no-deps vocabulary-api
-docker compose exec vocabulary-api sh -c 'id; ls -ld /deployments/data/logs; test -s /deployments/data/logs/application.log'
-docker compose logs --tail=20 vocabulary-api
+docker run --rm --name japanese-learning-backend --network japanese-learning --env-file .env.docker --mount type=volume,source=backend_logs,target=/deployments/data/logs -p 8080:8080 japanese-learning-backend:local
 ```
 
-Use the same Compose project name and deployment overlays as your running stack.
-The volume is project-scoped; `docker compose down` retains it, while
-`docker compose down -v` deletes it. Existing volumes retain their permissions,
-so a previously created volume must already be writable by UID 185. Do not use
-`volume.nocopy` for a fresh volume. Each replica needs a separate log volume.
-Override the log path only together with a corresponding writable persistent
-mount. Monitor volume capacity using the retention guidance above.
+Replace the network name with the actual infrastructure network. Start MySQL, complete migrations, and make JWKS available before starting the backend. This container does not run migrations or provision infrastructure. No deployment pipeline or complete-stack launcher is defined in this checkout.
+
+The `native` Maven profile enables native compilation (`./mvnw package -Dnative`), requiring a suitable GraalVM/native toolchain or a separately configured container build. No native toolchain version is pinned. Additional Dockerfiles in `src/main/docker` expect prebuilt artifacts under `target/`; the current root `.dockerignore` excludes that directory, so their embedded build commands are not usable unchanged. JVM templates there also use Java 21. Use the root Dockerfile for the documented Java 17 workflow.
+
+### Operational behavior
+
+Health responses retain overall status and check names/statuses while omitting datasource exception details. UP returns 200 and DOWN returns 503. Liveness indicates process health; readiness includes database availability. There is no custom continuous JWKS health check, so readiness is not an end-to-end Auth availability check. Gateway exposure of `/q` endpoints cannot be established here.
+
+Console and file logging are asynchronous with discard-on-overflow queues. Files rotate daily; a background worker checks expired daily archives at startup and hourly, retaining 30 days by default without deleting the active file. There is no total disk-size cap. Use a separate writable log directory/volume for each instance and monitor capacity. Docker's log volume must be writable by UID 185; console retention is managed separately. These logs are diagnostics, not a durable audit trail.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| `Invalid required configuration` at startup | Set all DB values; use a `mysql://host/database` URL with credentials supplied separately. Auth/JWKS must be absolute HTTP(S) URLs without credentials, query, or fragment. |
+| Missing tables or failed database operations | Apply V1-V8 externally to the same database. Hibernate does not generate the schema. |
+| Migration rejects collation or constraints | Confirm MySQL supports the MySQL 8 collation and CHECK syntax; do not substitute MariaDB without compatibility validation. |
+| Import rejects a lesson assignment | Create the referenced lesson first; existing vocabulary must retain its level/lesson assignment set during import. |
+| 401 from application APIs | Check token expiration, RS256 signature/key ID, issuer, audience, subject, service clocks, and JWKS reachability. |
+| 403 from a write endpoint | Use an Admin token with the case-sensitive `role` claim; a User token cannot perform Admin operations. |
+| Container cannot reach DB/Auth | Use hosts on the shared network or the environment's host-access address, not container-local `localhost`. |
+| Tests conflict with another HTTP service | Add `"-Dquarkus.http.test-port=0"` to use an ephemeral test port. |
+| MySQL tests are skipped or reject the URL | Set the opt-in property and use the dedicated `vocabulary_import_test` database with all migrations applied. |
+| Alternate Dockerfile cannot copy `target/` | Use the root Dockerfile; the current build context excludes prebuilt output. |
+| File logging fails or storage grows | Check UID 185 volume permissions and retention settings; daily retention does not impose a disk quota. |
+
+## External setup information still required
+
+The following cannot be derived from this checkout: clone/submodule URLs, the infrastructure startup command, exact MySQL/Flyway deployment versions, .NET login/startup and key-provisioning procedures, Angular API/proxy settings, Gateway routes/security, and production network/TLS configuration. Obtain these from their owning repositories before a full-system deployment. The local token contract and simulated security tests do not replace integration testing with real .NET-issued tokens.
