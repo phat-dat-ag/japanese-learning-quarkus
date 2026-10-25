@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.japaneselearning.flashcard.resource.FlashcardResource;
+import com.japaneselearning.flashcard.resource.FlashcardLearningResource;
 import com.japaneselearning.quiz.admin.resource.AdminKanjiQuizResource;
 import com.japaneselearning.quiz.player.resource.KanjiQuizResource;
 import com.japaneselearning.vocabulary.admin.resource.*;
@@ -22,6 +23,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
@@ -67,6 +69,7 @@ class OpenApiResourceContractTest {
         List<Class<?>> resources =
                 List.of(
                         FlashcardResource.class,
+                        FlashcardLearningResource.class,
                         JlptLevelResource.class,
                         LessonResource.class,
                         VocabularyResource.class,
@@ -78,7 +81,8 @@ class OpenApiResourceContractTest {
                         AdminVocabularyAssignmentResource.class,
                         AdminVocabularyKanjiResource.class,
                         AdminKanjiQuizResource.class,
-                        KanjiQuizResource.class);
+                        KanjiQuizResource.class
+                );
         Set<String> resourceTags = new HashSet<>();
         Set<String> operations = new HashSet<>();
         Set<String> operationIds = new HashSet<>();
@@ -91,7 +95,7 @@ class OpenApiResourceContractTest {
                                 ? "get"
                                 : method.isAnnotationPresent(POST.class)
                                 ? "post"
-                                : method.isAnnotationPresent(PUT.class) ? "put" : null;
+                                : method.isAnnotationPresent(PUT.class) ? "put" : method.isAnnotationPresent(DELETE.class) ? "delete" : null;
                 if (verb == null) {
                     continue;
                 }
@@ -137,7 +141,7 @@ class OpenApiResourceContractTest {
                     assertFalse(resolved.path("description").asText().isBlank(), label);
                     assertFalse(resolved.path("schema").isMissingNode(), label);
                 }
-                if (path.equals("/api/v1/kanji-quiz/sessions/{id}/finish")) {
+                if (path.endsWith("/finish") || path.endsWith("/abandon") || path.endsWith("/bookmark")) {
                     assertFalse(operation.has("requestBody"), label);
                 } else if (!verb.equals("get")) {
                     assertTrue(operation.at("/requestBody/required").asBoolean(), label);
@@ -167,7 +171,7 @@ class OpenApiResourceContractTest {
                                                         documented.add(verb + " " + path.getKey());
                                                     }
                                                 }));
-        assertEquals(47, operations.size());
+        assertEquals(59, operations.size());
         assertEquals(operations, documented);
     }
 

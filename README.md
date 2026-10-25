@@ -28,7 +28,7 @@ Library versions other than explicitly pinned Maven plugins are managed by the Q
 | Feature area | Responsibility |
 | --- | --- |
 | `vocabulary` | JLPT levels, lesson management, atomic vocabulary imports, and Admin editing of vocabulary and related content |
-| `flashcard` | Paginated vocabulary cards and detailed readings, meanings, examples, kanji, and pitch accents |
+| `flashcard` | Vocabulary cards, personal SRS/practice sessions, bookmarks, due queues and statistics |
 | `quiz` | Admin question authoring/import/publication; player sessions, answers, completion, history, and progress |
 | `common` | Response envelopes, centralized exception handling, configuration validation, tracing, health filtering, metrics, and logging |
 
@@ -163,10 +163,10 @@ Initialize a database with the external Flyway runner:
 
 1. Create the chosen application database and separate runtime/migration credentials through your infrastructure setup.
 2. Configure the runner's MySQL JDBC connection and migration location to this checkout's `src/main/resources/db/migration` directory.
-3. Apply migrations in version order, currently V1 through V8, and confirm Flyway validation succeeds before starting Quarkus.
+3. Apply migrations in version order, currently V1 through V11, and confirm Flyway validation succeeds before starting Quarkus.
 4. Point `DB_REACTIVE_URL` at the same database using the reactive `mysql://` URL format.
 
-V1-V5 define vocabulary/master data and lessons; V6-V8 add quiz persistence, Admin identity fields, and classification snapshots. V2 seeds JLPT levels and parts of speech. Migrations do not populate lessons or import `n5.json`: create lessons through the Admin lesson APIs before importing vocabulary that references them.
+V1-V5 define vocabulary/master data and lessons; V6-V8 add quiz persistence, Admin identity fields, and classification snapshots. V9 adds personal flashcard learning persistence; V10 adds session abandonment and V11 indexes session lists. V2 seeds JLPT levels and parts of speech. Migrations do not populate lessons or import `n5.json`: create lessons through the Admin lesson APIs before importing vocabulary that references them.
 
 Use MySQL with support for `utf8mb4_0900_bin` and enforced CHECK constraints; compatibility with MariaDB or older MySQL versions is not established. The Flyway runner/version and infrastructure launch command are not included here, so use the owning environment's migration procedure. Never edit an applied migration; add a new versioned SQL file.
 
@@ -203,6 +203,7 @@ Business responses use `ApiResponse` with `success`, `data` or `error`, and meta
 
 Detailed feature contracts:
 
+- [Flashcard learning, practice, SRS, bookmarks and statistics](docs/flashcard-learning.md)
 - [Admin vocabulary editing](docs/admin-vocabulary-edit.md)
 - [Quiz administration](docs/kanji-context-quiz-admin.md) and [file import](docs/kanji-context-quiz-import.md)
 - [Quiz gameplay](docs/kanji-context-quiz-game.md), [history](docs/kanji-context-quiz-history.md), and [progress](docs/kanji-context-quiz-progress.md)
@@ -229,7 +230,7 @@ These commands follow the checked-in build configuration; they are not a record 
 
 The default suite contains plain JUnit tests and `@QuarkusTest` HTTP tests using REST Assured. Tests cover business rules, response contracts, JWT roles/claims, OpenAPI, configuration, logging, metrics, and health. Service/repository alternatives and offline Hibernate startup avoid a live database for the default suite. `JwksTestResource` starts an ephemeral loopback HTTP server and generates RSA keys in memory, so a running .NET service is unnecessary.
 
-Real-database tests are opt-in and exercise persistence, rollback, concurrency, Admin editing, and quiz lifecycle behavior. Provision a **disposable** database named exactly `vocabulary_import_test`, apply all current migrations through V8, and provide its test root password. The test profile hardcodes username `root` and rejects URLs not ending in `/vocabulary_import_test`. Tests write fixtures and may modify/delete data.
+Real-database tests are opt-in and exercise persistence, rollback, concurrency, Admin editing, and quiz lifecycle behavior. Provision a **disposable** database named exactly `vocabulary_import_test`, apply all current migrations through V11, and provide its test root password. The test profile hardcodes username `root` and rejects URLs not ending in `/vocabulary_import_test`. Tests write fixtures and may modify/delete data.
 
 ```powershell
 .\mvnw.cmd verify "-Dquarkus.http.test-port=0" "-Dvocabulary.mysql.tests=true" `
@@ -266,7 +267,7 @@ Console and file logging are asynchronous with discard-on-overflow queues. Files
 | Symptom | Check |
 | --- | --- |
 | `Invalid required configuration` at startup | Set all DB values; use a `mysql://host/database` URL with credentials supplied separately. Auth/JWKS must be absolute HTTP(S) URLs without credentials, query, or fragment. |
-| Missing tables or failed database operations | Apply V1-V8 externally to the same database. Hibernate does not generate the schema. |
+| Missing tables or failed database operations | Apply V1-V11 externally to the same database. Hibernate does not generate the schema. |
 | Migration rejects collation or constraints | Confirm MySQL supports the MySQL 8 collation and CHECK syntax; do not substitute MariaDB without compatibility validation. |
 | Import rejects a lesson assignment | Create the referenced lesson first; existing vocabulary must retain its level/lesson assignment set during import. |
 | 401 from application APIs | Check token expiration, RS256 signature/key ID, issuer, audience, subject, service clocks, and JWKS reachability. |
