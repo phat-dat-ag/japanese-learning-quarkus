@@ -102,6 +102,16 @@ class OpenApiSecurityTest {
         operations.put("/api/v1/kanji-quiz/history/{sessionId}", "get");
         operations.put("/api/v1/kanji-quiz/progress", "get");
         operations.put("/api/v1/kanji-quiz/progress/breakdown", "get");
+        operations.put("/api/v1/flashcards/sessions", "post");
+        operations.put("/api/v1/flashcards/sessions/{id}", "get");
+        operations.put("/api/v1/flashcards/sessions/{id}/items/{itemId}/review", "put");
+        operations.put("/api/v1/flashcards/sessions/{id}/finish", "post");
+        operations.put("/api/v1/flashcards/sessions/{id}/abandon", "post");
+        operations.put("/api/v1/flashcards/reviews/due", "get");
+        operations.put("/api/v1/flashcards/reviews/forgotten", "get");
+        operations.put("/api/v1/flashcards/{vocabularyId}/bookmark", "put");
+        operations.put("/api/v1/flashcards/bookmarks", "get");
+        operations.put("/api/v1/flashcards/statistics", "get");
         assertEquals(operations.keySet(), paths.keySet());
         operations.forEach(
                 (path, method) -> {

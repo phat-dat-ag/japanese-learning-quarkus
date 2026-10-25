@@ -10,6 +10,8 @@ info:
 tags:
   - name: Flashcards
     description: Paged vocabulary cards and detailed learner content. User or Admin role required.
+  - name: Flashcard Learning
+    description: Personal sessions, scheduling, practice, bookmarks and statistics. User or Admin required.
   - name: JLPT Levels
     description: JLPT level catalogue. User or Admin role required.
   - name: Lessons
@@ -49,6 +51,13 @@ paths:
         must not exceed 2147483647. An unmatched filter or page beyond the result set returns an empty
         flashcardItems array. Pagination fields are inside data, not meta.
       parameters:
+        - name: includeLearning
+          in: query
+          required: false
+          description: Include JWT-owned progress and bookmark state without creating progress. Default shape remains unchanged.
+          schema:
+            type: boolean
+            default: false
         - name: level
           in: query
           description: Defaults to N5 when omitted or blank; trimmed and converted to uppercase. Supported codes are N1, N2, N3, N4 and N5.
@@ -125,6 +134,13 @@ paths:
         write access or change shared example and kanji restrictions. Existing learner fields
         are preserved, including the integer pitchAccents array.
       parameters:
+        - name: includeLearning
+          in: query
+          required: false
+          description: Include JWT-owned progress and bookmark state without creating progress. Default shape remains unchanged.
+          schema:
+            type: boolean
+            default: false
         - name: id
           description: Positive vocabulary ID returned by the flashcard list.
           in: path
@@ -3070,13 +3086,732 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/sessions:
+    post:
+      operationId: "createFlashcardSession"
+      summary: "Start a lesson flashcard session"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Selects up to cardLimit cards and persists their order. ALL records practice without changing SRS. Empty selection returns outcome NO_ELIGIBLE_CARDS, eligibleCount 0 and omits session, writing nothing. Repeated successful POSTs create independent sessions. ALL with shuffle samples across the whole lesson in MySQL before limiting; without shuffle it selects never-practiced then least-recently-practiced cards. Scheduled modes shuffle only their selected eligible subset. Selected order persists for resume."
+      security: [{"bearerAuth":[]}]
+      parameters: []
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardSessionCreatedResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlashcardSessionCreateRequest"
+    get:
+      operationId: "listFlashcardSessions"
+      summary: "List owned flashcard sessions"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Ordered newest first by createdAt and ID. items is omitted from list summaries; use the session GET to resume."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"status","in":"query","required":false,"description":"Optional session status.","schema":{"type":"string","enum":["IN_PROGRESS","COMPLETED","ABANDONED"]}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardSessionPageResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/sessions/{id}:
+    get:
+      operationId: "getFlashcardSession"
+      summary: "Resume an owned flashcard session"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Returns persisted order, completion state and current personal progress. Content is live; membership/order are frozen. currentPosition equals itemCount when complete."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardSessionResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/sessions/{id}/items/{itemId}/review:
+    put:
+      operationId: "reviewFlashcard"
+      summary: "Rate a flashcard session item idempotently"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. One accepted review per item. Exact rating/version retries return the original result even after completion; changed retries return 409. Only the next item can be rated. Scheduled reviews require matching progress revision and current due eligibility; practice never alters SRS. All progress/history/session changes commit atomically."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"itemId","in":"path","required":true,"description":"Persisted item ID belonging to this session.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardReviewResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_NOT_DUE: vocabulary is now future-due, taking precedence over a stale version; refresh or abandon and start another session. FLASHCARD_CONFLICT: stale version, changed retry, out-of-order item or terminal session."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlashcardReviewRequest"
+  /api/v1/flashcards/sessions/{id}/finish:
+    post:
+      operationId: "finishFlashcardSession"
+      summary: "Confirm completion of an owned flashcard session"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Final accepted rating completes the session automatically. This operation returns completed state idempotently; unfinished sessions return 409. No request body."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardSessionResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/sessions/{id}/abandon:
+    post:
+      operationId: "abandonFlashcardSession"
+      summary: "Abandon an owned flashcard session"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Locks the owned session and changes IN_PROGRESS to ABANDONED, retaining committed reviews, progress, item order and completed count. Returns abandonedAt. Repeated abandonment is idempotent; COMPLETED sessions remain completed. New reviews on abandoned sessions conflict, but exact retries of previously accepted reviews still replay. No request body."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/FlashcardSessionResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/reviews/due:
+    get:
+      operationId: "dueFlashcards"
+      summary: "List vocabulary due for scheduled review"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Includes MASTERED cards with nextReviewAt <= server time. Orders by nextReviewAt then vocabulary ID. Empty queues are normal empty pages; new cards have no due timestamp."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/PersonalFlashcardPageResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/reviews/forgotten:
+    get:
+      operationId: "forgottenFlashcards"
+      summary: "List vocabulary ranked by AGAIN history"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Ranks vocabulary with at least one AGAIN by descending AGAIN count, then ID. Includes practice and scheduled history; independent of bookmarks. Uses current catalogue classifications."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/PersonalFlashcardPageResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/{vocabularyId}/bookmark:
+    put:
+      operationId: "addFlashcardBookmark"
+      summary: "Bookmark vocabulary idempotently"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Requires existing vocabulary. Duplicate/concurrent adds preserve the original bookmark timestamp. Does not create progress. No request body."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"vocabularyId","in":"path","required":true,"description":"Vocabulary ID.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/BookmarkResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+    delete:
+      operationId: "removeFlashcardBookmark"
+      summary: "Remove a vocabulary bookmark idempotently"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Removing an absent bookmark succeeds, including an unknown vocabulary ID. Only the caller's bookmark can be removed. No request body."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"vocabularyId","in":"path","required":true,"description":"Vocabulary ID.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/BookmarkResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/bookmarks:
+    get:
+      operationId: "bookmarkedFlashcards"
+      summary: "List bookmarked vocabulary"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Orders by bookmark creation time descending, then vocabulary ID descending. Includes personal SRS state without creating progress."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/PersonalFlashcardPageResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  /api/v1/flashcards/statistics:
+    get:
+      operationId: "flashcardStatistics"
+      summary: "Get personal vocabulary learning statistics"
+      tags: ["Flashcard Learning"]
+      description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Denominator is distinct current vocabulary in scope, including unseen cards. studiedPercentage counts vocabulary reviewed at least once, including practice; masteryPercentage counts current MASTERED progress. Empty scope gives 0.00. Remembered = HARD/GOOD/EASY, forgotten = AGAIN. Attempts are split into scheduled/practice. Counts from overlapping lessons/levels must not be summed."
+      security: [{"bearerAuth":[]}]
+      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      responses:
+        200:
+          description: "Success in ApiResponse; private, no-store."
+          content:
+            application/json:
+              schema:
+                type: "object"
+                required: ["success","data","meta"]
+                properties:
+                  success:
+                    type: "boolean"
+                  data:
+                    $ref: "#/components/schemas/LearningStatisticsResponse"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        400:
+          description: "BAD_REQUEST or FLASHCARD_VALIDATION_ERROR: malformed or invalid request."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        401:
+          description: "Missing/invalid bearer token or unusable subject."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        403:
+          description: "Authenticated caller lacks User/Admin role."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        404:
+          description: "Resource missing or not owned; malformed path values may also return NOT_FOUND."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        409:
+          description: "FLASHCARD_CONFLICT: conflicting write or session state; refresh before retrying."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        500:
+          description: "Unexpected failure; diagnostic details are redacted."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Send the Auth Service JWT access token in Authorization as Bearer <token>. Read operations require User or Admin; write operations require the case-sensitive Admin value in the role claim.
+      description: Send the Auth Service JWT access token in Authorization as Bearer <token>. Roles come from the case-sensitive role claim. Learner operations, including flashcard and quiz writes, require User or Admin. Catalogue editing and import operations require Admin; each operation documents its authorization.
   parameters:
     vocabularyId:
       name: vocabularyId
@@ -3888,6 +4623,11 @@ components:
       type: object
       required: [ id, word ]
       properties:
+        progress:
+          $ref: '#/components/schemas/ProgressState'
+        bookmarked:
+          type: boolean
+          description: Included only when includeLearning=true.
         id:
           type: integer
           format: int64
@@ -4033,6 +4773,11 @@ components:
       type: object
       required: [ vocabulary, readings, meanings, partsOfSpeech, levels, lessons, kanji, examples ]
       properties:
+        progress:
+          $ref: '#/components/schemas/ProgressState'
+        bookmarked:
+          type: boolean
+          description: Included only when includeLearning=true.
         vocabulary:
           $ref: '#/components/schemas/VocabularyResponse'
         readings:
@@ -4768,6 +5513,318 @@ components:
           $ref: '#/components/schemas/ErrorResponse'
         meta:
           $ref: '#/components/schemas/ResponseMeta'
+    ProgressState:
+      type: "object"
+      required: ["status","successfulRepetitionCount","lapseCount","intervalSeconds","easeFactor","version"]
+      properties:
+        status:
+          type: "string"
+          enum: ["NEW","LEARNING","REVIEW","MASTERED"]
+        successfulRepetitionCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        lapseCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        intervalSeconds:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        easeFactor:
+          type: "number"
+          format: "double"
+          minimum: 1.3
+          maximum: 3
+        lastReviewedAt:
+          type: "string"
+          format: "date-time"
+        nextReviewAt:
+          type: "string"
+          format: "date-time"
+        masteredAt:
+          type: "string"
+          format: "date-time"
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          description: "Zero means no SRS progress; supply the latest revision for scheduled reviews."
+    FlashcardSessionCreateRequest:
+      type: "object"
+      required: ["lessonId"]
+      properties:
+        lessonId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        mode:
+          type: "string"
+          enum: ["NEW_AND_DUE","DUE","ALL"]
+          default: "NEW_AND_DUE"
+          description: "ALL is non-scheduling practice; other modes accept only new/due SRS reviews."
+        cardLimit:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 20
+        shuffle:
+          type: "boolean"
+          default: false
+    FlashcardReviewRequest:
+      type: "object"
+      required: ["rating","expectedProgressVersion"]
+      properties:
+        rating:
+          type: "string"
+          enum: ["AGAIN","HARD","GOOD","EASY"]
+        expectedProgressVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+    FlashcardSessionItemResponse:
+      type: "object"
+      required: ["itemId","vocabularyId","position","progress"]
+      properties:
+        itemId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        vocabularyId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        position:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+        completedAt:
+          type: "string"
+          format: "date-time"
+        progress:
+          $ref: "#/components/schemas/ProgressState"
+    FlashcardSessionResponse:
+      type: "object"
+      required: ["sessionId","lessonId","mode","status","itemCount","completedCount","currentPosition","createdAt"]
+      properties:
+        sessionId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        lessonId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        mode:
+          type: "string"
+          enum: ["NEW_AND_DUE","DUE","ALL"]
+        status:
+          type: "string"
+          enum: ["IN_PROGRESS","COMPLETED","ABANDONED"]
+        itemCount:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+        completedCount:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+        currentPosition:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+          description: "Zero-based next unfinished position; equals itemCount when completed."
+        createdAt:
+          type: "string"
+          format: "date-time"
+        abandonedAt:
+          type: "string"
+          format: "date-time"
+        completedAt:
+          type: "string"
+          format: "date-time"
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/FlashcardSessionItemResponse"
+    FlashcardSessionCreatedResponse:
+      type: "object"
+      required: ["outcome","eligibleCount"]
+      properties:
+        outcome:
+          type: "string"
+          enum: ["CREATED","NO_ELIGIBLE_CARDS"]
+        eligibleCount:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+          description: "Selected eligible count, bounded by cardLimit; zero when no session is created."
+        session:
+          $ref: "#/components/schemas/FlashcardSessionResponse"
+    FlashcardReviewResponse:
+      type: "object"
+      required: ["reviewId","sessionItemId","vocabularyId","rating","scheduling","progress","reviewedAt"]
+      properties:
+        reviewId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        sessionItemId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        vocabularyId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        rating:
+          type: "string"
+          enum: ["AGAIN","HARD","GOOD","EASY"]
+        scheduling:
+          type: "boolean"
+        progress:
+          $ref: "#/components/schemas/ProgressState"
+        reviewedAt:
+          type: "string"
+          format: "date-time"
+    PersonalFlashcardResponse:
+      type: "object"
+      required: ["id","word","progress","bookmarked"]
+      properties:
+        id:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        word:
+          type: "string"
+        progress:
+          $ref: "#/components/schemas/ProgressState"
+        bookmarked:
+          type: "boolean"
+    BookmarkResponse:
+      type: "object"
+      required: ["vocabularyId","bookmarked"]
+      properties:
+        vocabularyId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        bookmarked:
+          type: "boolean"
+    LearningStatisticsResponse:
+      type: "object"
+      required: ["totalVocabularyCount","newCount","learningCount","reviewCount","masteredCount","dueCount","studiedCount","totalReviewAttempts","rememberedCount","forgottenCount","scheduledReviewAttempts","practiceReviewAttempts","studiedPercentage","masteryPercentage"]
+      properties:
+        totalVocabularyCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        newCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        learningCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        reviewCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        masteredCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        dueCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        studiedCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        totalReviewAttempts:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        rememberedCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        forgottenCount:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        scheduledReviewAttempts:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        practiceReviewAttempts:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        studiedPercentage:
+          type: "number"
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+        masteryPercentage:
+          type: "number"
+          minimum: 0
+          maximum: 100
+          multipleOf: 0.01
+    PersonalFlashcardPageResponse:
+      type: "object"
+      required: ["items","page","size","totalElements","totalPages"]
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PersonalFlashcardResponse"
+        page:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+        size:
+          type: "integer"
+          format: "int32"
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+    FlashcardSessionPageResponse:
+      type: "object"
+      required: ["items","page","size","totalElements","totalPages"]
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/FlashcardSessionResponse"
+        page:
+          type: "integer"
+          format: "int32"
+          minimum: 0
+        size:
+          type: "integer"
+          format: "int32"
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        totalPages:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+
   examples:
     QuizQuestionImportSuccess:
       "summary": "Partial success: first question committed, second rejected"
