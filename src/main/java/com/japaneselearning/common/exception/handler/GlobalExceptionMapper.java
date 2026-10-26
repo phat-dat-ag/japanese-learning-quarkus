@@ -22,6 +22,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
 
     @Override
     public Response toResponse(Exception exception) {
+        traceContext.failure(exception);
 
         String traceId = traceContext.getTraceId();
 

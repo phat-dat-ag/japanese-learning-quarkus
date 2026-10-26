@@ -9,8 +9,6 @@ import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.container.PreMatching;
 import jakarta.ws.rs.ext.Provider;
 
-import java.util.List;
-
 @Provider
 @PreMatching
 @Priority(1000)
@@ -29,8 +27,16 @@ public class RequestTraceFilter implements ContainerRequestFilter, ContainerResp
 
     @Override
     public void filter(ContainerRequestContext requestContext) {
-        List<String> traceIds = requestContext.getHeaders().get(TRACE_ID_HEADER);
-        traceContext.setTraceId(CorrelationIdFilter.getOrGenerateId(traceIds == null ? List.of() : traceIds));
+        String legacy = CorrelationIdFilter.validatedId(
+                routingContext.request().headers().getAll(TRACE_ID_HEADER)
+        );
+
+        String responseTrace = legacy != null
+                ? legacy
+                : routingContext.get(CorrelationIdFilter.TRACE_KEY);
+
+        traceContext.setTraceId(responseTrace);
+        routingContext.put(CorrelationIdFilter.RESPONSE_TRACE_KEY, responseTrace);
         traceContext.setCorrelationId(routingContext.get(CorrelationIdFilter.CONTEXT_KEY));
     }
 

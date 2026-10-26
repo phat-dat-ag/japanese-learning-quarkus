@@ -13,10 +13,16 @@ public class AuthenticationFailureHandler {
     void register(@Observes Router router) {
         router.route().failureHandler(context -> {
             // Proactive authentication runs before REST. Retain its status and challenge headers.
-            if (context.failure() instanceof AuthenticationFailedException && !context.response().ended()
-                    && context.response().getStatusCode() == 401) {
+            if (context.failure() instanceof AuthenticationFailedException
+                    && !context.response().ended()
+                    && context.response().getStatusCode() == 401
+            ) {
                 String id = context.get(CorrelationIdFilter.CONTEXT_KEY);
-                context.json(ApiResponse.error(HttpErrors.forStatus(401), ResponseMeta.create(id, id)));
+
+                context.json(ApiResponse.error(
+                        HttpErrors.forStatus(401),
+                        ResponseMeta.create(context.get(CorrelationIdFilter.TRACE_KEY), id)
+                ));
             } else {
                 context.next();
             }

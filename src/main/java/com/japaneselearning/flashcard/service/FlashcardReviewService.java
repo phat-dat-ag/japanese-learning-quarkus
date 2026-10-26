@@ -1,5 +1,7 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
@@ -18,14 +20,11 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.jboss.logging.Logger;
 
 import java.time.Instant;
 
 @ApplicationScoped
 public class FlashcardReviewService {
-    private static final Logger LOG = Logger.getLogger(FlashcardReviewService.class);
-
     private final FlashcardSessionService sessions;
     private final FlashcardSessionRepository sessionRepository;
     private final FlashcardReviewRepository reviews;
@@ -56,6 +55,7 @@ public class FlashcardReviewService {
     }
 
     @WithSession
+    @LogOperation(value = "flashcard.review", id = "")
     public Uni<FlashcardReviewResponse> submit(
             String subject,
             Long sessionId,
@@ -84,7 +84,7 @@ public class FlashcardReviewService {
                                     throw FlashcardConflicts.changed();
                                 }
 
-                                return accept(subject, session, item, request, time.now());
+                                return OperationLog.outcome(accept(subject, session, item, request, time.now()), "accepted");
                             });
                         }))
                 )
@@ -102,7 +102,7 @@ public class FlashcardReviewService {
             throw FlashcardConflicts.changed();
         }
 
-        return Uni.createFrom().item(response(review));
+        return OperationLog.outcome(Uni.createFrom().item(response(review)), "replayed");
     }
 
     private Uni<FlashcardReviewResponse> accept(
@@ -159,10 +159,7 @@ public class FlashcardReviewService {
 
                 return reviews.persistAndFlush(review).map(this::response);
             });
-        }).invoke(result -> LOG.debugf(
-                "Flashcard review accepted sessionId=%d itemId=%d scheduling=%s",
-                new Object[]{session.id, item.id, result.scheduling()}
-        ));
+        });
     }
 
     private String encode(ProgressState state) {

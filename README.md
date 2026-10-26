@@ -103,7 +103,7 @@ Runtime defaults live in [application.properties](src/main/resources/application
 | `APP_LOG_LEVEL` | `INFO` for application packages |
 | `APP_LOG_FILE_ENABLED` | `true`; disabled by default in the test profile |
 | `APP_LOG_DIR` | `logs`; root image overrides to `/deployments/data/logs` |
-| `APP_LOG_FILE` | `application.log` |
+| `APP_LOG_FILE` | `application.json.log`; existing text logs remain untouched |
 | `APP_LOG_RETENTION_DAYS` | `30`, must be positive |
 
 URL validation rejects embedded credentials, query strings, and fragments. Database URLs must use `mysql`, not `jdbc:mysql`, with a simple database-name path. Auth/JWKS URLs must be absolute HTTP(S) URLs. Even with an explicit JWKS URL, the auth-server setting must remain valid.
@@ -199,7 +199,7 @@ SmallRye OpenAPI combines [the static document](src/main/resources/META-INF/open
 
 For example, `GET /api/v1/flashcards?level=N5&page=0&size=20` lists cards; multipart vocabulary imports use a `file` part. Preserve the existing unversioned vocabulary import path when integrating clients.
 
-Business responses use `ApiResponse` with `success`, `data` or `error`, and metadata including timestamp, trace ID, and correlation ID. Null fields are generally omitted. Clients may supply `X-Trace-Id` and `X-Correlation-Id`; centralized handlers normalize error responses. Infrastructure routes have their own formats.
+Business responses use `ApiResponse` with `success`, `data` or `error`, and metadata including timestamp, trace ID, and correlation ID. Null fields are generally omitted. Clients may supply W3C `traceparent` and `X-Correlation-ID`; centralized handlers normalize errors. `X-Trace-Id` retains its validated legacy echo behavior; `X-Distributed-Trace-Id` always returns the canonical OpenTelemetry trace ID. Envelope structure and header names are unchanged. See [logging and tracing](docs/logging.md). Infrastructure routes have their own formats.
 
 Detailed feature contracts:
 
@@ -238,7 +238,7 @@ Real-database tests are opt-in and exercise persistence, rollback, concurrency, 
   "-Dvocabulary.mysql.password=<test-root-password>"
 ```
 
-Without `vocabulary.mysql.tests=true`, database tests are skipped. They are named `*Test` and run through Surefire; `-DskipITs=false` alone does not enable them. Failsafe is configured, with `skipITs=true` by default, but no `@QuarkusIntegrationTest` packaged-application tests are present. No coverage-reporting, formatter, or static-analysis plugin is configured.
+Without `vocabulary.mysql.tests=true`, database tests are skipped. With Quarkus 3.38.2, profile discovery can still trigger the existing dedicated-database URL guard before skipping. If this occurs, add `"-Dvocabulary.mysql.url=mysql://127.0.0.1:1/vocabulary_import_test"` to the default test/verify command; this satisfies discovery without enabling database tests or opening a connection. They are named `*Test` and run through Surefire; `-DskipITs=false` alone does not enable them. Failsafe is configured, with `skipITs=true` by default, but no `@QuarkusIntegrationTest` packaged-application tests are present. No coverage-reporting, formatter, or static-analysis plugin is configured.
 
 ## Build and deployment
 
@@ -260,7 +260,9 @@ The `native` Maven profile enables native compilation (`./mvnw package -Dnative`
 
 Health responses retain overall status and check names/statuses while omitting datasource exception details. UP returns 200 and DOWN returns 503. Liveness indicates process health; readiness includes database availability. There is no custom continuous JWKS health check, so readiness is not an end-to-end Auth availability check. Gateway exposure of `/q` endpoints cannot be established here.
 
-Console and file logging are asynchronous with discard-on-overflow queues. Files rotate daily; a background worker checks expired daily archives at startup and hourly, retaining 30 days by default without deleting the active file. There is no total disk-size cap. Use a separate writable log directory/volume for each instance and monitor capacity. Docker's log volume must be writable by UID 185; console retention is managed separately. These logs are diagnostics, not a durable audit trail.
+Console and file logging default to structured NDJSON with asynchronous discard-on-overflow queues. The stable active file is `logs/application.json.log` (under `/deployments/data/logs` in Docker); existing text logs are preserved. Files rotate daily and at 50 MiB, with gzip compression and up to 100 size backups per date. A background worker removes expired matching archives at startup and hourly, retaining 30 days by default; the backup cap can shorten retention. There is no aggregate disk quota. Use a writable directory/volume per instance, owned by UID 185 in Docker. These logs are diagnostics, not a durable audit trail.
+
+[Logging and distributed tracing](docs/logging.md) documents the architecture, schema, configuration, business events, redaction, W3C propagation, rotation, and request troubleshooting.
 
 ## Troubleshooting
 

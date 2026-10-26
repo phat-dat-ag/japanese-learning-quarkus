@@ -27,6 +27,7 @@ public class BusinessExceptionMapper implements ExceptionMapper<BusinessExceptio
 
     @Override
     public Response toResponse(BusinessException exception) {
+        traceContext.failure(exception);
 
         Response.Status status = resolveStatus(exception);
 

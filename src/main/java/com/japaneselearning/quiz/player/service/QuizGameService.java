@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.player.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.common.exception.ValidationError;
@@ -63,6 +64,7 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.session.creation", id = "")
     public Uni<QuizSessionCreatedResponse> create(String subject, QuizSessionCreateRequest request) {
         return validateFilters(request.levelId(), request.lessonId())
                 .chain(() -> games.selectRandom(request.levelId(), request.lessonId(), request.questionCount()))
@@ -118,6 +120,7 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.session.finish", id = "sessionId")
     public Uni<QuizSessionCompletionResponse> finish(String subject, Long id) {
         // Share the answer submission lock before reading status or counts.
         return sessions.findOwnedByIdForUpdate(id, subject)

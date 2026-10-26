@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.admin.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.BusinessException;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
@@ -21,6 +22,7 @@ public class QuizImportService {
     }
 
     // No outer session/transaction: each intercepted create owns and closes its transaction.
+    @LogOperation("quiz.question.import")
     public Uni<QuizImportResponse> importQuestions(List<QuizImportItem> items) {
         return Multi.createFrom().range(0, items.size())
                 .onItem().transformToUniAndConcatenate(index -> createItem(index, items.get(index)))

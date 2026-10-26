@@ -1,5 +1,6 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.flashcard.repository.FlashcardRepository;
 import com.japaneselearning.flashcard.repository.VocabularyBookmarkRepository;
@@ -29,6 +30,7 @@ public class VocabularyBookmarkService {
     }
 
     @WithSession
+    @LogOperation(value = "flashcard.bookmark.add", id = "")
     public Uni<BookmarkResponse> add(String subject, Long vocabularyId) {
         return Panache.withTransaction(() -> vocabulary.findVocabularyById(vocabularyId)
                         .onFailure(NoResultException.class).transform(failure -> new ResourceNotFoundException(
@@ -41,6 +43,7 @@ public class VocabularyBookmarkService {
     }
 
     @WithSession
+    @LogOperation(value = "flashcard.bookmark.remove", id = "")
     public Uni<BookmarkResponse> remove(String subject, Long vocabularyId) {
         return Panache.withTransaction(() -> bookmarks.remove(subject, vocabularyId)
                         .replaceWith(new BookmarkResponse(vocabularyId, false))

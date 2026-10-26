@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.admin.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.quiz.admin.dto.QuizCorrectOptionRequest;
@@ -58,6 +59,7 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.create", id = "questionId")
     public Uni<QuizQuestionResponse> create(QuizQuestionCreateRequest request) {
         QuizQuestion question = new QuizQuestion();
 
@@ -83,6 +85,7 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.update", id = "questionId")
     public Uni<QuizQuestionResponse> update(Long id, QuizQuestionUpdateRequest request) {
         return complete(editable(id, request.version()).chain(question -> {
             if (question.sourceType != request.content().sourceType()) {
@@ -100,6 +103,7 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.updateOption", id = "questionId")
     public Uni<QuizQuestionResponse> updateOption(Long id, Long optionId, QuizOptionTextRequest request) {
         return complete(editable(id, request.version()).chain(question ->
                 options.findByQuestionId(id).chain(values -> {
@@ -117,6 +121,7 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.correctOption", id = "questionId")
     public Uni<QuizQuestionResponse> correctOption(Long id, QuizCorrectOptionRequest request) {
         return complete(editable(id, request.version()).chain(question ->
                 options.findByQuestionId(id).chain(values -> {
@@ -135,6 +140,7 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.publish", id = "questionId")
     public Uni<QuizQuestionResponse> publish(Long id, long version) {
         return complete(editable(id, version).chain(question ->
                 publication.prepareForEdit(id).chain(() -> publication.publish(id)))
@@ -142,11 +148,13 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.unpublish", id = "questionId")
     public Uni<QuizQuestionResponse> unpublish(Long id, long version) {
         return complete(locked(id, version).chain(question -> publication.prepareForEdit(id)));
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.question.archive", id = "questionId")
     public Uni<QuizQuestionResponse> archive(Long id, long version) {
         return complete(locked(id, version).invoke(question -> {
             question.status = QuestionStatus.ARCHIVED;

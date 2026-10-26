@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.player.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.quiz.player.dto.QuizProgressBreakdownResponse;
 import com.japaneselearning.quiz.player.dto.QuizProgressBreakdownResponse.Bucket;
 import com.japaneselearning.quiz.player.dto.QuizProgressResponse;
@@ -24,6 +25,7 @@ public class QuizProgressService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.progress", id = "")
     public Uni<QuizProgressResponse> overall(String subject) {
         return progress.overall(subject)
                 .map(counts -> new QuizProgressResponse(
@@ -39,6 +41,7 @@ public class QuizProgressService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.progress.breakdown", id = "")
     public Uni<QuizProgressBreakdownResponse> breakdown(String subject) {
         return progress.levels(subject)
                 .chain(levels -> progress.lessons(subject)

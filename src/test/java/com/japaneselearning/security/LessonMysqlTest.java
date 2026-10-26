@@ -54,8 +54,8 @@ class LessonMysqlTest {
     @Test
     void businessEventsFollowTransactionCompletionAndFailedWritesHaveNoSuccess() {
         String correlationId = "lesson-log-" + UUID.randomUUID();
-        String traceId = "trace-" + UUID.randomUUID();
-        record Event(String message, String correlationId, boolean activeTransaction) {
+        String traceId = UUID.randomUUID().toString().replace("-", "");
+        record Event(String name, String lessonId, String correlationId, String traceId, boolean activeTransaction) {
         }
         var events = new CopyOnWriteArrayList<Event>();
         Logger logger = Logger.getLogger(VocabularyOperationLog.class.getName());
@@ -68,7 +68,7 @@ class LessonMysqlTest {
                 }
                 // Capture synchronously at the LOG call, before async console/file delivery.
                 var session = SessionOperations.getCurrentSession("<default>");
-                events.add(new Event(event.getFormattedMessage(), event.getMdc("correlationId"),
+                events.add(new Event(event.getMdc("event.name"), event.getMdc("lessonId"), event.getMdc("correlationId"), event.getMdc("traceId"),
                         session != null && session.currentTransaction() != null));
             }
 
@@ -84,14 +84,15 @@ class LessonMysqlTest {
         try {
             var body = request(levelId, number, number);
             long id = given().auth().oauth2(token).contentType("application/json")
-                    .header("X-Correlation-ID", correlationId).header("X-Trace-Id", traceId)
+                    .header("X-Correlation-ID", correlationId).header("traceparent", "00-" + traceId + "-0123456789abcdef-01")
                     .body(body).post("/api/v1/lessons").then().statusCode(200)
                     .body("meta.correlationId", equalTo(correlationId), "meta.traceId", equalTo(traceId))
                     .extract().jsonPath().getLong("data.id");
             assertEquals(1, events.size());
-            assertEquals("Business operation completed operation=lesson.create lessonId=" + id,
-                    events.get(0).message());
+            assertEquals("lesson.create.completed", events.get(0).name());
+            assertEquals(Long.toString(id), events.get(0).lessonId());
             assertEquals(correlationId, events.get(0).correlationId());
+            assertEquals(traceId, events.get(0).traceId());
             assertFalse(events.get(0).activeTransaction(), "Success must follow transaction completion");
             assertEquals(1, queryLong("SELECT COUNT(*) FROM lessons WHERE id=" + id));
 
@@ -99,16 +100,15 @@ class LessonMysqlTest {
                     .header("X-Correlation-ID", correlationId).body(body)
                     .put("/api/v1/lessons/" + id).then().statusCode(200);
             assertEquals(2, events.size());
-            assertEquals("Business operation completed operation=lesson.update lessonId=" + id,
-                    events.get(1).message());
+            assertEquals("lesson.update.completed", events.get(1).name());
+            assertEquals(Long.toString(id), events.get(1).lessonId());
             assertFalse(events.get(1).activeTransaction());
 
             given().auth().oauth2(token).contentType("application/json")
                     .header("X-Correlation-ID", correlationId).body(body)
                     .post("/api/v1/lessons").then().statusCode(409);
             assertEquals(3, events.size());
-            assertEquals("Business operation rejected operation=lesson.create reason=conflict",
-                    events.get(2).message());
+            assertEquals("lesson.create.rejected", events.get(2).name());
             assertFalse(events.get(2).activeTransaction());
             assertEquals(1, queryLong("SELECT COUNT(*) FROM lessons WHERE level_id=" + levelId
                     + " AND lesson_number=" + number));

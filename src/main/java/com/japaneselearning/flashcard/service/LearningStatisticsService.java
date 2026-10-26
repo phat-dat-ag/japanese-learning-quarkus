@@ -1,5 +1,6 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.flashcard.domain.ProgressState;
 import com.japaneselearning.flashcard.dto.FlashcardPageResponse;
 import com.japaneselearning.flashcard.dto.LearningStatisticsResponse;
@@ -35,6 +36,7 @@ public class LearningStatisticsService {
     }
 
     @WithSession
+    @LogOperation(value = "flashcard.statistics", id = "")
     public Uni<LearningStatisticsResponse> statistics(String subject, String level, Long lessonId) {
         String normalized = FlashcardValidation.level(level);
 
