@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.player.service;
 
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.common.exception.ValidationError;
@@ -44,6 +45,7 @@ public class QuizAnswerService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.answer", id = "sessionId")
     public Uni<QuizAnswerResponse> submit(String subject, Long id, QuizAnswerRequest request) {
         // Lock before any snapshot/count reads so competing submissions see the committed answer.
         return sessions.findOwnedByIdForUpdate(id, subject)

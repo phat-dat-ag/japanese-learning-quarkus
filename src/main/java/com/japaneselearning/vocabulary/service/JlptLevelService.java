@@ -1,5 +1,9 @@
 package com.japaneselearning.vocabulary.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
+
+import java.util.Map;
+
 import com.japaneselearning.vocabulary.dto.JlptLevelResponse;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
@@ -25,6 +29,11 @@ public class JlptLevelService {
                 .map(levels -> levels.stream()
                         .map(level -> new JlptLevelResponse(level.code, level.name))
                         .toList())
-                .invoke(levels -> LOG.debugf("JLPT levels loaded count=%d", levels.size()));
+                .invoke(levels -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "jlpt.levels.retrieved",
+                        Map.of("count", levels.size())
+                ));
     }
 }

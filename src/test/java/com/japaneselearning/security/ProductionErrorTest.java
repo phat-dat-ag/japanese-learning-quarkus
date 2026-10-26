@@ -65,7 +65,7 @@ class ProductionErrorTest {
             @Override
             public void publish(java.util.logging.LogRecord record) {
                 var extended = (org.jboss.logmanager.ExtLogRecord) record;
-                records.add(extended.getFormattedMessage() + " correlationId=" + extended.getMdc("correlationId"));
+                records.add(extended.getMdc("error.stack_trace") + " correlationId=" + extended.getMdc("correlationId"));
                 assertNull(record.getThrown());
             }
 

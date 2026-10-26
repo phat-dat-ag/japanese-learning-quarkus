@@ -2266,8 +2266,7 @@ paths:
         - "Admin Kanji Quiz"
       description: "Requires the case-sensitive Admin role. Upload multipart field file containing a JSON array of the existing create contract. Both EXAMPLE and CUSTOM remain DRAFT; source sentences are never edited. Syntax, file and count checks finish before any writes. Each item then uses its own independent reactive transaction, without an outer transaction. Expected validation, reference and duplicate/conflict failures roll back only that item; processing continues in input order. HTTP 200 includes partial success and all-item failure. Errors contain zero-based field paths and stable codes. Multiple Bean Validation errors are collected where feasible; domain validation may report the first error. Limits: quiz.import.max-file-bytes (QUIZ_IMPORT_MAX_FILE_BYTES, default 1048576 bytes) and quiz.import.max-items (QUIZ_IMPORT_MAX_ITEMS, default 100). File overflow returns 413; count violations return 400. Server/proxy limits may reject earlier. Malformed syntax, duplicate JSON keys, empty arrays, trailing content and non-array roots reject the whole request before processing. Invalid item shapes, unknown fields and scalar type errors become FAILED results. Unexpected infrastructure errors stop processing with 500; earlier commits remain. Retrying a batch may therefore produce duplicate results."
       security:
-        -
-          bearerAuth: []
+        - bearerAuth: [ ]
       requestBody:
         required: true
         content:
@@ -2310,10 +2309,8 @@ paths:
             "application/json":
               schema:
                 allOf:
-                  -
-                    "$ref": "#/components/schemas/AdminEditResponse"
-                  -
-                    type: "object"
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - type: "object"
                     required:
                       - "data"
                     properties:
@@ -2365,8 +2362,7 @@ paths:
         - "Kanji Quiz"
       "description": "Requires User or Admin. Returns current PUBLISHED, source-valid EXAMPLE and CUSTOM counts. Only levels and lessons with positive counts are listed; totalQuestions also includes unclassified questions. Explicit level tags or the current level of any assigned lesson match a level. Counts use distinct IDs, can overlap and must not be summed to derive total. Levels follow master display order; lessons follow level ID and lesson display order. Empty banks return zero and empty lists. Counts are advisory; creation rechecks availability. No answers or user identities are exposed."
       "security":
-        -
-          "bearerAuth": []
+        - "bearerAuth": [ ]
       "responses":
         "200":
           "description": "Operation completed successfully."
@@ -2374,10 +2370,8 @@ paths:
             "application/json":
               "schema":
                 "allOf":
-                  -
-                    "$ref": "#/components/schemas/AdminEditResponse"
-                  -
-                    "type": "object"
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - "type": "object"
                     "required":
                       - "data"
                     "properties":
@@ -2391,14 +2385,12 @@ paths:
                       "totalQuestions": 25
                       "maxQuestionCount": 100
                       "levels":
-                        -
-                          "id": 1
+                        - "id": 1
                           "code": "N5"
                           "name": "JLPT N5"
                           "questionCount": 20
                       "lessons":
-                        -
-                          "id": 1
+                        - "id": 1
                           "levelId": 1
                           "lessonNumber": 1
                           "title": "Lesson 1"
@@ -2433,8 +2425,7 @@ paths:
         - "Kanji Quiz"
       "description": "Requires User or Admin. Owner comes exclusively from verified JWT sub: case-sensitive, nonblank, at most 255 code points. Optional positive levelId and lessonId must exist; when both are supplied the lesson must belong to that level. Omitted/null filters are unrestricted. Level matching includes explicit level tags or assigned lessons at that level; lesson matching requires an explicit assignment. Filters intersect. Required questionCount is 1-100. Selects distinct PUBLISHED, source-valid EXAMPLE and CUSTOM questions without replacement in randomized order, independently shuffling options. Locks and revalidates selected questions, sources and classifications, then commits all immutable snapshots and session in one reactive transaction. Failure leaves no partial session. Response contains metadata only, no questions, options, explanations or correct answers. Concurrent changes can return 409; retry explicitly. Repeated successful POSTs create new sessions. Answer submission uses the session answers endpoint; completion is separate."
       "security":
-        -
-          "bearerAuth": []
+        - "bearerAuth": [ ]
       "responses":
         "200":
           "description": "Operation completed successfully."
@@ -2442,10 +2433,8 @@ paths:
             "application/json":
               "schema":
                 "allOf":
-                  -
-                    "$ref": "#/components/schemas/AdminEditResponse"
-                  -
-                    "type": "object"
+                  - "$ref": "#/components/schemas/AdminEditResponse"
+                  - "type": "object"
                     "required":
                       - "data"
                     "properties":
@@ -2521,10 +2510,10 @@ paths:
     get:
       operationId: quizSession
       summary: "Get an owned Kanji Quiz session"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub. Looks up the session by ID and exact case-sensitive subject; Admin has no ownership bypass. Missing and foreign sessions return the same 404. Returns persisted status and questionCount, with answeredCount and score (number of correct submitted answers) derived only from immutable session answers/options. answeredCount out of questionCount is current progress; this does not change scores or user progress. Empty sessions report zero answeredCount and score. Completed and abandoned sessions remain readable. GET never advances, finishes or mutates a session."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: id
           in: path
@@ -2543,7 +2532,7 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizSessionResponse"
@@ -2595,10 +2584,10 @@ paths:
     get:
       operationId: nextQuizQuestion
       summary: "Get the next unanswered Kanji Quiz snapshot"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub. Ownership rules and 404 response are identical to session retrieval, including for Admin. Returns the first unanswered immutable session question ordered by zero-based questionNumber; options retain their persisted ascending snapshot ID order from the creation shuffle. IDs refer to session snapshots, never bank rows. targetStart and targetLength use Unicode code points. No correctness, correctOptionId, targetReading, explanation or answer key is exposed. question is null when there are no unanswered snapshots, including an empty session, or when status is COMPLETED or ABANDONED. Status remains unchanged even when all questions are answered. Repeated GETs do not submit answers, reshuffle options, advance, score or finish the game."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: id
           in: path
@@ -2617,7 +2606,7 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizNextQuestionResponse"
@@ -2635,10 +2624,10 @@ paths:
                         targetStart: 0
                         targetLength: 4
                         options:
-                          - {id: 401, text: "学校"}
-                          - {id: 402, text: "学交"}
-                          - {id: 403, text: "校学"}
-                          - {id: 404, text: "学高"}
+                          - { id: 401, text: "学校" }
+                          - { id: 402, text: "学交" }
+                          - { id: 403, text: "校学" }
+                          - { id: 404, text: "学高" }
                     meta:
                       timestamp: "2026-10-08T00:00:00Z"
                       traceId: "trace-example"
@@ -2688,16 +2677,16 @@ paths:
     post:
       operationId: submitQuizAnswer
       summary: "Submit the next Kanji Quiz snapshot answer"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only submit to an owned session. Accepts session snapshot IDs, never bank IDs. Locks the owned session before checking the next unanswered question in persisted questionNumber order. Validates option membership and scores exclusively from immutable snapshots, unaffected by bank or source edits/deletion. Persists the answer atomically; score and progress are derived from committed answers. Concurrent submissions serialize and cannot double score. Returns the correct snapshot option and VI/EN explanations only for the accepted answer. Duplicate, out-of-order, exhausted, COMPLETED and ABANDONED submissions return 409 without changes. Last answer leaves session status IN_PROGRESS; use POST /sessions/{id}/finish to complete; user progress reporting is outside this API. Existing GET endpoints never reveal answer keys."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: id
           in: path
           required: true
           description: "Positive owned session ID; malformed or overflowing path IDs return 404."
-          schema: {type: integer, format: int64, minimum: 1}
+          schema: { type: integer, format: int64, minimum: 1 }
       requestBody:
         required: true
         content:
@@ -2706,7 +2695,7 @@ paths:
               $ref: "#/components/schemas/QuizAnswerRequest"
             examples:
               answer:
-                value: {sessionQuestionId: 101, selectedOptionId: 402}
+                value: { sessionQuestionId: 101, selectedOptionId: 402 }
       responses:
         "200":
           description: "Answer committed; score counts correct submitted answers, remainingCount is questionCount minus answeredCount. Explanations may be null."
@@ -2716,7 +2705,7 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizAnswerResponse"
@@ -2724,13 +2713,13 @@ paths:
                 correct:
                   value:
                     success: true
-                    data: {sessionQuestionId: 101, correct: true, correctOptionId: 402, explanationVi: "Giai thich", explanationEn: "Explanation", score: 1, answeredCount: 1, remainingCount: 9}
-                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+                    data: { sessionQuestionId: 101, correct: true, correctOptionId: 402, explanationVi: "Giai thich", explanationEn: "Explanation", score: 1, answeredCount: 1, remainingCount: 9 }
+                    meta: { timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example" }
                 incorrect:
                   value:
                     success: true
-                    data: {sessionQuestionId: 101, correct: false, correctOptionId: 402, explanationVi: null, explanationEn: null, score: 0, answeredCount: 1, remainingCount: 9}
-                    meta: {timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example"}
+                    data: { sessionQuestionId: 101, correct: false, correctOptionId: 402, explanationVi: null, explanationEn: null, score: 0, answeredCount: 1, remainingCount: 9 }
+                    meta: { timestamp: "2026-10-09T00:00:00Z", traceId: "trace-example", correlationId: "correlation-example" }
         "400":
           description: "BAD_REQUEST - required positive snapshot IDs, positive session ID and valid JSON; QUIZ_ANSWER_INVALID - selected option does not belong to the current snapshot."
           content:
@@ -2777,16 +2766,16 @@ paths:
     post:
       operationId: finishQuizSession
       summary: "Complete an answered Kanji Quiz session"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub. Even Admin may only finish an owned session. No request body is required or used. Locks the same owned session row as answer submission, then verifies IN_PROGRESS and that every question is answered. Atomically persists COMPLETED and completedAt in UTC. Returns final score (correct answer count), questionCount (total), correctCount and incorrectCount from immutable answer/option snapshots. Duplicate, premature, exhausted-but-already-completed and ABANDONED completion attempts return 409. Concurrent answer/finish requests serialize: finish either sees the committed last answer and succeeds or rejects as premature and must be retried explicitly. Concurrent finish requests yield one success and one conflict. Snapshot and answer rows are never rewritten; later bank/source edits do not affect totals. GET session remains readable with COMPLETED and unchanged score; GET next returns question null without answer keys. Completed sessions are included in the read-only history and progress endpoints; completion does not write persisted user-progress aggregates."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: id
           in: path
           required: true
           description: "Positive owned session ID; malformed or overflowing path IDs return 404."
-          schema: {type: integer, format: int64, minimum: 1}
+          schema: { type: integer, format: int64, minimum: 1 }
       responses:
         "200":
           description: "Completion committed. questionCount equals correctCount plus incorrectCount; score equals correctCount. completedAt is the stored UTC timestamp, serialized without an offset consistently with existing Quiz timestamps."
@@ -2796,7 +2785,7 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizSessionCompletionResponse"
@@ -2804,8 +2793,8 @@ paths:
                 completed:
                   value:
                     success: true
-                    data: {sessionId: 42, status: COMPLETED, questionCount: 10, correctCount: 7, incorrectCount: 3, score: 7, completedAt: "2026-10-09T10:15:30.123456"}
-                    meta: {timestamp: "2026-10-09T10:15:30Z", traceId: "trace-example", correlationId: "correlation-example"}
+                    data: { sessionId: 42, status: COMPLETED, questionCount: 10, correctCount: 7, incorrectCount: 3, score: 7, completedAt: "2026-10-09T10:15:30.123456" }
+                    meta: { timestamp: "2026-10-09T10:15:30Z", traceId: "trace-example", correlationId: "correlation-example" }
         "400":
           description: "BAD_REQUEST - session ID must be positive."
           content:
@@ -2846,7 +2835,7 @@ paths:
     get:
       operationId: quizProgress
       summary: "Get owned completed Kanji Quiz statistics"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: >-
         Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
         255 Unicode code points). No userId, parameters or request body are accepted as identity.
@@ -2863,7 +2852,7 @@ paths:
         maximum completion timestamp, serialized as UTC LocalDateTime without an offset.
         One database aggregate query; no per-session loading or persisted aggregate writes.
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       responses:
         "200":
           description: "Completed-session statistics in the common response envelope."
@@ -2873,34 +2862,34 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
-                      data: {$ref: "#/components/schemas/QuizProgressResponse"}
+                      data: { $ref: "#/components/schemas/QuizProgressResponse" }
               examples:
                 success:
-                  value: {"success": true, "data": {"completedSessions": 2, "answeredCount": 6, "correctCount": 4, "incorrectCount": 2, "accuracyPercentage": 66.67, "bestScore": 3, "averageScore": 2.00, "latestCompletedAt": "2026-10-10T10:15:30.123456"}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "completedSessions": 2, "answeredCount": 6, "correctCount": 4, "incorrectCount": 2, "accuracyPercentage": 66.67, "bestScore": 3, "averageScore": 2.00, "latestCompletedAt": "2026-10-10T10:15:30.123456" }, "meta": { "timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
                 empty:
-                  value: {"success": true, "data": {"completedSessions": 0, "answeredCount": 0, "correctCount": 0, "incorrectCount": 0, "accuracyPercentage": 0.00, "bestScore": 0, "averageScore": 0.00, "latestCompletedAt": null}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "completedSessions": 0, "answeredCount": 0, "correctCount": 0, "incorrectCount": 0, "accuracyPercentage": 0.00, "bestScore": 0, "averageScore": 0.00, "latestCompletedAt": null }, "meta": { "timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
         "401":
           description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
         "403":
           description: "FORBIDDEN - requires case-sensitive User or Admin role."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
         "500":
           description: "Unexpected server failure; internal details are not exposed."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
   "/api/v1/kanji-quiz/progress/breakdown":
     get:
       operationId: quizProgressBreakdown
       summary: "Get owned completed Kanji Quiz classification statistics"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: >-
         Requires case-sensitive User or Admin and an exact verified JWT sub (nonblank, at most
         255 Unicode code points); Admin has no ownership bypass. No userId, parameters or request
@@ -2926,7 +2915,7 @@ paths:
         levelId ascending, then lessonId ascending. Two grouped database queries with one
         consistent transaction view; no history loading, N+1 queries or writes.
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       responses:
         "200":
           description: "Independent, potentially overlapping classification buckets."
@@ -2936,48 +2925,48 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
-                      data: {$ref: "#/components/schemas/QuizProgressBreakdownResponse"}
+                      data: { $ref: "#/components/schemas/QuizProgressBreakdownResponse" }
               examples:
                 success:
-                  value: {"success": true, "data": {"levels": [{"classification": "ASSIGNED", "levelId": 1, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}], "lessons": [{"classification": "UNASSIGNED", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67}, {"classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00}]}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "levels": [ { "classification": "ASSIGNED", "levelId": 1, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67 }, { "classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00 } ], "lessons": [ { "classification": "UNASSIGNED", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 3, "correctCount": 2, "incorrectCount": 1, "accuracyPercentage": 66.67 }, { "classification": "UNKNOWN", "levelId": null, "lessonId": null, "completedSessions": 1, "answeredCount": 1, "correctCount": 0, "incorrectCount": 1, "accuracyPercentage": 0.00 } ] }, "meta": { "timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
                 empty:
-                  value: {"success": true, "data": {"levels": [], "lessons": []}, "meta": {"timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "levels": [ ], "lessons": [ ] }, "meta": { "timestamp": "2026-10-10T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
         "401":
           description: "UNAUTHORIZED - missing/invalid JWT or unusable blank/overlong subject."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
         "403":
           description: "FORBIDDEN - requires case-sensitive User or Admin role."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
         "500":
           description: "Unexpected server failure; internal details are not exposed."
           content:
             application/json:
-              schema: {$ref: "#/components/schemas/AdminEditErrorResponse"}
+              schema: { $ref: "#/components/schemas/AdminEditErrorResponse" }
   "/api/v1/kanji-quiz/history":
     get:
       operationId: quizHistory
       summary: "List owned completed Kanji Quiz sessions"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub (nonblank, at most 255 Unicode code points). Ownership uses exact case-sensitive subject equality, including for Admin. Read-only reactive transaction; no sessions, answers, scores or user progress are changed. Returns only owned COMPLETED sessions, ordered by completedAt descending then sessionId descending for deterministic ties. Zero-based page defaults to 0; size defaults to 20 and must be 1-100. page must be nonnegative and page*size must fit a signed 32-bit offset. Empty or out-of-range pages return HTTP 200 with items empty and accurate totals; a user with no history has totalPages=0. Counts are batched for the bounded page, avoiding N+1 queries. Offset pages can shift if new completions occur between requests; each response uses one consistent transaction. Summary questionCount is the total, score equals correctCount, and incorrectCount equals questionCount minus correctCount. levelId and lessonId are explicitly null because the existing schema does not retain original creation filters; these are never inferred from mutable data. Times use existing UTC LocalDateTime serialization without an offset."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: page
           in: query
           required: false
           description: "Zero-based page; page times size must not exceed 2147483647."
-          schema: {"type": "integer", "format": "int32", "default": 0, "minimum": 0}
+          schema: { "type": "integer", "format": "int32", "default": 0, "minimum": 0 }
         - name: size
           in: query
           required: false
           description: "Number of sessions per page, from 1 through 100."
-          schema: {"type": "integer", "format": "int32", "default": 20, "minimum": 1, "maximum": 100}
+          schema: { "type": "integer", "format": "int32", "default": 20, "minimum": 1, "maximum": 100 }
       responses:
         "200":
           description: "Read-only completed-session history in the common response envelope."
@@ -2987,15 +2976,15 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizHistoryListResponse"
               examples:
                 success:
-                  value: {"success": true, "data": {"items": [{"sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1}], "page": 0, "size": 20, "totalElements": 1, "totalPages": 1}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "items": [ { "sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1 } ], "page": 0, "size": 20, "totalElements": 1, "totalPages": 1 }, "meta": { "timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
                 empty:
-                  value: {"success": true, "data": {"items": [], "page": 0, "size": 20, "totalElements": 0, "totalPages": 0}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "items": [ ], "page": 0, "size": 20, "totalElements": 0, "totalPages": 0 }, "meta": { "timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
         "400":
           description: "QUIZ_HISTORY_INVALID - negative page, size outside 1-100, or page*size exceeding 2147483647. Includes field validation details."
           content:
@@ -3030,16 +3019,16 @@ paths:
     get:
       operationId: quizHistoryDetail
       summary: "Get owned completed Kanji Quiz history"
-      tags: ["Kanji Quiz"]
+      tags: [ "Kanji Quiz" ]
       description: "Requires User or Admin and a usable verified JWT sub (nonblank, at most 255 Unicode code points). Ownership uses exact case-sensitive subject equality, including for Admin. Read-only reactive transaction; no sessions, answers, scores or user progress are changed. Only COMPLETED sessions are available; missing, foreign, IN_PROGRESS and ABANDONED sessions return the identical QUIZ_SESSION_NOT_FOUND 404. Returns session summary and immutable question/answer snapshots ordered by original questionNumber; option snapshot IDs ascending preserve the original shuffle. selectedOptionId and correctOptionId refer to the returned options. Correctness, sentence, target offsets (Unicode code points), explanations and answer time come only from immutable snapshots, never live question-bank, vocabulary, classification or example tables. Nullable explanations are included. Existing game GET responses remain answer-key safe. Summary questionCount is the total, score equals correctCount, and incorrectCount equals questionCount minus correctCount. levelId and lessonId are explicitly null because the existing schema does not retain original creation filters; these are never inferred from mutable data. Times use existing UTC LocalDateTime serialization without an offset."
       security:
-        - bearerAuth: []
+        - bearerAuth: [ ]
       parameters:
         - name: sessionId
           in: path
           required: true
           description: "Positive owned completed session ID. Malformed or overflowing IDs return 404."
-          schema: {type: integer, format: int64, minimum: 1}
+          schema: { type: integer, format: int64, minimum: 1 }
       responses:
         "200":
           description: "Read-only completed-session history in the common response envelope."
@@ -3049,13 +3038,13 @@ paths:
                 allOf:
                   - $ref: "#/components/schemas/AdminEditResponse"
                   - type: object
-                    required: [data]
+                    required: [ data ]
                     properties:
                       data:
                         $ref: "#/components/schemas/QuizHistoryDetailResponse"
               examples:
                 success:
-                  value: {"success": true, "data": {"session": {"sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1}, "questions": [{"sessionQuestionId": 101, "questionNumber": 0, "sentenceReading": "reading", "targetStart": 0, "targetLength": 7, "options": [{"id": 401, "text": "wrong"}, {"id": 402, "text": "correct"}, {"id": 403, "text": "wrong-2"}, {"id": 404, "text": "wrong-3"}], "selectedOptionId": 402, "correctOptionId": 402, "correct": true, "explanationVi": null, "explanationEn": "Explanation", "answeredAt": "2026-10-09T10:15:29"}]}, "meta": {"timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example"}}
+                  value: { "success": true, "data": { "session": { "sessionId": 42, "status": "COMPLETED", "levelId": null, "lessonId": null, "completedAt": "2026-10-09T10:15:30.123456", "questionCount": 1, "correctCount": 1, "incorrectCount": 0, "score": 1 }, "questions": [ { "sessionQuestionId": 101, "questionNumber": 0, "sentenceReading": "reading", "targetStart": 0, "targetLength": 7, "options": [ { "id": 401, "text": "wrong" }, { "id": 402, "text": "correct" }, { "id": 403, "text": "wrong-2" }, { "id": 404, "text": "wrong-3" } ], "selectedOptionId": 402, "correctOptionId": 402, "correct": true, "explanationVi": null, "explanationEn": "Explanation", "answeredAt": "2026-10-09T10:15:29" } ] }, "meta": { "timestamp": "2026-10-09T10:15:30Z", "traceId": "trace-example", "correlationId": "correlation-example" } }
         "400":
           description: "BAD_REQUEST - sessionId must be positive."
           content:
@@ -3090,10 +3079,10 @@ paths:
     post:
       operationId: "createFlashcardSession"
       summary: "Start a lesson flashcard session"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Selects up to cardLimit cards and persists their order. ALL records practice without changing SRS. Empty selection returns outcome NO_ELIGIBLE_CARDS, eligibleCount 0 and omits session, writing nothing. Repeated successful POSTs create independent sessions. ALL with shuffle samples across the whole lesson in MySQL before limiting; without shuffle it selects never-practiced then least-recently-practiced cards. Scheduled modes shuffle only their selected eligible subset. Selected order persists for resume."
-      security: [{"bearerAuth":[]}]
-      parameters: []
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3101,7 +3090,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3154,10 +3143,10 @@ paths:
     get:
       operationId: "listFlashcardSessions"
       summary: "List owned flashcard sessions"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Ordered newest first by createdAt and ID. items is omitted from list summaries; use the session GET to resume."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"status","in":"query","required":false,"description":"Optional session status.","schema":{"type":"string","enum":["IN_PROGRESS","COMPLETED","ABANDONED"]}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "lessonId","in": "query","required": false,"description": "Optional lesson database ID.","schema": { "type": "integer","format": "int64","minimum": 1 } },{ "name": "status","in": "query","required": false,"description": "Optional session status.","schema": { "type": "string","enum": [ "IN_PROGRESS","COMPLETED","ABANDONED" ] } },{ "name": "page","in": "query","required": false,"description": "Zero-based page; offset must fit an integer.","schema": { "type": "integer","format": "int32","minimum": 0,"default": 0 } },{ "name": "size","in": "query","required": false,"description": "Page size from 1 to 100.","schema": { "type": "integer","minimum": 1,"maximum": 100,"default": 20 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3165,7 +3154,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3213,10 +3202,10 @@ paths:
     get:
       operationId: "getFlashcardSession"
       summary: "Resume an owned flashcard session"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Returns persisted order, completion state and current personal progress. Content is live; membership/order are frozen. currentPosition equals itemCount when complete."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "id","in": "path","required": true,"description": "Owned session ID; missing and foreign sessions return the same 404.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3224,7 +3213,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3272,10 +3261,10 @@ paths:
     put:
       operationId: "reviewFlashcard"
       summary: "Rate a flashcard session item idempotently"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. One accepted review per item. Exact rating/version retries return the original result even after completion; changed retries return 409. Only the next item can be rated. Scheduled reviews require matching progress revision and current due eligibility; practice never alters SRS. All progress/history/session changes commit atomically."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"itemId","in":"path","required":true,"description":"Persisted item ID belonging to this session.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "id","in": "path","required": true,"description": "Owned session ID; missing and foreign sessions return the same 404.","schema": { "type": "integer","format": "int64","minimum": 1 } },{ "name": "itemId","in": "path","required": true,"description": "Persisted item ID belonging to this session.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3283,7 +3272,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3337,10 +3326,10 @@ paths:
     post:
       operationId: "finishFlashcardSession"
       summary: "Confirm completion of an owned flashcard session"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Final accepted rating completes the session automatically. This operation returns completed state idempotently; unfinished sessions return 409. No request body."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "id","in": "path","required": true,"description": "Owned session ID; missing and foreign sessions return the same 404.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3348,7 +3337,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3396,10 +3385,10 @@ paths:
     post:
       operationId: "abandonFlashcardSession"
       summary: "Abandon an owned flashcard session"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Locks the owned session and changes IN_PROGRESS to ABANDONED, retaining committed reviews, progress, item order and completed count. Returns abandonedAt. Repeated abandonment is idempotent; COMPLETED sessions remain completed. New reviews on abandoned sessions conflict, but exact retries of previously accepted reviews still replay. No request body."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"id","in":"path","required":true,"description":"Owned session ID; missing and foreign sessions return the same 404.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "id","in": "path","required": true,"description": "Owned session ID; missing and foreign sessions return the same 404.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3407,7 +3396,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3455,10 +3444,10 @@ paths:
     get:
       operationId: "dueFlashcards"
       summary: "List vocabulary due for scheduled review"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Includes MASTERED cards with nextReviewAt <= server time. Orders by nextReviewAt then vocabulary ID. Empty queues are normal empty pages; new cards have no due timestamp."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "level","in": "query","required": false,"description": "Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema": { "type": "string","enum": [ "N1","N2","N3","N4","N5" ] } },{ "name": "lessonId","in": "query","required": false,"description": "Optional lesson database ID. Must belong to level when both are supplied.","schema": { "type": "integer","format": "int64","minimum": 1 } },{ "name": "page","in": "query","required": false,"description": "Zero-based page; offset must fit an integer.","schema": { "type": "integer","format": "int32","minimum": 0,"default": 0 } },{ "name": "size","in": "query","required": false,"description": "Page size from 1 to 100.","schema": { "type": "integer","minimum": 1,"maximum": 100,"default": 20 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3466,7 +3455,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3514,10 +3503,10 @@ paths:
     get:
       operationId: "forgottenFlashcards"
       summary: "List vocabulary ranked by AGAIN history"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Ranks vocabulary with at least one AGAIN by descending AGAIN count, then ID. Includes practice and scheduled history; independent of bookmarks. Uses current catalogue classifications."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "level","in": "query","required": false,"description": "Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema": { "type": "string","enum": [ "N1","N2","N3","N4","N5" ] } },{ "name": "lessonId","in": "query","required": false,"description": "Optional lesson database ID. Must belong to level when both are supplied.","schema": { "type": "integer","format": "int64","minimum": 1 } },{ "name": "page","in": "query","required": false,"description": "Zero-based page; offset must fit an integer.","schema": { "type": "integer","format": "int32","minimum": 0,"default": 0 } },{ "name": "size","in": "query","required": false,"description": "Page size from 1 to 100.","schema": { "type": "integer","minimum": 1,"maximum": 100,"default": 20 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3525,7 +3514,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3573,10 +3562,10 @@ paths:
     put:
       operationId: "addFlashcardBookmark"
       summary: "Bookmark vocabulary idempotently"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Requires existing vocabulary. Duplicate/concurrent adds preserve the original bookmark timestamp. Does not create progress. No request body."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"vocabularyId","in":"path","required":true,"description":"Vocabulary ID.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "vocabularyId","in": "path","required": true,"description": "Vocabulary ID.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3584,7 +3573,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3631,10 +3620,10 @@ paths:
     delete:
       operationId: "removeFlashcardBookmark"
       summary: "Remove a vocabulary bookmark idempotently"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Removing an absent bookmark succeeds, including an unknown vocabulary ID. Only the caller's bookmark can be removed. No request body."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"vocabularyId","in":"path","required":true,"description":"Vocabulary ID.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "vocabularyId","in": "path","required": true,"description": "Vocabulary ID.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3642,7 +3631,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3690,10 +3679,10 @@ paths:
     get:
       operationId: "bookmarkedFlashcards"
       summary: "List bookmarked vocabulary"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Orders by bookmark creation time descending, then vocabulary ID descending. Includes personal SRS state without creating progress."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}},{"name":"page","in":"query","required":false,"description":"Zero-based page; offset must fit an integer.","schema":{"type":"integer","format":"int32","minimum":0,"default":0}},{"name":"size","in":"query","required":false,"description":"Page size from 1 to 100.","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "level","in": "query","required": false,"description": "Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema": { "type": "string","enum": [ "N1","N2","N3","N4","N5" ] } },{ "name": "lessonId","in": "query","required": false,"description": "Optional lesson database ID. Must belong to level when both are supplied.","schema": { "type": "integer","format": "int64","minimum": 1 } },{ "name": "page","in": "query","required": false,"description": "Zero-based page; offset must fit an integer.","schema": { "type": "integer","format": "int32","minimum": 0,"default": 0 } },{ "name": "size","in": "query","required": false,"description": "Page size from 1 to 100.","schema": { "type": "integer","minimum": 1,"maximum": 100,"default": 20 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3701,7 +3690,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3749,10 +3738,10 @@ paths:
     get:
       operationId: "flashcardStatistics"
       summary: "Get personal vocabulary learning statistics"
-      tags: ["Flashcard Learning"]
+      tags: [ "Flashcard Learning" ]
       description: "Requires User or Admin. Ownership is the exact validated JWT subject; no Admin ownership bypass. Denominator is distinct current vocabulary in scope, including unseen cards. studiedPercentage counts vocabulary reviewed at least once, including practice; masteryPercentage counts current MASTERED progress. Empty scope gives 0.00. Remembered = HARD/GOOD/EASY, forgotten = AGAIN. Attempts are split into scheduled/practice. Counts from overlapping lessons/levels must not be summed."
-      security: [{"bearerAuth":[]}]
-      parameters: [{"name":"level","in":"query","required":false,"description":"Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema":{"type":"string","enum":["N1","N2","N3","N4","N5"]}},{"name":"lessonId","in":"query","required":false,"description":"Optional lesson database ID. Must belong to level when both are supplied.","schema":{"type":"integer","format":"int64","minimum":1}}]
+      security: [ { "bearerAuth": [ ] } ]
+      parameters: [ { "name": "level","in": "query","required": false,"description": "Optional JLPT code; omitted means all levels. Trimmed and case normalized.","schema": { "type": "string","enum": [ "N1","N2","N3","N4","N5" ] } },{ "name": "lessonId","in": "query","required": false,"description": "Optional lesson database ID. Must belong to level when both are supplied.","schema": { "type": "integer","format": "int64","minimum": 1 } } ]
       responses:
         200:
           description: "Success in ApiResponse; private, no-store."
@@ -3760,7 +3749,7 @@ paths:
             application/json:
               schema:
                 type: "object"
-                required: ["success","data","meta"]
+                required: [ "success","data","meta" ]
                 properties:
                   success:
                     type: "boolean"
@@ -3897,130 +3886,130 @@ components:
   schemas:
     QuizProgressResponse:
       type: object
-      required: [completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage, bestScore, averageScore, latestCompletedAt]
+      required: [ completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage, bestScore, averageScore, latestCompletedAt ]
       properties:
-        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct owned COMPLETED sessions."}
-        answeredCount: {type: integer, format: int64, minimum: 0}
-        correctCount: {type: integer, format: int64, minimum: 0}
-        incorrectCount: {type: integer, format: int64, minimum: 0, description: "answeredCount minus correctCount."}
-        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
-        bestScore: {type: integer, format: int64, minimum: 0, description: "Maximum correct-answer count in one completed session; zero for empty history."}
-        averageScore: {type: number, minimum: 0, description: "Correct answers per completed session, HALF_UP to two decimals; zero for empty history. Not a percentage."}
+        completedSessions: { type: integer, format: int64, minimum: 0, description: "Distinct owned COMPLETED sessions." }
+        answeredCount: { type: integer, format: int64, minimum: 0 }
+        correctCount: { type: integer, format: int64, minimum: 0 }
+        incorrectCount: { type: integer, format: int64, minimum: 0, description: "answeredCount minus correctCount." }
+        accuracyPercentage: { type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers." }
+        bestScore: { type: integer, format: int64, minimum: 0, description: "Maximum correct-answer count in one completed session; zero for empty history." }
+        averageScore: { type: number, minimum: 0, description: "Correct answers per completed session, HALF_UP to two decimals; zero for empty history. Not a percentage." }
         latestCompletedAt:
           description: "Latest completion, UTC LocalDateTime without offset; null for empty history."
           anyOf:
-            - {type: string}
-            - {type: "null"}
+            - { type: string }
+            - { type: "null" }
     QuizProgressBreakdownResponse:
       type: object
-      required: [levels, lessons]
+      required: [ levels, lessons ]
       properties:
         levels:
           type: array
-          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+          items: { $ref: "#/components/schemas/QuizProgressBucket" }
         lessons:
           type: array
-          items: {$ref: "#/components/schemas/QuizProgressBucket"}
+          items: { $ref: "#/components/schemas/QuizProgressBucket" }
     QuizProgressBucket:
       type: object
-      required: [classification, levelId, lessonId, completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage]
+      required: [ classification, levelId, lessonId, completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage ]
       properties:
-        classification: {type: string, enum: [ASSIGNED, UNASSIGNED, UNKNOWN], description: "UNKNOWN: never captured. UNASSIGNED: captured with no assignment in this dimension."}
+        classification: { type: string, enum: [ ASSIGNED, UNASSIGNED, UNKNOWN ], description: "UNKNOWN: never captured. UNASSIGNED: captured with no assignment in this dimension." }
         levelId:
           description: "Captured level ID for ASSIGNED; otherwise null."
           anyOf:
-            - {type: integer, format: int64}
-            - {type: "null"}
+            - { type: integer, format: int64 }
+            - { type: "null" }
         lessonId:
           description: "Captured lesson ID for ASSIGNED lesson buckets; otherwise null."
           anyOf:
-            - {type: integer, format: int64}
-            - {type: "null"}
-        completedSessions: {type: integer, format: int64, minimum: 0, description: "Distinct sessions containing this classification; not additive across buckets."}
-        answeredCount: {type: integer, format: int64, minimum: 0, description: "Each answer once per bucket; may overlap other buckets."}
-        correctCount: {type: integer, format: int64, minimum: 0}
-        incorrectCount: {type: integer, format: int64, minimum: 0}
-        accuracyPercentage: {type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers."}
+            - { type: integer, format: int64 }
+            - { type: "null" }
+        completedSessions: { type: integer, format: int64, minimum: 0, description: "Distinct sessions containing this classification; not additive across buckets." }
+        answeredCount: { type: integer, format: int64, minimum: 0, description: "Each answer once per bucket; may overlap other buckets." }
+        correctCount: { type: integer, format: int64, minimum: 0 }
+        incorrectCount: { type: integer, format: int64, minimum: 0 }
+        accuracyPercentage: { type: number, minimum: 0, maximum: 100, description: "100 * correctCount / answeredCount, HALF_UP to two decimals; zero if no answers." }
     QuizHistorySummary:
       type: object
-      required: [sessionId, status, levelId, lessonId, completedAt, questionCount, correctCount, incorrectCount, score]
+      required: [ sessionId, status, levelId, lessonId, completedAt, questionCount, correctCount, incorrectCount, score ]
       properties:
-        sessionId: {type: integer, format: int64}
-        status: {type: string, enum: [COMPLETED]}
+        sessionId: { type: integer, format: int64 }
+        status: { type: string, enum: [ COMPLETED ] }
         levelId:
           description: "Unavailable original JLPT selection; null for existing sessions. Never inferred from current bank data."
           anyOf:
-            - {type: integer, format: int64}
-            - {type: "null"}
+            - { type: integer, format: int64 }
+            - { type: "null" }
         lessonId:
           description: "Unavailable original lesson selection; null for existing sessions. Never inferred from current bank data."
           anyOf:
-            - {type: integer, format: int64}
-            - {type: "null"}
-        completedAt: {type: string, description: "Stored UTC LocalDateTime without offset."}
-        questionCount: {type: integer, minimum: 1, description: "Total session questions."}
-        correctCount: {type: integer, format: int64, minimum: 0}
-        incorrectCount: {type: integer, format: int64, minimum: 0}
-        score: {type: integer, format: int64, minimum: 0, description: "Equal to correctCount."}
+            - { type: integer, format: int64 }
+            - { type: "null" }
+        completedAt: { type: string, description: "Stored UTC LocalDateTime without offset." }
+        questionCount: { type: integer, minimum: 1, description: "Total session questions." }
+        correctCount: { type: integer, format: int64, minimum: 0 }
+        incorrectCount: { type: integer, format: int64, minimum: 0 }
+        score: { type: integer, format: int64, minimum: 0, description: "Equal to correctCount." }
     QuizHistoryListResponse:
       type: object
-      required: [items, page, size, totalElements, totalPages]
+      required: [ items, page, size, totalElements, totalPages ]
       properties:
         items:
           type: array
-          items: {$ref: "#/components/schemas/QuizHistorySummary"}
-        page: {type: integer, format: int32, minimum: 0}
-        size: {type: integer, format: int32, minimum: 1, maximum: 100}
-        totalElements: {type: integer, format: int64, minimum: 0}
-        totalPages: {type: integer, format: int64, minimum: 0}
+          items: { $ref: "#/components/schemas/QuizHistorySummary" }
+        page: { type: integer, format: int32, minimum: 0 }
+        size: { type: integer, format: int32, minimum: 1, maximum: 100 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, format: int64, minimum: 0 }
     QuizHistoryDetailResponse:
       type: object
-      required: [session, questions]
+      required: [ session, questions ]
       properties:
-        session: {$ref: "#/components/schemas/QuizHistorySummary"}
+        session: { $ref: "#/components/schemas/QuizHistorySummary" }
         questions:
           type: array
-          items: {$ref: "#/components/schemas/QuizHistoryQuestion"}
+          items: { $ref: "#/components/schemas/QuizHistoryQuestion" }
     QuizHistoryQuestion:
       type: object
-      required: [sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options, selectedOptionId, correctOptionId, correct, explanationVi, explanationEn, answeredAt]
+      required: [ sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options, selectedOptionId, correctOptionId, correct, explanationVi, explanationEn, answeredAt ]
       properties:
-        sessionQuestionId: {type: integer, format: int64}
-        questionNumber: {type: integer, minimum: 0}
-        sentenceReading: {type: string}
-        targetStart: {type: integer, minimum: 0, description: "Unicode code point offset."}
-        targetLength: {type: integer, minimum: 1, description: "Unicode code point length."}
+        sessionQuestionId: { type: integer, format: int64 }
+        questionNumber: { type: integer, minimum: 0 }
+        sentenceReading: { type: string }
+        targetStart: { type: integer, minimum: 0, description: "Unicode code point offset." }
+        targetLength: { type: integer, minimum: 1, description: "Unicode code point length." }
         options:
           type: array
           minItems: 4
           maxItems: 4
-          items: {$ref: "#/components/schemas/QuizPlayerOption"}
-        selectedOptionId: {type: integer, format: int64}
-        correctOptionId: {type: integer, format: int64}
-        correct: {type: boolean}
+          items: { $ref: "#/components/schemas/QuizPlayerOption" }
+        selectedOptionId: { type: integer, format: int64 }
+        correctOptionId: { type: integer, format: int64 }
+        correct: { type: boolean }
         explanationVi:
           anyOf:
-            - {type: string}
-            - {type: "null"}
+            - { type: string }
+            - { type: "null" }
         explanationEn:
           anyOf:
-            - {type: string}
-            - {type: "null"}
-        answeredAt: {type: string, description: "Stored UTC LocalDateTime without offset."}
+            - { type: string }
+            - { type: "null" }
+        answeredAt: { type: string, description: "Stored UTC LocalDateTime without offset." }
     QuizSessionCompletionResponse:
       type: object
-      required: [sessionId, status, questionCount, correctCount, incorrectCount, score, completedAt]
+      required: [ sessionId, status, questionCount, correctCount, incorrectCount, score, completedAt ]
       properties:
-        sessionId: {type: integer, format: int64}
-        status: {type: string, enum: [COMPLETED], description: "Stored completion status."}
-        questionCount: {type: integer, minimum: 1, description: "Total number of session questions."}
-        correctCount: {type: integer, format: int64, minimum: 0}
-        incorrectCount: {type: integer, format: int64, minimum: 0}
-        score: {type: integer, format: int64, minimum: 0, description: "Equal to correctCount."}
-        completedAt: {type: string, description: "Persisted UTC LocalDateTime with microsecond precision, without an offset."}
+        sessionId: { type: integer, format: int64 }
+        status: { type: string, enum: [ COMPLETED ], description: "Stored completion status." }
+        questionCount: { type: integer, minimum: 1, description: "Total number of session questions." }
+        correctCount: { type: integer, format: int64, minimum: 0 }
+        incorrectCount: { type: integer, format: int64, minimum: 0 }
+        score: { type: integer, format: int64, minimum: 0, description: "Equal to correctCount." }
+        completedAt: { type: string, description: "Persisted UTC LocalDateTime with microsecond precision, without an offset." }
     QuizAnswerRequest:
       type: object
-      required: [sessionQuestionId, selectedOptionId]
+      required: [ sessionQuestionId, selectedOptionId ]
       properties:
         sessionQuestionId:
           type: integer
@@ -4034,39 +4023,39 @@ components:
           description: "Option snapshot ID belonging to that question."
     QuizAnswerResponse:
       type: object
-      required: [sessionQuestionId, correct, correctOptionId, score, answeredCount, remainingCount]
+      required: [ sessionQuestionId, correct, correctOptionId, score, answeredCount, remainingCount ]
       properties:
-        sessionQuestionId: {type: integer, format: int64}
-        correct: {type: boolean}
-        correctOptionId: {type: integer, format: int64}
+        sessionQuestionId: { type: integer, format: int64 }
+        correct: { type: boolean }
+        correctOptionId: { type: integer, format: int64 }
         explanationVi:
           anyOf:
-            - {type: string}
-            - {type: "null"}
+            - { type: string }
+            - { type: "null" }
         explanationEn:
           anyOf:
-            - {type: string}
-            - {type: "null"}
-        score: {type: integer, format: int64, minimum: 0, description: "Number of correct submitted answers."}
-        answeredCount: {type: integer, format: int64, minimum: 0}
-        remainingCount: {type: integer, format: int64, minimum: 0}
+            - { type: string }
+            - { type: "null" }
+        score: { type: integer, format: int64, minimum: 0, description: "Number of correct submitted answers." }
+        answeredCount: { type: integer, format: int64, minimum: 0 }
+        remainingCount: { type: integer, format: int64, minimum: 0 }
     QuizSessionResponse:
       type: object
       description: "Owned session summary; answeredCount out of questionCount is progress, score counts correct submitted answers."
-      required: [sessionId, status, questionCount, answeredCount, score]
+      required: [ sessionId, status, questionCount, answeredCount, score ]
       properties:
-        sessionId: {type: integer, format: int64, minimum: 1}
-        status: {type: string, enum: [IN_PROGRESS, COMPLETED, ABANDONED]}
-        questionCount: {type: integer, format: int32, minimum: 1}
-        answeredCount: {type: integer, format: int64, minimum: 0}
-        score: {type: integer, format: int64, minimum: 0}
+        sessionId: { type: integer, format: int64, minimum: 1 }
+        status: { type: string, enum: [ IN_PROGRESS, COMPLETED, ABANDONED ] }
+        questionCount: { type: integer, format: int32, minimum: 1 }
+        answeredCount: { type: integer, format: int64, minimum: 0 }
+        score: { type: integer, format: int64, minimum: 0 }
     QuizNextQuestionResponse:
       type: object
       description: "Safe next snapshot; question is explicitly null for terminal or exhausted sessions."
-      required: [sessionId, status, question]
+      required: [ sessionId, status, question ]
       properties:
-        sessionId: {type: integer, format: int64, minimum: 1}
-        status: {type: string, enum: [IN_PROGRESS, COMPLETED, ABANDONED]}
+        sessionId: { type: integer, format: int64, minimum: 1 }
+        status: { type: string, enum: [ IN_PROGRESS, COMPLETED, ABANDONED ] }
         question:
           anyOf:
             - $ref: "#/components/schemas/QuizPlayerQuestion"
@@ -4074,13 +4063,13 @@ components:
     QuizPlayerQuestion:
       type: object
       description: "Immutable session snapshot without answer keys or explanations."
-      required: [sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options]
+      required: [ sessionQuestionId, questionNumber, sentenceReading, targetStart, targetLength, options ]
       properties:
-        sessionQuestionId: {type: integer, format: int64, minimum: 1}
-        questionNumber: {type: integer, format: int32, minimum: 0, description: "Zero-based persisted session order."}
-        sentenceReading: {type: string}
-        targetStart: {type: integer, format: int32, minimum: 0, description: "Zero-based Unicode code-point offset."}
-        targetLength: {type: integer, format: int32, minimum: 1, description: "Length in Unicode code points."}
+        sessionQuestionId: { type: integer, format: int64, minimum: 1 }
+        questionNumber: { type: integer, format: int32, minimum: 0, description: "Zero-based persisted session order." }
+        sentenceReading: { type: string }
+        targetStart: { type: integer, format: int32, minimum: 0, description: "Zero-based Unicode code-point offset." }
+        targetLength: { type: integer, format: int32, minimum: 1, description: "Length in Unicode code points." }
         options:
           type: array
           minItems: 4
@@ -4091,10 +4080,10 @@ components:
     QuizPlayerOption:
       type: object
       description: "Snapshot option ID and display text only."
-      required: [id, text]
+      required: [ id, text ]
       properties:
-        id: {type: integer, format: int64, minimum: 1}
-        text: {type: string}
+        id: { type: integer, format: int64, minimum: 1 }
+        text: { type: string }
     "QuizSessionCreateRequest":
       "type": "object"
       "description": "Identity comes only from JWT sub. Unknown fields follow existing server policy and are ignored. Filters are optional."
@@ -4265,8 +4254,7 @@ components:
           "items":
             "$ref": "#/components/schemas/QuizImportError"
       "oneOf":
-        -
-          "required":
+        - "required":
             - "questionId"
             - "version"
           "properties":
@@ -4275,19 +4263,16 @@ components:
           "not":
             "required":
               - "errors"
-        -
-          "required":
+        - "required":
             - "errors"
           "properties":
             "status":
               "const": "FAILED"
           "not":
             "anyOf":
-              -
-                "required":
+              - "required":
                   - "questionId"
-              -
-                "required":
+              - "required":
                   - "version"
       "description": "One result per input item. Successful identifiers appear only after commit; failed items have errors and no identifiers."
     QuizImportResponse:
@@ -5419,8 +5404,10 @@ components:
           format: date-time
         traceId:
           type: string
+          description: Legacy validated X-Trace-Id alias when supplied; otherwise the OpenTelemetry trace ID. Propagate traceparent for distributed tracing. X-Distributed-Trace-Id always returns the canonical W3C trace ID.
         correlationId:
           type: string
+          description: Validated X-Correlation-ID (1-64 ASCII letters, digits, underscore or hyphen), generated when absent or invalid.
     AdminEditResponse:
       type: object
       required: [ success, meta ]
@@ -5515,11 +5502,11 @@ components:
           $ref: '#/components/schemas/ResponseMeta'
     ProgressState:
       type: "object"
-      required: ["status","successfulRepetitionCount","lapseCount","intervalSeconds","easeFactor","version"]
+      required: [ "status","successfulRepetitionCount","lapseCount","intervalSeconds","easeFactor","version" ]
       properties:
         status:
           type: "string"
-          enum: ["NEW","LEARNING","REVIEW","MASTERED"]
+          enum: [ "NEW","LEARNING","REVIEW","MASTERED" ]
         successfulRepetitionCount:
           type: "integer"
           format: "int64"
@@ -5553,7 +5540,7 @@ components:
           description: "Zero means no SRS progress; supply the latest revision for scheduled reviews."
     FlashcardSessionCreateRequest:
       type: "object"
-      required: ["lessonId"]
+      required: [ "lessonId" ]
       properties:
         lessonId:
           type: "integer"
@@ -5561,7 +5548,7 @@ components:
           minimum: 1
         mode:
           type: "string"
-          enum: ["NEW_AND_DUE","DUE","ALL"]
+          enum: [ "NEW_AND_DUE","DUE","ALL" ]
           default: "NEW_AND_DUE"
           description: "ALL is non-scheduling practice; other modes accept only new/due SRS reviews."
         cardLimit:
@@ -5574,18 +5561,18 @@ components:
           default: false
     FlashcardReviewRequest:
       type: "object"
-      required: ["rating","expectedProgressVersion"]
+      required: [ "rating","expectedProgressVersion" ]
       properties:
         rating:
           type: "string"
-          enum: ["AGAIN","HARD","GOOD","EASY"]
+          enum: [ "AGAIN","HARD","GOOD","EASY" ]
         expectedProgressVersion:
           type: "integer"
           format: "int64"
           minimum: 0
     FlashcardSessionItemResponse:
       type: "object"
-      required: ["itemId","vocabularyId","position","progress"]
+      required: [ "itemId","vocabularyId","position","progress" ]
       properties:
         itemId:
           type: "integer"
@@ -5606,7 +5593,7 @@ components:
           $ref: "#/components/schemas/ProgressState"
     FlashcardSessionResponse:
       type: "object"
-      required: ["sessionId","lessonId","mode","status","itemCount","completedCount","currentPosition","createdAt"]
+      required: [ "sessionId","lessonId","mode","status","itemCount","completedCount","currentPosition","createdAt" ]
       properties:
         sessionId:
           type: "integer"
@@ -5618,10 +5605,10 @@ components:
           minimum: 1
         mode:
           type: "string"
-          enum: ["NEW_AND_DUE","DUE","ALL"]
+          enum: [ "NEW_AND_DUE","DUE","ALL" ]
         status:
           type: "string"
-          enum: ["IN_PROGRESS","COMPLETED","ABANDONED"]
+          enum: [ "IN_PROGRESS","COMPLETED","ABANDONED" ]
         itemCount:
           type: "integer"
           format: "int32"
@@ -5650,11 +5637,11 @@ components:
             $ref: "#/components/schemas/FlashcardSessionItemResponse"
     FlashcardSessionCreatedResponse:
       type: "object"
-      required: ["outcome","eligibleCount"]
+      required: [ "outcome","eligibleCount" ]
       properties:
         outcome:
           type: "string"
-          enum: ["CREATED","NO_ELIGIBLE_CARDS"]
+          enum: [ "CREATED","NO_ELIGIBLE_CARDS" ]
         eligibleCount:
           type: "integer"
           format: "int32"
@@ -5664,7 +5651,7 @@ components:
           $ref: "#/components/schemas/FlashcardSessionResponse"
     FlashcardReviewResponse:
       type: "object"
-      required: ["reviewId","sessionItemId","vocabularyId","rating","scheduling","progress","reviewedAt"]
+      required: [ "reviewId","sessionItemId","vocabularyId","rating","scheduling","progress","reviewedAt" ]
       properties:
         reviewId:
           type: "integer"
@@ -5680,7 +5667,7 @@ components:
           minimum: 1
         rating:
           type: "string"
-          enum: ["AGAIN","HARD","GOOD","EASY"]
+          enum: [ "AGAIN","HARD","GOOD","EASY" ]
         scheduling:
           type: "boolean"
         progress:
@@ -5690,7 +5677,7 @@ components:
           format: "date-time"
     PersonalFlashcardResponse:
       type: "object"
-      required: ["id","word","progress","bookmarked"]
+      required: [ "id","word","progress","bookmarked" ]
       properties:
         id:
           type: "integer"
@@ -5704,7 +5691,7 @@ components:
           type: "boolean"
     BookmarkResponse:
       type: "object"
-      required: ["vocabularyId","bookmarked"]
+      required: [ "vocabularyId","bookmarked" ]
       properties:
         vocabularyId:
           type: "integer"
@@ -5714,7 +5701,7 @@ components:
           type: "boolean"
     LearningStatisticsResponse:
       type: "object"
-      required: ["totalVocabularyCount","newCount","learningCount","reviewCount","masteredCount","dueCount","studiedCount","totalReviewAttempts","rememberedCount","forgottenCount","scheduledReviewAttempts","practiceReviewAttempts","studiedPercentage","masteryPercentage"]
+      required: [ "totalVocabularyCount","newCount","learningCount","reviewCount","masteredCount","dueCount","studiedCount","totalReviewAttempts","rememberedCount","forgottenCount","scheduledReviewAttempts","practiceReviewAttempts","studiedPercentage","masteryPercentage" ]
       properties:
         totalVocabularyCount:
           type: "integer"
@@ -5776,7 +5763,7 @@ components:
           multipleOf: 0.01
     PersonalFlashcardPageResponse:
       type: "object"
-      required: ["items","page","size","totalElements","totalPages"]
+      required: [ "items","page","size","totalElements","totalPages" ]
       properties:
         items:
           type: "array"
@@ -5801,7 +5788,7 @@ components:
           minimum: 0
     FlashcardSessionPageResponse:
       type: "object"
-      required: ["items","page","size","totalElements","totalPages"]
+      required: [ "items","page","size","totalElements","totalPages" ]
       properties:
         items:
           type: "array"
@@ -5835,17 +5822,14 @@ components:
           "imported": 1
           "failed": 1
           "results":
-            -
-              "index": 0
+            - "index": 0
               "status": "IMPORTED"
               "questionId": 11
               "version": 1
-            -
-              "index": 1
+            - "index": 1
               "status": "FAILED"
               "errors":
-                -
-                  "field": "[1].content.targetReading"
+                - "field": "[1].content.targetReading"
                   "code": "QUIZ_QUESTION_INVALID"
                   "message": "Target reading must exactly match the selected segment"
         "meta":
@@ -5861,13 +5845,11 @@ components:
           "imported": 2
           "failed": 0
           "results":
-            -
-              "index": 0
+            - "index": 0
               "status": "IMPORTED"
               "questionId": 11
               "version": 1
-            -
-              "index": 1
+            - "index": 1
               "status": "IMPORTED"
               "questionId": 12
               "version": 1
@@ -5884,12 +5866,10 @@ components:
           "imported": 0
           "failed": 1
           "results":
-            -
-              "index": 0
+            - "index": 0
               "status": "FAILED"
               "errors":
-                -
-                  "field": "[0].content.targetReading"
+                - "field": "[0].content.targetReading"
                   "code": "QUIZ_QUESTION_INVALID"
                   "message": "Target reading must exactly match the selected segment"
         "meta":
@@ -5904,8 +5884,7 @@ components:
           "code": "QUIZ_IMPORT_INVALID"
           "message": "Invalid quiz import; no questions processed"
           "details":
-            -
-              "field": "file"
+            - "field": "file"
               "message": "Expected a JSON array"
         "meta":
           "timestamp": "2026-10-08T00:00:00Z"

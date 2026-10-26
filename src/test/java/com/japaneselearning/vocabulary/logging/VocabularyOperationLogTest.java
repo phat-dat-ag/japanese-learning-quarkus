@@ -36,6 +36,7 @@ class VocabularyOperationLogTest {
     private final Logger logger = Logger.getLogger(VocabularyOperationLog.class.getName());
     private final Handler handler = new Handler() {
         public void publish(LogRecord record) {
+            ((ExtLogRecord) record).copyMdc();
             records.add((ExtLogRecord) record);
         }
 
@@ -70,7 +71,8 @@ class VocabularyOperationLogTest {
         commit.get().complete(lesson);
         assertSame(lesson, returned.get());
         assertEquals(1, records.size());
-        assertEquals("Business operation completed operation=lesson.create lessonId=7", message(0));
+        assertEquals("lesson.create.completed", message(0));
+        assertEquals("7", records.get(0).getMdc("lessonId"));
         assertNull(records.get(0).getThrown());
         subscription.cancel();
     }
@@ -103,7 +105,7 @@ class VocabularyOperationLogTest {
         assertSame(failure, assertThrows(ConflictException.class, () -> result.await().indefinitely()));
         assertEquals(1, records.size());
         assertEquals("WARN", records.get(0).getLevel().getName());
-        assertEquals("Business operation rejected operation=vocabulary.core.update vocabularyId=42 reason=conflict",
+        assertEquals("vocabulary.core.update.rejected",
                 message(0));
         assertNull(records.get(0).getThrown());
     }
@@ -122,8 +124,9 @@ class VocabularyOperationLogTest {
 
         assertEquals(1, records.size());
         assertEquals("WARN", records.get(0).getLevel().getName());
-        assertEquals("Business operation completed operation=lesson.batch.create total=2 succeeded=1 failed=1",
+        assertEquals("lesson.batch.create.completed",
                 message(0));
+        assertEquals("2", records.get(0).getMdc("total"));
     }
 
     @Test
@@ -153,7 +156,7 @@ class VocabularyOperationLogTest {
 
         assertSame(result, observe(method, new Object[]{42L, null},
                 Uni.createFrom().item(result)).await().indefinitely());
-        assertEquals("Business operation completed operation=vocabulary.core.update vocabularyId=42", message(0));
+        assertEquals("vocabulary.core.update.completed", message(0));
     }
 
     @Test

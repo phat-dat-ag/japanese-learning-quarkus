@@ -5,8 +5,17 @@ import jakarta.enterprise.context.RequestScoped;
 @RequestScoped
 public class RequestTraceContext {
 
+    private String errorType;
     private String traceId;
     private String correlationId;
+
+    public void failure(Throwable failure) {
+        errorType = failure.getClass().getName();
+    }
+
+    public String getErrorType() {
+        return errorType;
+    }
 
     public String getTraceId() {
         return traceId;

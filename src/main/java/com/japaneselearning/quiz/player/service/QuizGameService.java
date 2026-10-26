@@ -1,5 +1,8 @@
 package com.japaneselearning.quiz.player.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.common.exception.ValidationError;
@@ -29,14 +32,18 @@ import jakarta.persistence.PessimisticLockException;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.hibernate.exception.LockAcquisitionException;
+import org.jboss.logging.Logger;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class QuizGameService {
+    private static final Logger LOG = Logger.getLogger(QuizGameService.class);
+
     private final QuizGameRepository games;
     private final QuizSessionSnapshotService snapshots;
     private final QuizSessionRepository sessions;
@@ -63,10 +70,24 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.session.creation")
     public Uni<QuizSessionCreatedResponse> create(String subject, QuizSessionCreateRequest request) {
         return validateFilters(request.levelId(), request.lessonId())
                 .chain(() -> games.selectRandom(request.levelId(), request.lessonId(), request.questionCount()))
                 .chain(ids -> {
+                    StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "quiz.session.selection",
+                            Map.of(
+                                    "count", ids.size(),
+                                    "total", request.questionCount(),
+                                    "reason", ids.size() < request.questionCount()
+                                            ? "insufficient"
+                                            : "eligible"
+                            )
+                    );
+
                     if (ids.size() < request.questionCount()) {
                         throw new ConflictException(
                                 "QUIZ_INSUFFICIENT_QUESTIONS",
@@ -82,8 +103,12 @@ public class QuizGameService {
                             )
                             .transform(failure -> changed());
                 })
-                .map(session -> new QuizSessionCreatedResponse(
-                        session.id, session.status, session.questionCount, session.createdAt
+                .chain(session -> OperationLog.outcome(Uni.createFrom().item(
+                                new QuizSessionCreatedResponse(
+                                        session.id, session.status, session.questionCount, session.createdAt
+                                )),
+                        "completed",
+                        Map.of("sessionId", session.id, "count", session.questionCount)
                 ))
                 .onFailure(failure -> failure instanceof ConstraintViolationException
                         || failure instanceof LockAcquisitionException
@@ -118,6 +143,7 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(value = "quiz.session.finish", id = "sessionId")
     public Uni<QuizSessionCompletionResponse> finish(String subject, Long id) {
         // Share the answer submission lock before reading status or counts.
         return sessions.findOwnedByIdForUpdate(id, subject)

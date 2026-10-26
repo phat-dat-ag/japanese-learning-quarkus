@@ -52,6 +52,29 @@ class CorrelationIdTest {
     }
 
     @Test
+    void propagatesW3cContextThroughManagedOutboundHttp() throws Exception {
+        var received = new java.util.concurrent.atomic.AtomicReference<String>();
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            received.set(exchange.getRequestHeaders().getFirst("traceparent"));
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String trace = "abcdef0123456789abcdef0123456789";
+            given().header("traceparent", "00-" + trace + "-0123456789abcdef-01")
+                    .queryParam("port", server.getAddress().getPort()).get("/trace-client-probe")
+                    .then().statusCode(200).header("X-Trace-Id", trace);
+            assertNotNull(received.get());
+            assertTrue(received.get().startsWith("00-" + trace + "-"));
+            assertNotEquals("0123456789abcdef", received.get().split("-")[2]);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void isolatesMdcAcrossConcurrentReactiveRequests() {
         var client = HttpClient.newHttpClient();
         var pending = new ArrayList<CompletableFuture<Void>>();

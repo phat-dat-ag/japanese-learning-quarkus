@@ -1,16 +1,21 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.flashcard.domain.LearningStatus;
 import com.japaneselearning.flashcard.domain.ProgressState;
 import com.japaneselearning.flashcard.domain.ReviewRating;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 @ApplicationScoped
 public class SpacedRepetitionService {
+    private static final Logger LOG = Logger.getLogger(SpacedRepetitionService.class);
+
     public static final String ALGORITHM_VERSION = "simplified-srs-v2";
     private static final long DAY_SECONDS = 86400;
 
@@ -115,6 +120,19 @@ public class SpacedRepetitionService {
         Instant masteredAt = status == LearningStatus.MASTERED
                 ? previous.masteredAt() == null ? now : previous.masteredAt()
                 : null;
+
+        StructuredLog.event(LOG, Logger.Level.DEBUG, "flashcard.srs.scheduled",
+                Map.of(
+                        "reason",
+                        rating.name(),
+                        "learning.status",
+                        status.name(),
+                        "intervalSeconds",
+                        interval,
+                        "repetitions",
+                        repetitions
+                )
+        );
 
         return new ProgressState(
                 status,

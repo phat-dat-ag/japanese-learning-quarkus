@@ -1,5 +1,8 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
@@ -21,6 +24,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
+import java.util.Map;
 
 @ApplicationScoped
 public class FlashcardReviewService {
@@ -56,6 +60,7 @@ public class FlashcardReviewService {
     }
 
     @WithSession
+    @LogOperation(value = "flashcard.review")
     public Uni<FlashcardReviewResponse> submit(
             String subject,
             Long sessionId,
@@ -84,7 +89,7 @@ public class FlashcardReviewService {
                                     throw FlashcardConflicts.changed();
                                 }
 
-                                return accept(subject, session, item, request, time.now());
+                                return OperationLog.outcome(accept(subject, session, item, request, time.now()), "accepted");
                             });
                         }))
                 )
@@ -102,7 +107,7 @@ public class FlashcardReviewService {
             throw FlashcardConflicts.changed();
         }
 
-        return Uni.createFrom().item(response(review));
+        return OperationLog.outcome(Uni.createFrom().item(response(review)), "replayed");
     }
 
     private Uni<FlashcardReviewResponse> accept(
@@ -116,6 +121,18 @@ public class FlashcardReviewService {
             ProgressState before = VocabularyProgressService.state(row);
 
             boolean scheduling = session.mode.scheduling();
+
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "flashcard.review.mode",
+                    Map.of(
+                            "sessionId", session.id,
+                            "itemId", item.id,
+                            "vocabularyId", item.vocabularyId,
+                            "reason", scheduling ? "scheduling" : "practice"
+                    )
+            );
 
             if (scheduling && before.nextReviewAt() != null && before.nextReviewAt().isAfter(now)) {
                 throw new ConflictException(
@@ -159,10 +176,7 @@ public class FlashcardReviewService {
 
                 return reviews.persistAndFlush(review).map(this::response);
             });
-        }).invoke(result -> LOG.debugf(
-                "Flashcard review accepted sessionId=%d itemId=%d scheduling=%s",
-                new Object[]{session.id, item.id, result.scheduling()}
-        ));
+        });
     }
 
     private String encode(ProgressState state) {

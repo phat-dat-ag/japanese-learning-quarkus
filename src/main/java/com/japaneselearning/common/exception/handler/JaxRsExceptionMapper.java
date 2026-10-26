@@ -24,6 +24,7 @@ public class JaxRsExceptionMapper
 
     @Override
     public Response toResponse(WebApplicationException exception) {
+        traceContext.failure(exception);
 
         Response originalResponse = exception.getResponse();
 

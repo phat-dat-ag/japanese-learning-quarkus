@@ -24,6 +24,8 @@ public class EndpointValidationExceptionMapper implements ExceptionMapper<Restea
 
     @Override
     public Response toResponse(ResteasyReactiveViolationException exception) {
+        traceContext.failure(exception);
+
         // Only endpoint input violations are client errors. Never expose validator paths/values/messages.
         for (var violation : exception.getConstraintViolations()) {
             for (var node : violation.getPropertyPath()) {

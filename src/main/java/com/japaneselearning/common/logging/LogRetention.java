@@ -49,8 +49,10 @@ public class LogRetention {
             return;
         }
 
-        if (!DAILY_SUFFIX.equals(suffix)) {
-            throw new IllegalArgumentException("Log retention requires the .yyyy-MM-dd rotation suffix");
+        if (!DAILY_SUFFIX.equals(suffix) && !(DAILY_SUFFIX + ".gz").equals(suffix)) {
+            throw new IllegalArgumentException(
+                    "Log retention requires a daily rotation suffix with optional .gz compression"
+            );
         }
 
         // File I/O runs only on this dedicated worker, never on a reactive request thread.
@@ -92,7 +94,11 @@ public class LogRetention {
         }
 
         Pattern archiveName = Pattern.compile(
-                Pattern.quote(logFile.getFileName().toString()) + "\\.\\d{4}-\\d{2}-\\d{2}");
+                Pattern.quote(
+                        logFile.getFileName().toString())
+                        + "\\.\\d{4}-\\d{2}-\\d{2}(?:\\.[0-9]+)?(?:\\.gz)?"
+        );
+
         int removed = 0;
 
         // Never recurse, follow symlinks, or match the active file or another application's files.

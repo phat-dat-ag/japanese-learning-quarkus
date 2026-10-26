@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.quiz.domain.QuestionSource;
 import com.japaneselearning.quiz.domain.QuestionStatus;
@@ -12,9 +13,14 @@ import com.japaneselearning.quiz.repository.QuizQuestionRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
+import java.util.Map;
 
 @ApplicationScoped
 public class QuizPublicationService {
+    private static final Logger LOG = Logger.getLogger(QuizPublicationService.class);
+
     private final QuizQuestionRepository questions;
     private final QuizQuestionOptionRepository options;
 
@@ -61,6 +67,16 @@ public class QuizPublicationService {
     }
 
     private Uni<ExampleReading> resolveSentence(QuizQuestion question) {
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.question.source_resolved",
+                Map.of(
+                        "questionId", question.id,
+                        "reason", String.valueOf(question.sourceType)
+                )
+        );
+
         if (question.sourceType == QuestionSource.CUSTOM) {
             return Uni.createFrom().item(
                     new ExampleReading(question.sentenceReading, null)
