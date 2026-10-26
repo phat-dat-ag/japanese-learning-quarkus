@@ -10,11 +10,11 @@ import java.util.Set;
 public class ApplicationJsonFields implements JsonProvider {
     private static final Set<String> TEXT = Set.of(
             "event.name", "traceId", "spanId", "correlationId", "legacyTraceId", "http.request.method", "http.route",
-            "outcome", "error.type", "error.code", "error.stack_trace", "operation", "reason"
+            "learning.status", "outcome", "error.type", "error.code", "error.stack_trace", "operation", "reason"
     );
     private static final Set<String> NUMBERS = Set.of(
-            "http.response.status_code", "durationMs", "sessionId", "itemId", "vocabularyId",
-            "lessonId", "levelId", "questionId", "readingId", "meaningId", "exampleId",
+            "page", "size", "intervalSeconds", "repetitions", "http.response.status_code", "durationMs", "sessionId",
+            "itemId", "vocabularyId", "lessonId", "levelId", "questionId", "readingId", "meaningId", "exampleId",
             "pitchAccentId", "kanjiId", "total", "count", "created", "updated", "succeeded", "failed"
     );
 
@@ -32,7 +32,11 @@ public class ApplicationJsonFields implements JsonProvider {
             String value = record.getMdc(key);
 
             if (value != null) {
-                generator.add(key, Long.parseLong(value));
+                try {
+                    generator.add(key, Long.parseLong(value));
+                } catch (NumberFormatException ignored) {
+                    // Omit malformed fields, never lose the record or change its numeric schema.
+                }
             }
         }
     }

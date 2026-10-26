@@ -1,5 +1,6 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.logging.OperationLog;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -20,11 +21,15 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.time.Instant;
+import java.util.Map;
 
 @ApplicationScoped
 public class FlashcardReviewService {
+    private static final Logger LOG = Logger.getLogger(FlashcardReviewService.class);
+
     private final FlashcardSessionService sessions;
     private final FlashcardSessionRepository sessionRepository;
     private final FlashcardReviewRepository reviews;
@@ -55,7 +60,7 @@ public class FlashcardReviewService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.review", id = "")
+    @LogOperation(value = "flashcard.review")
     public Uni<FlashcardReviewResponse> submit(
             String subject,
             Long sessionId,
@@ -116,6 +121,18 @@ public class FlashcardReviewService {
             ProgressState before = VocabularyProgressService.state(row);
 
             boolean scheduling = session.mode.scheduling();
+
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "flashcard.review.mode",
+                    Map.of(
+                            "sessionId", session.id,
+                            "itemId", item.id,
+                            "vocabularyId", item.vocabularyId,
+                            "reason", scheduling ? "scheduling" : "practice"
+                    )
+            );
 
             if (scheduling && before.nextReviewAt() != null && before.nextReviewAt().isAfter(now)) {
                 throw new ConflictException(

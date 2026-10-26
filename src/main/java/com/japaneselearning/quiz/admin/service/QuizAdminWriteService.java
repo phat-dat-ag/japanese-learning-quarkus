@@ -1,6 +1,7 @@
 package com.japaneselearning.quiz.admin.service;
 
 import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.quiz.admin.dto.QuizCorrectOptionRequest;
@@ -35,6 +36,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class QuizAdminWriteService {
@@ -292,6 +294,11 @@ public class QuizAdminWriteService {
     private Uni<QuizQuestionResponse> complete(Uni<QuizQuestion> operation) {
         return operation.invoke(question -> question.updatedAt = LocalDateTime.now(ZoneOffset.UTC))
                 .call(questions::flush).chain(question -> queries.detail(question.id))
+                .chain(response -> OperationLog.outcome(
+                        Uni.createFrom().item(response),
+                        "completed",
+                        Map.of("questionId", response.id())
+                ))
                 .onFailure(failure -> failure instanceof ConstraintViolationException
                         || failure instanceof OptimisticLockException
                         || failure instanceof PessimisticLockException

@@ -1,6 +1,8 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.flashcard.domain.FlashcardSessionStatus;
 import com.japaneselearning.flashcard.domain.ProgressState;
@@ -17,15 +19,19 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.quarkus.panache.common.Page;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class FlashcardSessionService {
+    private static final Logger LOG = Logger.getLogger(FlashcardSessionService.class);
+
     private final FlashcardSessionRepository sessions;
     private final FlashcardLearningRepository catalogue;
     private final VocabularyProgressService progress;
@@ -44,7 +50,7 @@ public class FlashcardSessionService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.session.creation", id = "")
+    @LogOperation(value = "flashcard.session.creation")
     public Uni<FlashcardSessionCreatedResponse> create(
             String subject,
             FlashcardSessionCreateRequest request
@@ -62,6 +68,16 @@ public class FlashcardSessionService {
                                     request.shuffle()
                             ))
                             .chain(ids -> {
+                                StructuredLog.event(
+                                        LOG,
+                                        Logger.Level.DEBUG,
+                                        "flashcard.session.selection",
+                                        Map.of(
+                                                "reason", request.selectedMode().name(),
+                                                "count", ids.size(),
+                                                "total", request.selectedLimit()
+                                        )
+                                );
                                 if (ids.isEmpty()) {
                                     return Uni.createFrom().item(
                                             new FlashcardSessionCreatedResponse("NO_ELIGIBLE_CARDS", 0, null)
@@ -70,8 +86,15 @@ public class FlashcardSessionService {
 
                                 return persist(subject, request, ids, now)
                                         .chain(session -> detail(subject, session))
-                                        .map(response -> new FlashcardSessionCreatedResponse(
-                                                "CREATED", ids.size(), response
+                                        .chain(response -> OperationLog.outcome(
+                                                Uni.createFrom().item(new FlashcardSessionCreatedResponse(
+                                                        "CREATED", ids.size(), response
+                                                )),
+                                                "completed",
+                                                Map.of(
+                                                        "sessionId", response.sessionId(),
+                                                        "count", ids.size()
+                                                )
                                         ));
                             });
                 }).onFailure(FlashcardConflicts::concurrent)

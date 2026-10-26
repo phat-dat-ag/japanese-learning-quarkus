@@ -9,7 +9,7 @@ BOM-managed Quarkus 3.38.2 extensions are added: `quarkus-logging-json` and
 blocking database instrumentation or schema change.
 
 The JSON extension owns escaping and NDJSON framing. `ApplicationJsonFields`
-uses its `JsonProvider` SPI to export allowlisted MDC fields with numeric types.
+uses its `JsonProvider` SPI to export allowlisted MDC fields with numeric types. Invalid or overflowing integer values are omitted without dropping the record or changing the field to a string.
 `StructuredLog` attaches event fields temporarily and restores prior MDC.
 Quarkus snapshots queued log context and propagates it through duplicated
 Vert.x contexts. OpenTelemetry owns tracing; the early filter owns HTTP lifecycle
@@ -52,7 +52,9 @@ are escaped inside the object. Dotted keys are literal top-level keys.
 | `outcome` | `success`, `failure`, or vocabulary batch `partial_failure` |
 | `error.code`, `error.type` | Safe code and exception class or HTTP/security category |
 | `error.stack_trace` | Bounded sanitized cause classes and code locations |
-| `operation`, `reason` | Stable operation and rejection category |
+| `operation`, `reason` | Stable operation and decision/rejection category |
+| `learning.status` | SRS state name; never the learner subject |
+| `intervalSeconds`, `repetitions`, `page`, `size` | Integer scheduling/pagination diagnostics |
 | `sessionId`, `itemId`, `vocabularyId`, `lessonId`, other allowlisted IDs | Integers, never subjects |
 | `count`, `total`, `created`, `updated`, `succeeded`, `failed` | Integer summary metrics |
 
@@ -101,8 +103,8 @@ summary. JLPT catalogue counts are structured DEBUG diagnostics.
 
 `LogOperation` marks flashcard session creation/finish/abandon, bookmarks,
 statistics, quiz session creation/completion, answers, progress and question
-Admin operations. Success follows transaction completion. Conflicts use WARN;
-ordinary validation rejection uses DEBUG. Quiz imports suppress nested item logs.
+Admin operations. Success follows transaction completion. Statistics/progress reads complete at DEBUG. Conflicts use WARN;
+ordinary validation rejection uses DEBUG. Quiz imports suppress nested item logs and emit a WARN `quiz.question.import.partial_failure` summary when any items fail, with `total`, `succeeded`, and `failed` counts.
 
 Reviews emit `flashcard.review.accepted` or `flashcard.review.replayed` after
 commit, using subscription-local outcome state. `flashcard.review.rejected`
@@ -145,7 +147,7 @@ collector is required. The incoming span is the parent, not the server span.
 
 | Environment variable | Default / use |
 | --- | --- |
-| `APP_SERVICE_NAME` | `backend` |
+| `APP_SERVICE_NAME` | `quarkus-service` |
 | `APP_ENVIRONMENT` | `production`; `development` in dev and `test` in tests |
 | `ROOT_LOG_LEVEL`, `APP_LOG_LEVEL` | `INFO`; latter applies to application packages |
 | `APP_LOG_CONSOLE_JSON`, `APP_LOG_FILE_JSON` | `true` |
@@ -237,6 +239,91 @@ metadata:
 | Unexpected error | `http.request.failed` / ERROR, plus one stack diagnostic | 500 / `INTERNAL_SERVER_ERROR` |
 | Slow success | `http.request.completed` plus `http.request.slow` / WARN | 200, numeric duration |
 
+## Developer conventions and workflow coverage
+
+Use `@LogOperation` on a meaningful CDI service boundary, outside the reactive
+transaction interceptor. Production annotated methods return `Uni`; synchronous
+results and exceptions are also supported. Do not apply it to a `Multi`, future,
+or publisher without adding lifecycle support and tests. Internal `Multi` import
+pipelines are collected into `Uni` before returning. Method bindings override
+class bindings; metadata is nonbinding. Avoid annotating every repository or
+helper, and prefer method annotations when a class has several operations.
+
+`value` is a static operation name. `id` only renames a `Long` argument literally
+named `id`, for example `@LogOperation(value = "quiz.session.finish", id = "sessionId")`.
+Arguments already named `sessionId`, `itemId`, `vocabularyId`, `lessonId`, `levelId`
+or `questionId` are recognized directly. The empty default deliberately omits an
+ambiguous `id`; writing `id = ""` explicitly adds nothing. No DTO, subject, arbitrary
+argument, or return value is inspected or stringified. Vocabulary operations keep
+the existing, separately tested `LogVocabularyOperation` binding.
+
+`OperationLog.outcome` carries explicit safe fields in subscription context until
+outer completion, including commit. Session creation supplies the generated ID
+and selected count this way. A rollback never emits those success fields. Context
+markers are removed after success, failure, or cancellation; each subscription
+starts fresh. Nested operations share the outer summary. `StructuredLog.event`
+restores previous MDC values and skips disabled events before stringifying fields.
+Neither interceptor leaves an operation name in ambient MDC after failure.
+
+| Level | Developer rule |
+| --- | --- |
+| INFO | Successful meaningful writes and batch start/completion; HTTP lifecycle. Use `log.info()` for safe static operational notices and `StructuredLog.event` when IDs/counts matter. |
+| WARN | Conflicts, partial batches, slow work and recoverable operational failures. HTTP 4xx is logged once by the lifecycle owner; avoid another warning for every validation layer or normal empty result. |
+| DEBUG | Selection, normalization, scheduling and validation stages; routine read completion (`level = Logger.Level.DEBUG`). These decisions can precede rollback and are not commit evidence. |
+| ERROR | Unexpected technical failure: the central mapper emits one sanitized stack diagnostic. Do not add `log.error(failure)` at each service/repository boundary or log raw SQL/exception messages. |
+
+For `log.warn()` and `log.debug()`, use only static messages or explicitly safe
+scalar values. For business events prefer typed fields, as in the actual review
+path:
+
+```java
+StructuredLog.event(LOG, Logger.Level.DEBUG, "flashcard.review.mode",
+        Map.of("sessionId", session.id, "itemId", item.id, "vocabularyId", item.vocabularyId,
+                "reason", scheduling ? "scheduling" : "practice"));
+```
+
+Names use feature, business operation and phase separated by dots; new multiword
+phases use underscores. Existing event names remain stable, including older
+`updateOption`/`correctOption` names. Never embed IDs or caller text in event names.
+Keep field types consistent and add a provider allowlist entry plus a JSON test
+when introducing a new field. Do not put subjects, file paths/names, tokens,
+question/answer text, query strings, headers or bodies into logging fields.
+
+All REST resources and their service/repository paths were included in the audit.
+The common HTTP lifecycle supplies start, matched route, status, duration and
+trace/correlation context for every application API, including read-only paths
+that do not need additional INFO business events.
+
+| Module / workflows | Business visibility and persistence boundary |
+| --- | --- |
+| Vocabulary JSON/file imports | INFO start and post-transaction counts; DEBUG structure/assignment validation; WARN rejection. Sequential relation importers remain under one atomic transaction, without per-row INFO logs. |
+| JLPT and lessons | Catalogue/lookup diagnostics, lesson create/update IDs, batch success/failure counts. Existing uniqueness and level checks propagate safe codes; batch item technical failures use the central diagnostic helper. |
+| Vocabulary Admin / Kanji | Core, reading, meaning, pitch accent, example, Kanji and assignment writes retain their operation events. Shared Kanji metadata/readings and example content checks add DEBUG IDs/counts before conflict decisions. |
+| Flashcard catalogue and personal collections | Existing bounded list/detail diagnostics; DEBUG due/bookmark/forgotten collection counts and pagination. Personal enrichment uses bulk progress/bookmark lookups; no subject or card text is logged. |
+| Flashcard learning / SRS | Session selection mode/count/limit; generated session IDs after commit; review scheduling/practice decisions; DEBUG rating category, interval and resulting state. Accepted/replayed reviews, not-due/version conflicts, finish/abandon and bookmarks retain operation outcomes. Bookmark completion confirms requested state, not necessarily a new row. |
+| Quiz Admin / imports | Authoring/publication/archive operations, generated question IDs, DEBUG custom/example source selection; batch start and WARN partial summaries. Per-item transactions remain independent. |
+| Quiz gameplay / snapshots | DEBUG eligibility and locked-bank revalidation; generated session IDs/counts after commit; answer and completion events, ownership/ordering/conflict codes. Snapshot and classification persistence remain sequential and immutable. |
+| Quiz history / progress | HTTP route and lifecycle for history/detail/config/next reads; progress completion at DEBUG. Normal empty history/next results are not warnings. |
+| Repositories and external operations | Reactive persistence is represented by enclosing operation duration/outcome and sampled SQL spans. No per-query INFO logging or bind values. No business HTTP client exists; OIDC owns JWKS retrieval. |
+| Security and common infrastructure | Early 401/403, validation, deserialization and central errors share request tracing. Health probe noise stays excluded. Retention failure retries remain WARN and file I/O stays on its worker. |
+
+For an actual API timeline, call `POST /api/v1/flashcards/sessions/{id}/items/{itemId}/review`
+with `X-Correlation-ID: support-42` and a valid bearer token, then search that ID
+as shown above. At DEBUG, scheduling produces `flashcard.review.mode` and
+`flashcard.srs.scheduled`; commit produces `flashcard.review.accepted`, or an
+idempotent repeat produces `flashcard.review.replayed`. A not-due conflict instead
+produces `flashcard.review.rejected` with `FLASHCARD_NOT_DUE`, followed by exactly
+one `http.request.failed`. A normal completion ends with `http.request.completed`.
+The optional `.slow` event is a performance signal, not another terminal event.
+
+For storage planning, the defaults permit roughly 101 files of up to 50 MiB per
+date before compression, across retained dates (about 148 GiB for 30 dates).
+This is only a planning estimate: records can overshoot the size threshold,
+cleanup is hourly, and compression ratios vary. Enforce a deployment storage
+quota and monitor free space; day retention and per-date backup count do not
+provide a strict aggregate byte cap. A full disk or discarded async queue can
+lose diagnostics. Launcher/JVM stderr and OTLP delivery still require separate
+collector configuration and deployment validation.
 ## Verification
 
 Tests parse real HTTP/file logs as JSON and cover schema/types, correlation
@@ -262,7 +349,33 @@ Opt-in MySQL checks remain documented in README. Rotation/reopen tests exercise
 the real file handler; they do not prove external collector, production volume
 or .NET tracing integration behavior. Validate those during deployment.
 
-### Container verification performed
+### Current-checkout verification (2026-10-26)
+
+- Focused helper/business and HTTP tests passed; the final helper/HTTP diagnostic
+  run passed 14 tests. Six new regression tests cover malformed numeric MDC,
+  strict duplicate-key parsing, field isolation, disabled DEBUG behavior, SRS
+  decisions, synchronous/class bindings, reactive failure/cancellation and partial
+  quiz-import summaries.
+- Full offline `verify` and packaging passed: 261 executed, 135 skipped.
+- All 215 opt-in MySQL tests passed on a disposable MySQL 8.4 database migrated
+  externally through V11. Captured real output included generated session/question
+  IDs, accepted/replayed review events and WARN partial-import counts.
+- Dockerfile checks and the root source image build passed. Forty unauthorized
+  requests across a container restart produced 140 valid console records and 140
+  valid file records; twelve gzip archives were readable. Each request had one
+  terminal event and consistent trace/span IDs; the query secret sentinel was absent.
+- `git diff --check` passed. Existing containers, volumes and logs were preserved.
+  No external OTLP collector, native build or real .NET token integration was tested.
+
+The pinned Quarkus 3.38.2 / OpenTelemetry 1.62.0 combination emits an
+`io.opentelemetry.usage` warning. A focused diagnostic at JUL FINEST identified
+`Span.fromContextOrNull(): context is null` in Quarkus's
+`OpentelemetryExemplarSamplerProvider`, reached by JVM startup/GC metrics outside
+an active span. Request trace propagation and logging checks pass. The warning
+is retained; this change does not disable metrics/exemplars, suppress the warning,
+or upgrade dependencies. Track this framework integration when updating Quarkus.
+Diagnostic ALL/FINEST settings were temporary and are not production defaults.
+### Previous-session container verification (historical)
 
 The root source-built image was run with a new isolated bind directory and an
 8 KiB rotation threshold. Forty unauthorized API requests were sent across a
@@ -273,7 +386,7 @@ launcher stderr lines (two starts) were separate from application NDJSON.
 The task-created container was removed; existing containers/volumes were untouched.
 This verifies local restart/rotation behavior, not production collector delivery.
 
-### Final automated results
+### Previous-session automated results (historical)
 
 - Offline `verify` passed: 255 executed tests; 135 opt-in test cases were skipped.
   The documented dedicated-database URL discovery workaround was supplied.

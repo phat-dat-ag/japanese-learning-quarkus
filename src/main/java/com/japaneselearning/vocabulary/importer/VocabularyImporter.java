@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
@@ -13,6 +14,7 @@ import org.jboss.logging.Logger;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyImporter {
@@ -73,9 +75,19 @@ public class VocabularyImporter {
             return Uni.createFrom().failure(invalidInputException(field, message));
         }
 
-        LOG.debugf("Vocabulary import started total=%d", items.size());
+        StructuredLog.event(LOG, Logger.Level.DEBUG, "vocabulary.import.validated",
+                Map.of("total", items.size(), "reason", "structure"));
         return relationImporter.validateLessons(items)
                 .chain(() -> validateExistingAssignments(items))
+                .invoke(() -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.validated",
+                        Map.of(
+                                "total", items.size(),
+                                "reason", "assignments"
+                        )
+                ))
                 .chain(() -> Multi.createFrom().iterable(items)
                         .onItem().transformToUniAndConcatenate(this::importItem)
                         .collect().asList()

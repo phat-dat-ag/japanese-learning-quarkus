@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.admin.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyExampleResponse;
 import com.japaneselearning.vocabulary.entity.ExampleSentence;
@@ -11,12 +12,16 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @ApplicationScoped
 public class VocabularyExampleEditService {
+    private static final Logger LOG = Logger.getLogger(VocabularyExampleEditService.class);
+
     private final VocabularyEditPersistence persistence;
     private final ExampleSentenceRepository sentences;
     private final VocabularyExampleRepository exampleAssignments;
@@ -90,6 +95,17 @@ public class VocabularyExampleEditService {
                 .flatMap(sentence -> requireUniqueExample(vocabularyId, exampleId, request)
                         .chain(() -> exampleAssignments.countOtherVocabularyAssignments(exampleId, vocabularyId))
                         .map(otherVocabularyCount -> {
+                            StructuredLog.event(
+                                    LOG,
+                                    Logger.Level.DEBUG,
+                                    "vocabulary.example.sharing_checked",
+                                    Map.of(
+                                            "vocabularyId", vocabularyId,
+                                            "exampleId", exampleId,
+                                            "count", otherVocabularyCount
+                                    )
+                            );
+
                             if (otherVocabularyCount > 0 && sentenceContentChanged(sentence, request)) {
                                 throw VocabularyEditPersistence.conflict(
                                         "Example sentence is shared; vocabulary editing cannot change its content"

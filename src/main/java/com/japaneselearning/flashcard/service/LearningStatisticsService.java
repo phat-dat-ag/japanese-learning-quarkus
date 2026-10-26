@@ -1,5 +1,6 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.flashcard.domain.ProgressState;
 import com.japaneselearning.flashcard.dto.FlashcardPageResponse;
@@ -11,13 +12,18 @@ import io.quarkus.hibernate.reactive.panache.Panache;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+import org.jboss.logging.Logger.Level;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class LearningStatisticsService {
+    private static final Logger LOG = Logger.getLogger(LearningStatisticsService.class);
+
     private final FlashcardLearningRepository catalogue;
     private final VocabularyProgressService progress;
     private final VocabularyBookmarkRepository bookmarks;
@@ -36,7 +42,7 @@ public class LearningStatisticsService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.statistics", id = "")
+    @LogOperation(value = "flashcard.statistics", level = Level.DEBUG)
     public Uni<LearningStatisticsResponse> statistics(String subject, String level, Long lessonId) {
         String normalized = FlashcardValidation.level(level);
 
@@ -91,6 +97,17 @@ public class LearningStatisticsService {
 
             return catalogue.validateScope(normalized, lessonId)
                     .chain(() -> catalogue.cards(subject, normalized, lessonId, collection, now, page, size))
+                    .invoke(rows -> StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "flashcard.collection.selected",
+                            Map.of(
+                                    "reason", collection.name(),
+                                    "count", rows.size(),
+                                    "page", page,
+                                    "size", size
+                            )
+                    ))
                     .chain(rows -> enrich(subject, rows))
                     .chain(cards ->
                             catalogue.countCards(subject, normalized, lessonId, collection, now)

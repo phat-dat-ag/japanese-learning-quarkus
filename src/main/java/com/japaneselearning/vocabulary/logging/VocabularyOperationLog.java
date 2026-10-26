@@ -41,7 +41,13 @@ public class VocabularyOperationLog {
         String operation = invocation.getMethod().getAnnotation(LogVocabularyOperation.class).value();
         Map<String, Object> identifiers = identifiers(invocation);
 
-        Uni<?> result = (Uni<?>) invocation.proceed();
+        Uni<?> result;
+        try {
+            result = (Uni<?>) invocation.proceed();
+        } catch (BusinessException failure) {
+            rejected(operation, identifiers, failure);
+            throw failure;
+        }
 
         return result.withContext((uni, context) -> {
             // Nested lesson creates belong to the outer batch summary, not per-record INFO/WARN logs.
@@ -52,10 +58,37 @@ public class VocabularyOperationLog {
             context.put(ACTIVE_OPERATION, true);
             long started = System.nanoTime();
 
-            return uni.invoke(item -> completed(operation, identifiers, item, (System.nanoTime() - started) / 1_000_000))
+            Map<String, Object> startFields = new HashMap<>(identifiers);
+
+            startFields.put("operation", operation);
+
+            StructuredLog.event(
+                    LOG,
+                    operation.equals("vocabulary.import")
+                            ? Logger.Level.INFO
+                            : Logger.Level.DEBUG,
+                    operation + ".started",
+                    startFields
+            );
+
+            return uni.invoke(item -> completed(
+                            operation,
+                            identifiers,
+                            item,
+                            (System.nanoTime() - started) / 1_000_000
+                    ))
                     .onFailure(BusinessException.class)
                     .invoke(failure -> rejected(operation, identifiers, (BusinessException) failure))
-                    .onFailure().invoke(failure -> org.jboss.logmanager.MDC.put("operation", operation))
+                    .onFailure(failure -> !(failure instanceof BusinessException)).invoke(failure -> {
+                        Map<String, Object> fields = new HashMap<>(identifiers);
+
+                        fields.put("operation", operation);
+                        fields.put("error.type", failure.getClass().getName());
+                        fields.put("durationMs", (System.nanoTime() - started) / 1_000_000);
+                        fields.put("outcome", "failure");
+
+                        StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".failed", fields);
+                    })
                     .onTermination().invoke(() -> {
                         context.delete(ACTIVE_OPERATION);
                         long duration = (System.nanoTime() - started) / 1_000_000;

@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.admin.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.admin.dto.KanjiUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.KanjiReadingUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.KanjiReadingResponse;
@@ -14,12 +15,16 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @ApplicationScoped
 public class VocabularyKanjiEditService {
+    private static final Logger LOG = Logger.getLogger(VocabularyKanjiEditService.class);
+
     private final VocabularyEditPersistence persistence;
     private final KanjiRepository kanji;
     private final KanjiReadingRepository kanjiReadings;
@@ -134,6 +139,18 @@ public class VocabularyKanjiEditService {
                 })
                 .chain(() -> kanjiAssignments.countOtherVocabularyAssignmentsForUpdate(kanjiEntity.id, vocabularyId))
                 .invoke(otherVocabularyCount -> {
+                    StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "vocabulary.kanji.sharing_checked",
+                            Map.of(
+                                    "vocabularyId", vocabularyId,
+                                    "kanjiId", kanjiEntity.id,
+                                    "count", otherVocabularyCount,
+                                    "reason", "metadata"
+                            )
+                    );
+
                     if (otherVocabularyCount > 0 && kanjiMetadataChanged(kanjiEntity, request)) {
                         throw VocabularyEditPersistence.conflict(
                                 "Kanji is shared; vocabulary editing cannot change its metadata"
@@ -200,6 +217,18 @@ public class VocabularyKanjiEditService {
     ) {
         return kanjiAssignments.countOtherVocabularyAssignmentsForUpdate(kanjiId, vocabularyId)
                 .invoke(otherVocabularyCount -> {
+                    StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "vocabulary.kanji.sharing_checked",
+                            Map.of(
+                                    "vocabularyId", vocabularyId,
+                                    "kanjiId", kanjiId,
+                                    "count", otherVocabularyCount,
+                                    "reason", "readings"
+                            )
+                    );
+
                     if (otherVocabularyCount > 0) {
                         throw VocabularyEditPersistence.conflict(
                                 "Kanji is shared; vocabulary editing cannot change its readings"

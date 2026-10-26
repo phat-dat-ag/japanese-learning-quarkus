@@ -11,6 +11,10 @@ public final class StructuredLog {
     }
 
     public static void event(Logger logger, Logger.Level level, String event, Map<String, ?> fields) {
+        if (!logger.isEnabled(level)) {
+            return;
+        }
+
         Map<String, String> previous = new HashMap<>();
         Map<String, Object> values = new HashMap<>(fields);
 

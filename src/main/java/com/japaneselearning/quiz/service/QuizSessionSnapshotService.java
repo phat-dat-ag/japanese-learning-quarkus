@@ -1,5 +1,6 @@
 package com.japaneselearning.quiz.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.quiz.domain.ExampleReading;
 import com.japaneselearning.quiz.domain.QuestionOption;
@@ -21,6 +22,7 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +32,8 @@ import java.util.Map;
 
 @ApplicationScoped
 public class QuizSessionSnapshotService {
+    private static final Logger LOG = Logger.getLogger(QuizSessionSnapshotService.class);
+
     public static final int MAX_SESSION_QUESTIONS = 100;
     private final QuizGameRepository games;
     private final QuizQuestionRepository questions;
@@ -98,6 +102,16 @@ public class QuizSessionSnapshotService {
                 )
                 .collect().asList().chain(locked -> lockSources(locked)
                         .call(() -> games.stillMatches(selected, levelId, lessonId).invoke(matches -> {
+                            StructuredLog.event(
+                                    LOG,
+                                    Logger.Level.DEBUG,
+                                    "quiz.session.revalidated",
+                                    Map.of(
+                                            "count", selected.size(),
+                                            "reason", matches ? "eligible" : "bank_changed"
+                                    )
+                            );
+
                             if (!matches) {
                                 throw QuizQuestionRules.invalid(
                                         "filters",

@@ -11,6 +11,7 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger.Level;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,7 +26,7 @@ public class QuizProgressService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.progress", id = "")
+    @LogOperation(value = "quiz.progress", level = Level.DEBUG)
     public Uni<QuizProgressResponse> overall(String subject) {
         return progress.overall(subject)
                 .map(counts -> new QuizProgressResponse(
@@ -41,7 +42,7 @@ public class QuizProgressService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.progress.breakdown", id = "")
+    @LogOperation(value = "quiz.progress.breakdown", level = Level.DEBUG)
     public Uni<QuizProgressBreakdownResponse> breakdown(String subject) {
         return progress.levels(subject)
                 .chain(levels -> progress.lessons(subject)
