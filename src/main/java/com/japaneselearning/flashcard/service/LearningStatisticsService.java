@@ -2,6 +2,7 @@ package com.japaneselearning.flashcard.service;
 
 import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.flashcard.domain.ProgressState;
 import com.japaneselearning.flashcard.dto.FlashcardPageResponse;
 import com.japaneselearning.flashcard.dto.LearningStatisticsResponse;
@@ -13,7 +14,6 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
-import org.jboss.logging.Logger.Level;
 
 import java.util.List;
 import java.util.Map;
@@ -42,7 +42,10 @@ public class LearningStatisticsService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.statistics", level = Level.DEBUG)
+    @LogOperation(
+            value = "flashcard.statistics",
+            description = "Flashcard learning statistics retrieval"
+    )
     public Uni<LearningStatisticsResponse> statistics(String subject, String level, Long lessonId) {
         String normalized = FlashcardValidation.level(level);
 
@@ -76,10 +79,34 @@ public class LearningStatisticsService {
                                 LearningStatisticsResponse.percentage(mastered, total)
                         );
                     }));
-        });
+        }).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                "Successfully retrieved learning statistics for " + result.totalVocabularyCount()
+                        + " vocabulary entries: new=" + result.newCount()
+                        + ", learning=" + result.learningCount()
+                        + ", review=" + result.reviewCount()
+                        + ", mastered=" + result.masteredCount()
+                        + ", due=" + result.dueCount()
+                        + ", studied=" + result.studiedCount()
+                        + ", review attempts=" + result.totalReviewAttempts()
+                        + ", forgotten attempts=" + result.forgottenCount()
+                        + ", scheduled attempts=" + result.scheduledReviewAttempts()
+                        + ", practice attempts=" + result.practiceReviewAttempts()
+                        + ", studied percentage=" + result.studiedPercentage()
+                        + ", mastery percentage=" + result.masteryPercentage(),
+                Map.of(
+                        "total", result.totalVocabularyCount(),
+                        "count", result.totalReviewAttempts()
+                )
+        ));
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.collection",
+            description = "Personal flashcard collection retrieval"
+    )
     public Uni<FlashcardPageResponse<PersonalFlashcardResponse>> list(
             String subject,
             String level,
@@ -101,7 +128,10 @@ public class LearningStatisticsService {
                             LOG,
                             Logger.Level.DEBUG,
                             "flashcard.collection.selected",
+                            "Selected " + rows.size() + " vocabulary entries for the "
+                                    + collection.name() + " collection page",
                             Map.of(
+                                    "operation", "flashcard.collection",
                                     "reason", collection.name(),
                                     "count", rows.size(),
                                     "page", page,
@@ -113,7 +143,19 @@ public class LearningStatisticsService {
                             catalogue.countCards(subject, normalized, lessonId, collection, now)
                                     .map(total -> FlashcardPageResponse.of(cards, page, size, total))
                     );
-        });
+        }).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                "Successfully retrieved {count} flashcards from {total} matching entries in the "
+                        + collection.name() + " collection",
+                Map.of(
+                        "reason", collection.name(),
+                        "count", result.items().size(),
+                        "total", result.totalElements(),
+                        "page", page,
+                        "size", size
+                )
+        ));
     }
 
     public Uni<List<PersonalFlashcardResponse>> enrich(String subject, List<Object[]> rows) {

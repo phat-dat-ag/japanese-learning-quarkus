@@ -1,5 +1,7 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.flashcard.dto.FlashcardDetailResponse;
 import com.japaneselearning.flashcard.dto.FlashcardListItemResponse;
 import com.japaneselearning.flashcard.dto.FlashcardListResponse;
@@ -8,6 +10,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class PersonalFlashcardService {
@@ -23,6 +26,10 @@ public class PersonalFlashcardService {
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.personal.list",
+            description = "Personalized flashcard retrieval"
+    )
     public Uni<FlashcardListResponse> list(
             String subject,
             String level,
@@ -50,10 +57,25 @@ public class PersonalFlashcardService {
                                         result.totalElements(),
                                         result.totalPages()
                                 ))
-                );
+                ).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        "Successfully retrieved {count} personalized flashcards from {total} matching vocabulary entries",
+                        Map.of(
+                                "count", result.flashcardItems().size(),
+                                "total", result.totalElements(),
+                                "page", page,
+                                "size", size
+                        )
+                ));
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.personal.detail",
+            id = "vocabularyId",
+            description = "Personalized flashcard detail retrieval"
+    )
     public Uni<FlashcardDetailResponse> detail(String subject, Long id) {
         return cards.getFlashcard(id).chain(result -> learning.enrich(
                         subject,
@@ -77,6 +99,11 @@ public class PersonalFlashcardService {
                             state.bookmarked()
                     );
                 })
-        );
+        ).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                "Successfully retrieved vocabulary flashcard details with current learning progress and bookmark state",
+                Map.of("vocabularyId", id)
+        ));
     }
 }

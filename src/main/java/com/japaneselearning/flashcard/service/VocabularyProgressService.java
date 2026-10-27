@@ -1,10 +1,12 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.flashcard.domain.ProgressState;
 import com.japaneselearning.flashcard.entity.VocabularyProgress;
 import com.japaneselearning.flashcard.repository.VocabularyProgressRepository;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,6 +15,8 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class VocabularyProgressService {
+    private static final Logger LOG = Logger.getLogger(VocabularyProgressService.class);
+
     private final VocabularyProgressRepository progress;
 
     public VocabularyProgressService(VocabularyProgressRepository progress) {
@@ -26,7 +30,18 @@ public class VocabularyProgressService {
                                         row.vocabularyId,
                                 VocabularyProgressService::state
                         ))
-                );
+                ).invoke(states -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "flashcard.progress.loaded",
+                        "Retrieved stored SRS progress for " + states.size()
+                                + " of " + ids.size()
+                                + " requested vocabulary entries; entries without progress use the NEW state",
+                        Map.of(
+                                "count", states.size(),
+                                "total", ids.size(), "outcome", "success"
+                        )
+                ));
     }
 
     public static ProgressState state(VocabularyProgress row) {
