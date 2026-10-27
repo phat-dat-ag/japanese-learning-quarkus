@@ -1,5 +1,7 @@
 package com.japaneselearning.flashcard.service;
 
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
@@ -12,17 +14,15 @@ import io.quarkus.hibernate.reactive.panache.common.WithSession;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.NoResultException;
-import org.jboss.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @ApplicationScoped
 public class FlashcardService {
-
-    private static final Logger LOG = Logger.getLogger(FlashcardService.class);
 
     private static final Set<String> SUPPORTED_LEVELS = Set.of("N1", "N2", "N3", "N4", "N5");
 
@@ -33,6 +33,10 @@ public class FlashcardService {
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.catalogue.list",
+            description = "Flashcard catalogue retrieval"
+    )
     public Uni<FlashcardListResponse> getFlashcards(
             String level,
             Integer lesson,
@@ -56,19 +60,31 @@ public class FlashcardService {
 
                 int totalPages = (int) Math.ceil((double) totalElements / size);
 
-                LOG.debugf(
-                        "Flashcards loaded level=%s lesson=%s page=%d size=%d returned=%d total=%d",
-                        levelCode, lesson, page, size, items.size(), totalElements
-                );
-
                 return new FlashcardListResponse(
                         items, page, size, totalElements, totalPages
                 );
             });
-        });
+        }).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                "Successfully retrieved {count} flashcards from {total} matching vocabulary entries for JLPT "
+                        + levelCode
+                        + (lesson == null ? "" : " and lesson number=" + lesson),
+                Map.of(
+                        "count", result.flashcardItems().size(),
+                        "total", result.totalElements(),
+                        "page", page,
+                        "size", size
+                )
+        ));
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.catalogue.detail",
+            description = "Flashcard detail retrieval",
+            successMessage = "Successfully retrieved vocabulary flashcard details"
+    )
     public Uni<FlashcardDetailResponse> getFlashcard(Long vocabularyId) {
         if (vocabularyId == null || vocabularyId <= 0) {
             throw new ValidationException(
@@ -103,8 +119,7 @@ public class FlashcardService {
                         .invoke(detail::setPitchAccents))
                 .call(detail -> flashcardRepository.findKanjiReadings(detail.kanjiIds())
                         .invoke(detail::setKanjiReadings))
-                .map(FlashcardDetailAssembler::build)
-                .invoke(detail -> LOG.debugf("Flashcard loaded vocabularyId=%d", vocabularyId));
+                .map(FlashcardDetailAssembler::build);
     }
 
     private void validateListRequest(String levelCode, Integer lesson, int page, int size) {

@@ -50,7 +50,10 @@ public class FlashcardSessionService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.session.creation")
+    @LogOperation(
+            value = "flashcard.session.creation",
+            description = "Flashcard learning session creation"
+    )
     public Uni<FlashcardSessionCreatedResponse> create(
             String subject,
             FlashcardSessionCreateRequest request
@@ -72,15 +75,34 @@ public class FlashcardSessionService {
                                         LOG,
                                         Logger.Level.DEBUG,
                                         "flashcard.session.selection",
+                                        "Selected " + ids.size()
+                                                + " eligible flashcards using " + request.selectedMode()
+                                                + " mode with a requested limit of " + request.selectedLimit()
+                                                + (
+                                                request.selectedMode().scheduling()
+                                                        ? "; future-due cards are excluded"
+                                                        : "; practice does not require cards to be due"
+                                        ),
                                         Map.of(
+                                                "operation", "flashcard.session.creation",
+                                                "lessonId", request.lessonId(),
                                                 "reason", request.selectedMode().name(),
                                                 "count", ids.size(),
-                                                "total", request.selectedLimit()
+                                                "size", request.selectedLimit()
                                         )
                                 );
                                 if (ids.isEmpty()) {
-                                    return Uni.createFrom().item(
-                                            new FlashcardSessionCreatedResponse("NO_ELIGIBLE_CARDS", 0, null)
+                                    return OperationLog.outcome(
+                                            Uni.createFrom().item(
+                                                    new FlashcardSessionCreatedResponse("NO_ELIGIBLE_CARDS", 0, null)
+                                            ),
+                                            "completed",
+                                            "No learning session was created because no eligible flashcards were found",
+                                            Map.of(
+                                                    "count", 0,
+                                                    "lessonId", request.lessonId(),
+                                                    "reason", "no_eligible_cards"
+                                            )
                                     );
                                 }
 
@@ -91,7 +113,9 @@ public class FlashcardSessionService {
                                                         "CREATED", ids.size(), response
                                                 )),
                                                 "completed",
+                                                "Successfully created learning session with id={sessionId} containing {count} cards",
                                                 Map.of(
+                                                        "lessonId", request.lessonId(),
                                                         "sessionId", response.sessionId(),
                                                         "count", ids.size()
                                                 )
@@ -142,13 +166,33 @@ public class FlashcardSessionService {
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.session.get",
+            id = "sessionId",
+            description = "Flashcard session retrieval"
+    )
     public Uni<FlashcardSessionResponse> get(String subject, Long id) {
         return Panache.withTransaction(() -> owned(subject, id, false)
                 .chain(session -> detail(subject, session))
-        );
+        ).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                result.status() == FlashcardSessionStatus.IN_PROGRESS
+                        ? "Successfully retrieved learning session with id={sessionId} for resumption; {count} of {total} cards completed"
+                        : "Successfully retrieved " + result.status() + " learning session with id={sessionId}; {count} of {total} cards completed",
+                Map.of(
+                        "count", result.completedCount(),
+                        "total", result.itemCount(),
+                        "reason", result.status().name()
+                )
+        ));
     }
 
     @WithSession
+    @LogOperation(
+            value = "flashcard.session.list",
+            description = "Flashcard session list retrieval"
+    )
     public Uni<FlashcardPageResponse<FlashcardSessionResponse>> list(
             String subject,
             Long lessonId,
@@ -189,15 +233,43 @@ public class FlashcardSessionService {
                                 )
                         )
                 )
-        );
+        ).chain(result -> OperationLog.outcome(
+                Uni.createFrom().item(result),
+                "completed",
+                "Successfully retrieved {count} learning sessions from {total} matching sessions",
+                Map.of(
+                        "count", result.items().size(),
+                        "total", result.totalElements(),
+                        "page", page,
+                        "size", size
+                )
+        ));
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.session.finish", id = "sessionId")
+    @LogOperation(
+            value = "flashcard.session.finish",
+            id = "sessionId",
+            description = "Flashcard session completion confirmation",
+            successMessage = "Confirmed learning session with id={sessionId} is already completed; no state change was required"
+    )
     public Uni<FlashcardSessionResponse> finish(String subject, Long id) {
         return Panache.withTransaction(() -> owned(subject, id, true).invoke(session -> {
-                            if (session.status != FlashcardSessionStatus.COMPLETED)
+                            if (session.status != FlashcardSessionStatus.COMPLETED) {
+                                StructuredLog.event(
+                                        LOG,
+                                        Logger.Level.DEBUG,
+                                        "flashcard.session.finish.validation_failed",
+                                        "Cannot confirm completion because the learning session is " + session.status,
+                                        Map.of(
+                                                "operation", "flashcard.session.finish",
+                                                "sessionId", id,
+                                                "reason", session.status.name()
+                                        )
+                                );
+
                                 throw FlashcardConflicts.changed();
+                            }
                         }).chain(session -> detail(subject, session))
                 )
                 .onFailure(FlashcardConflicts::concurrent)
@@ -205,21 +277,48 @@ public class FlashcardSessionService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.session.abandon", id = "sessionId")
+    @LogOperation(
+            value = "flashcard.session.abandon",
+            id = "sessionId",
+            description = "Flashcard session abandonment"
+    )
     public Uni<FlashcardSessionResponse> abandon(String subject, Long id) {
-        return Panache.withTransaction(() -> owned(subject, id, true).invoke(session -> {
-                    if (session.status == FlashcardSessionStatus.IN_PROGRESS) {
+        return Panache.withTransaction(() -> owned(subject, id, true).chain(session -> {
+                    boolean changed = session.status == FlashcardSessionStatus.IN_PROGRESS;
+
+                    if (changed) {
                         session.status = FlashcardSessionStatus.ABANDONED;
                         session.abandonedAt = FlashcardTime.stored(time.now());
                         session.updatedAt = session.abandonedAt;
                     }
-                }).chain(session -> detail(subject, session)))
+
+                    return detail(subject, session).chain(result -> OperationLog.outcome(Uni.createFrom().item(result),
+                            changed ? "completed" : "unchanged",
+                            changed ? "Successfully abandoned learning session with id={sessionId}"
+                                    : "Learning session with id={sessionId} remains " + session.status + "; no abandonment state change was required",
+                            Map.of(
+                                    "reason", session.status.name(),
+                                    "count", session.completedCount,
+                                    "total", session.itemCount
+                            )
+                    ));
+                }))
                 .onFailure(FlashcardConflicts::concurrent)
                 .transform(failure -> FlashcardConflicts.changed());
     }
 
     Uni<FlashcardSession> owned(String subject, Long id, boolean lock) {
-        return sessions.owned(subject, id, lock).onItem().ifNull()
+        return sessions.owned(subject, id, lock)
+                .onSubscription().invoke(() -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "flashcard.session.ownership",
+                        lock
+                                ? "Looking up the owned learning session with a write lock"
+                                : "Looking up the owned learning session",
+                        Map.of("sessionId", id)
+                ))
+                .onItem().ifNull()
                 .failWith(() -> new ResourceNotFoundException(
                         "FLASHCARD_SESSION_NOT_FOUND",
                         "Flashcard session not found"

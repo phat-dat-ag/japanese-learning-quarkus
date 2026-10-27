@@ -121,20 +121,7 @@ public class SpacedRepetitionService {
                 ? previous.masteredAt() == null ? now : previous.masteredAt()
                 : null;
 
-        StructuredLog.event(LOG, Logger.Level.DEBUG, "flashcard.srs.scheduled",
-                Map.of(
-                        "reason",
-                        rating.name(),
-                        "learning.status",
-                        status.name(),
-                        "intervalSeconds",
-                        interval,
-                        "repetitions",
-                        repetitions
-                )
-        );
-
-        return new ProgressState(
+        ProgressState result = new ProgressState(
                 status,
                 repetitions,
                 lapses,
@@ -145,5 +132,30 @@ public class SpacedRepetitionService {
                 masteredAt,
                 Math.addExact(previous.version(), 1)
         );
+
+        if (LOG.isDebugEnabled()) {
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "flashcard.srs.scheduled",
+                    "Calculated the next SRS schedule for rating=" + rating + ": "
+                            + previous.status() + " -> " + status
+                            + ", interval seconds=" + interval
+                            + ", repetitions=" + repetitions
+                            + ", lapses=" + lapses
+                            + ", ease factor=" + ease
+                            + ", next review at=" + result.nextReviewAt()
+                            + "; progress has not yet been committed",
+                    Map.of(
+                            "operation", "flashcard.review",
+                            "reason", rating.name(),
+                            "learning.status", status.name(),
+                            "intervalSeconds", interval,
+                            "repetitions", repetitions
+                    )
+            );
+        }
+
+        return result;
     }
 }

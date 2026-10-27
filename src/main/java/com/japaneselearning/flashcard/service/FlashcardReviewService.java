@@ -24,6 +24,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 @ApplicationScoped
@@ -60,7 +61,10 @@ public class FlashcardReviewService {
     }
 
     @WithSession
-    @LogOperation(value = "flashcard.review")
+    @LogOperation(
+            value = "flashcard.review",
+            description = "Flashcard review submission"
+    )
     public Uni<FlashcardReviewResponse> submit(
             String subject,
             Long sessionId,
@@ -73,10 +77,19 @@ public class FlashcardReviewService {
                             FlashcardSessionItem item = items.stream()
                                     .filter(candidate -> candidate.id.equals(itemId))
                                     .findFirst()
-                                    .orElseThrow(() -> new ResourceNotFoundException(
-                                            "FLASHCARD_ITEM_NOT_FOUND",
-                                            "Session item not found"
-                                    ));
+                                    .orElseThrow(() -> {
+                                        decision(
+                                                sessionId,
+                                                itemId,
+                                                "item_not_in_session",
+                                                "Review cannot be accepted because the item does not belong to the owned learning session"
+                                        );
+
+                                        return new ResourceNotFoundException(
+                                                "FLASHCARD_ITEM_NOT_FOUND",
+                                                "Session item not found"
+                                        );
+                                    });
 
                             return reviews.findItem(itemId).chain(existing -> {
                                 if (existing != null)
@@ -86,10 +99,20 @@ public class FlashcardReviewService {
                                         || item.position != session.completedCount
                                         || item.completedAt != null
                                 ) {
+                                    decision(
+                                            sessionId,
+                                            itemId,
+                                            "session_or_item_state",
+                                            "Review cannot be accepted: session status=" + session.status
+                                                    + ", item position=" + item.position
+                                                    + ", next position=" + session.completedCount
+                                                    + ", item already completed=" + (item.completedAt != null)
+                                    );
+
                                     throw FlashcardConflicts.changed();
                                 }
 
-                                return OperationLog.outcome(accept(subject, session, item, request, time.now()), "accepted");
+                                return accept(subject, session, item, request, time.now());
                             });
                         }))
                 )
@@ -104,10 +127,26 @@ public class FlashcardReviewService {
         if (review.rating != request.rating()
                 || review.expectedProgressVersion != request.expectedProgressVersion()
         ) {
+            decision(
+                    null,
+                    review.sessionItemId,
+                    "replay_mismatch",
+                    "Review retry conflicts with the previously recorded rating or expected progress version"
+            );
+
             throw FlashcardConflicts.changed();
         }
 
-        return OperationLog.outcome(Uni.createFrom().item(response(review)), "replayed");
+        return OperationLog.outcome(
+                Uni.createFrom().item(response(review)),
+                "replayed",
+                "Returned the previously committed review for itemId={itemId}; no review or progress was written",
+                Map.of(
+                        "itemId", review.sessionItemId,
+                        "vocabularyId", review.vocabularyId,
+                        "reason", "idempotent_replay"
+                )
+        );
     }
 
     private Uni<FlashcardReviewResponse> accept(
@@ -126,7 +165,10 @@ public class FlashcardReviewService {
                     LOG,
                     Logger.Level.DEBUG,
                     "flashcard.review.mode",
+                    scheduling ? "Validating due time and progress version before calculating the SRS schedule"
+                            : "Processing a practice review without modifying the SRS schedule",
                     Map.of(
+                            "operation", "flashcard.review",
                             "sessionId", session.id,
                             "itemId", item.id,
                             "vocabularyId", item.vocabularyId,
@@ -135,6 +177,13 @@ public class FlashcardReviewService {
             );
 
             if (scheduling && before.nextReviewAt() != null && before.nextReviewAt().isAfter(now)) {
+                decision(
+                        session.id,
+                        item.id,
+                        "not_due",
+                        "Review cannot be accepted because the vocabulary is not due for scheduled review"
+                );
+
                 throw new ConflictException(
                         "FLASHCARD_NOT_DUE",
                         "Vocabulary is not due; refresh the session or abandon it and start another"
@@ -142,6 +191,13 @@ public class FlashcardReviewService {
             }
 
             if (scheduling && before.version() != request.expectedProgressVersion()) {
+                decision(
+                        session.id,
+                        item.id,
+                        "progress_version_mismatch",
+                        "Review cannot be accepted because learning progress changed since the session item was retrieved"
+                );
+
                 throw FlashcardConflicts.changed();
             }
 
@@ -174,9 +230,52 @@ public class FlashcardReviewService {
                     session.completedAt = review.reviewedAt;
                 }
 
-                return reviews.persistAndFlush(review).map(this::response);
+                return reviews.persistAndFlush(review).map(this::response)
+                        .chain(result -> OperationLog.outcome(
+                                Uni.createFrom().item(result),
+                                "accepted",
+                                "Successfully recorded flashcard review for sessionId={sessionId}, itemId={itemId}"
+                                        + (scheduling
+                                        ? "; updated learning progress was saved"
+                                        : "; practice left the SRS schedule unchanged")
+                                        + (session.status == FlashcardSessionStatus.COMPLETED
+                                        ? "; successfully completed the learning session"
+                                        : "; learning session remains in progress"),
+                                Map.of(
+                                        "sessionId", session.id,
+                                        "itemId", item.id,
+                                        "vocabularyId", item.vocabularyId,
+                                        "reason", request.rating().name(),
+                                        "learning.status", after.status().name(),
+                                        "intervalSeconds", after.intervalSeconds(),
+                                        "repetitions", after.successfulRepetitionCount(),
+                                        "count", session.completedCount,
+                                        "total", session.itemCount
+                                )
+                        ));
             });
         });
+    }
+
+    private void decision(Long sessionId, Long itemId, String reason, String message) {
+        if (LOG.isDebugEnabled()) {
+            var fields = new HashMap<String, Object>();
+
+            fields.put("operation", "flashcard.review");
+            fields.put("itemId", itemId);
+            fields.put("reason", reason);
+
+            if (sessionId != null)
+                fields.put("sessionId", sessionId);
+
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "flashcard.review.validation_failed",
+                    message,
+                    fields
+            );
+        }
     }
 
     private String encode(ProgressState state) {
