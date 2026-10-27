@@ -19,6 +19,50 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StructuredLogTest {
     @Test
+    void descriptiveOverloadPreservesEventNumericJsonAndMdcWhileLegacyMessageStaysUnchanged() throws Exception {
+        Logger logger = Logger.getLogger("test.structured.message");
+        var records = new java.util.ArrayList<ExtLogRecord>();
+        Handler handler = new Handler() {
+            public void publish(LogRecord record) {
+                var extended = (ExtLogRecord) record;
+                extended.copyMdc();
+                records.add(extended);
+            }
+
+            public void flush() {
+            }
+
+            public void close() {
+            }
+        };
+        logger.addHandler(handler);
+        try {
+            MDC.put("event.name", "outer.event");
+            MDC.put("correlationId", "request-42");
+            var applicationLogger = org.jboss.logging.Logger.getLogger(logger.getName());
+            StructuredLog.event(applicationLogger, org.jboss.logging.Logger.Level.INFO, "quiz.question.list.completed",
+                    "Successfully retrieved 2 quiz questions", Map.of("count", 2, "total", 9L));
+            StructuredLog.event(applicationLogger, org.jboss.logging.Logger.Level.INFO, "legacy.completed", Map.of());
+            assertEquals("outer.event", MDC.get("event.name"));
+            assertNull(MDC.get("count"));
+            assertEquals("legacy.completed", records.get(1).getFormattedMessage());
+            var formatter = new JsonFormatter();
+            formatter.setDiscoveredProviders(List.of(new ApplicationJsonFields()));
+            formatter.setExcludedKeys(Set.of("mdc", "ndc"));
+            var value = new ObjectMapper().readTree(formatter.format(records.get(0)));
+            assertEquals("Successfully retrieved 2 quiz questions", value.path("message").asText());
+            assertEquals("quiz.question.list.completed", value.path("event.name").asText());
+            assertTrue(value.path("count").isIntegralNumber());
+            assertEquals(2, value.path("count").asInt());
+            assertEquals(9, value.path("total").asInt());
+            assertEquals("request-42", value.path("correlationId").asText());
+        } finally {
+            logger.removeHandler(handler);
+            MDC.clear();
+        }
+    }
+
+    @Test
     void malformedNumbersCannotDropRecordsAndSensitiveMdcIsExcluded() throws Exception {
         var formatter = new JsonFormatter();
         formatter.setDiscoveredProviders(List.of(new ApplicationJsonFields()));

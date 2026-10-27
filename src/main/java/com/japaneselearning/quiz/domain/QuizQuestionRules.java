@@ -3,12 +3,17 @@ package com.japaneselearning.quiz.domain;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.quiz.entity.QuizQuestion;
+import com.japaneselearning.common.logging.StructuredLog;
+import org.jboss.logging.Logger;
 
 import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 public final class QuizQuestionRules {
+    private static final Logger LOG = Logger.getLogger(QuizQuestionRules.class);
+
     private QuizQuestionRules() {
     }
 
@@ -139,6 +144,18 @@ public final class QuizQuestionRules {
     }
 
     public static ValidationException invalid(String field, String message) {
+        // Callers provide internal rule descriptions, never question text or exception messages.
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.question.rule_failed",
+                message,
+                Map.of(
+                        "operation", "quiz.question.validation",
+                        "reason", field
+                )
+        );
+
         return new ValidationException("QUIZ_QUESTION_INVALID", "Invalid quiz question",
                 List.of(new ValidationError(field, message)));
     }

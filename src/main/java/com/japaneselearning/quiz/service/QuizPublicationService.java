@@ -71,7 +71,9 @@ public class QuizPublicationService {
                 LOG,
                 Logger.Level.DEBUG,
                 "quiz.question.source_resolved",
+                "Resolving quiz question content from the " + question.sourceType + " source",
                 Map.of(
+                        "operation", "quiz.question.publish",
                         "questionId", question.id,
                         "reason", String.valueOf(question.sourceType)
                 )

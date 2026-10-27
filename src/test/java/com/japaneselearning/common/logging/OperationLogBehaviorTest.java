@@ -140,6 +140,90 @@ class OperationLogBehaviorTest {
         assertFalse(summary.getFormattedMessage().contains("secret"));
     }
 
+    @LogOperation(value = "test.descriptive", description = "Question creation",
+            successMessage = "Created question with id={questionId}; count={count}")
+    public Uni<?> descriptive() {
+        return null;
+    }
+
+    @Test
+    void descriptiveOutcomeWaitsForCommitAndRollbackDoesNotEmitSuccess() throws Exception {
+        var commit = new java.util.concurrent.atomic.AtomicReference<io.smallrye.mutiny.subscription.UniEmitter<? super Void>>();
+        Uni<String> saved = OperationLog.outcome(Uni.createFrom().item("ok"), "completed",
+                Map.of("questionId", 15L, "count", 4));
+        Uni<String> transaction = saved.call(() -> Uni.createFrom().<Void>emitter(commit::set));
+        Uni<?> observed = (Uni<?>) observe(getClass().getMethod("descriptive"), this, transaction, null);
+        assertTrue(records.isEmpty());
+        var failure = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        observed.subscribe().with(ignored -> {
+        }, failure::set);
+        assertEquals(List.of("test.descriptive.started"), events());
+        commit.get().complete(null);
+        assertEquals("Created question with id=15; count=4", records.get(1).getFormattedMessage());
+        assertEquals("15", records.get(1).getMdc("questionId"));
+        assertEquals("success", records.get(1).getMdc("outcome"));
+        assertEquals("request-42", records.get(1).getMdc("correlationId"));
+        records.clear();
+        observed.subscribe().with(ignored -> fail("Rollback cannot succeed"), failure::set);
+        var rollback = new IllegalStateException("secret-database-value");
+        commit.get().fail(rollback);
+        assertSame(rollback, failure.get());
+        assertEquals(List.of("test.descriptive.started", "test.descriptive.failed"), events());
+        assertNull(records.get(1).getMdc("questionId"));
+        assertNull(records.get(1).getThrown());
+        assertFalse(records.get(1).getFormattedMessage().contains("secret"));
+    }
+
+    @Test
+    void customMessagesAreSubscriptionLocalAndNestedOperationsRemainSuppressed() throws Exception {
+        var method = getClass().getMethod("descriptive");
+        AtomicInteger attempts = new AtomicInteger();
+        Uni<?> source = Uni.createFrom().deferred(() -> attempts.incrementAndGet() == 1
+                ? OperationLog.outcome(Uni.createFrom().item("ok"), "completed", "Imported {count} questions",
+                Map.of("count", 2))
+                : Uni.createFrom().item("ok"));
+        Uni<?> nested = (Uni<?>) observe(method, this, source, null);
+        Uni<?> outer = (Uni<?>) observe(method, this, nested, null);
+        outer.await().indefinitely();
+        outer.await().indefinitely();
+        assertEquals(List.of("test.descriptive.started", "test.descriptive.completed",
+                "test.descriptive.started", "test.descriptive.completed"), events());
+        assertEquals("Imported 2 questions", records.get(1).getFormattedMessage());
+        assertFalse(records.get(3).getFormattedMessage().contains("Imported"));
+        assertNull(records.get(3).getMdc("count"));
+        assertEquals("outer", MDC.get("operation"));
+    }
+
+    @Test
+    void optInNotFoundAndValidationAreWarnButLegacyValidationKeepsDebug() throws Exception {
+        var missing = new com.japaneselearning.common.exception.ResourceNotFoundException("NOT_FOUND", "secret");
+        var validation = new com.japaneselearning.common.exception.ValidationException("INVALID", "secret", List.of());
+        for (var failure : List.of(missing, validation)) {
+            records.clear();
+            var result = (Uni<?>) observe(getClass().getMethod("descriptive"), this, Uni.createFrom().failure(failure), null);
+            assertSame(failure, assertThrows(RuntimeException.class, () -> result.await().indefinitely()));
+            assertEquals(org.jboss.logmanager.Level.WARN, records.get(1).getLevel());
+            assertEquals("test.descriptive.rejected", records.get(1).getMdc("event.name"));
+            assertEquals(failure.getCode(), records.get(1).getMdc("error.code"));
+            assertFalse(records.get(1).getFormattedMessage().contains("secret"));
+        }
+        records.clear();
+        var legacy = (Uni<?>) observe(getClass().getMethod("reactive"), this, Uni.createFrom().failure(validation), null);
+        assertThrows(RuntimeException.class, () -> legacy.await().indefinitely());
+        assertEquals(org.jboss.logmanager.Level.DEBUG, records.get(1).getLevel());
+        assertEquals("test.reactive.rejected", records.get(1).getFormattedMessage());
+    }
+
+    @Test
+    void numericTemplatesNeverInterpolateArbitraryText() throws Exception {
+        var result = OperationLog.outcome(Uni.createFrom().item("ok"), "completed",
+                Map.of("questionId", 15L, "count", "secret-count"));
+        var observed = (Uni<?>) observe(getClass().getMethod("descriptive"), this, result, null);
+        observed.await().indefinitely();
+        assertEquals("Created question with id=15; count=unavailable", records.get(1).getFormattedMessage());
+        assertFalse(records.get(1).getFormattedMessage().contains("secret"));
+    }
+
     private List<String> events() {
         return records.stream().map(record -> record.getMdc("event.name")).toList();
     }
