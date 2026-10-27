@@ -25,5 +25,13 @@ public @interface LogOperation {
     String id() default "";
 
     @Nonbinding
+    // Opt-in human-readable lifecycle description; existing callers retain their original events and levels.
+    String description() default "";
+
+    @Nonbinding
+    // Only allowlisted numeric fields are substituted in {field} placeholders.
+    String successMessage() default "";
+
+    @Nonbinding
     Logger.Level level() default Logger.Level.INFO;
 }

@@ -65,12 +65,29 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.configuration",
+            description = "Quiz configuration retrieval",
+            successMessage = "Successfully retrieved quiz configuration with {total} playable questions"
+    )
     public Uni<QuizGameConfigResponse> configuration() {
-        return games.configuration(QuizSessionSnapshotService.MAX_SESSION_QUESTIONS);
+        return games.configuration(QuizSessionSnapshotService.MAX_SESSION_QUESTIONS)
+                .chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of(
+                                "total", result.totalQuestions(),
+                                "count", result.levels().size() + result.lessons().size()
+                        )
+                ));
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.session.creation")
+    @LogOperation(
+            value = "quiz.session.creation",
+            description = "Quiz session creation",
+            successMessage = "Successfully started quiz session with sessionId={sessionId} and {count} questions"
+    )
     public Uni<QuizSessionCreatedResponse> create(String subject, QuizSessionCreateRequest request) {
         return validateFilters(request.levelId(), request.lessonId())
                 .chain(() -> games.selectRandom(request.levelId(), request.lessonId(), request.questionCount()))
@@ -79,7 +96,11 @@ public class QuizGameService {
                             LOG,
                             Logger.Level.DEBUG,
                             "quiz.session.selection",
+                            "Selected " + ids.size()
+                                    + " playable quiz questions for a request of "
+                                    + request.questionCount(),
                             Map.of(
+                                    "operation", "quiz.session.creation",
                                     "count", ids.size(),
                                     "total", request.questionCount(),
                                     "reason", ids.size() < request.questionCount()
@@ -117,6 +138,12 @@ public class QuizGameService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.session.detail",
+            id = "sessionId",
+            description = "Quiz session retrieval",
+            successMessage = "Successfully retrieved sessionId={sessionId} with {count} answered questions out of {total}"
+    )
     public Uni<QuizSessionResponse> session(String subject, Long id) {
         return ownedSession(subject, id)
                 .chain(session -> answers.countBySession(session.id)
@@ -127,10 +154,22 @@ public class QuizGameService {
                                 counts.answeredCount(),
                                 counts.correctCount()
                         ))
-                );
+                ).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of(
+                                "count", result.answeredCount(),
+                                "total", result.questionCount()
+                        )
+                ));
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.session.next",
+            id = "sessionId",
+            description = "Next quiz question retrieval"
+    )
     public Uni<QuizNextQuestionResponse> next(String subject, Long id) {
         return ownedSession(subject, id)
                 .chain(session -> nextQuestion(session)
@@ -139,11 +178,23 @@ public class QuizGameService {
                                 session.status,
                                 question
                         ))
-                );
+                ).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        result.question() == null
+                                ? "No next question is available for sessionId={sessionId}; the session is finished or all questions are answered"
+                                : "Successfully retrieved the next unanswered question for sessionId={sessionId}",
+                        Map.of("count", result.question() == null ? 0 : 1)
+                ));
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.session.finish", id = "sessionId")
+    @LogOperation(
+            value = "quiz.session.finish",
+            id = "sessionId",
+            description = "Quiz session completion",
+            successMessage = "Successfully completed quiz session with sessionId={sessionId}"
+    )
     public Uni<QuizSessionCompletionResponse> finish(String subject, Long id) {
         // Share the answer submission lock before reading status or counts.
         return sessions.findOwnedByIdForUpdate(id, subject)
@@ -177,6 +228,22 @@ public class QuizGameService {
             throw finishConflict("All session questions must be answered before completion");
         }
 
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.session.score",
+                "Calculated final quiz score: "
+                        + counts.correctCount()
+                        + " correct answers out of "
+                        + counts.answeredCount(),
+                Map.of(
+                        "operation", "quiz.session.finish",
+                        "sessionId", session.id,
+                        "count", counts.correctCount(),
+                        "total", counts.answeredCount()
+                )
+        );
+
         session.status = QuizSessionStatus.COMPLETED;
         session.completedAt = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
 
@@ -192,6 +259,17 @@ public class QuizGameService {
     }
 
     private ConflictException finishConflict(String message) {
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.session.finish.validation_failed",
+                message,
+                Map.of(
+                        "operation", "quiz.session.finish",
+                        "reason", "completion_not_allowed"
+                )
+        );
+
         return new ConflictException("QUIZ_FINISH_CONFLICT", message);
     }
 
@@ -260,6 +338,14 @@ public class QuizGameService {
     }
 
     private ValidationException invalid(String field, String message) {
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.session.filters_invalid",
+                message,
+                Map.of("operation", "quiz.session.creation", "reason", field)
+        );
+
         return new ValidationException("QUIZ_GAME_INVALID", "Invalid game filters",
                 List.of(new ValidationError(field, message)));
     }

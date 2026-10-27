@@ -1,6 +1,9 @@
 package com.japaneselearning.quiz.admin.service;
 
 import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.quiz.admin.dto.QuizOptionResponse;
 import com.japaneselearning.quiz.admin.dto.QuizQuestionFilter;
 import com.japaneselearning.quiz.admin.dto.QuizQuestionListResponse;
@@ -18,6 +21,8 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import org.jboss.logging.Logger;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +30,8 @@ import java.util.Objects;
 
 @ApplicationScoped
 public class QuizAdminQueryService {
+    private static final Logger LOG = Logger.getLogger(QuizAdminQueryService.class);
+
     private final QuizAdminRepository repository;
 
     public QuizAdminQueryService(QuizAdminRepository repository) {
@@ -32,6 +39,12 @@ public class QuizAdminQueryService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.question.detail",
+            id = "questionId",
+            description = "Quiz question detail retrieval",
+            successMessage = "Successfully retrieved quiz question with id={questionId}"
+    )
     public Uni<QuizQuestionResponse> detail(Long id) {
         return repository.findById(id).onItem().ifNull().failWith(
                         () -> new ResourceNotFoundException(
@@ -43,6 +56,11 @@ public class QuizAdminQueryService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.question.list",
+            description = "Quiz question search",
+            successMessage = "Successfully retrieved {count} quiz questions from {total} matching questions"
+    )
     public Uni<QuizQuestionListResponse> list(QuizQuestionFilter filter) {
         if (filter.page() < 0
                 || filter.size() < 1
@@ -55,11 +73,28 @@ public class QuizAdminQueryService {
             );
         }
 
-        return repository.search(filter).chain(this::responses)
+        return repository.search(filter)
+                .onSubscription().invoke(() -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "quiz.question.filters",
+                        "Applying quiz question classification, source, status and keyword filters",
+                        Map.of("operation", "quiz.question.list", "page", filter.page(), "size", filter.size())
+                ))
+                .chain(this::responses)
                 .chain(items -> repository.countMatching(filter).map(total ->
                         new QuizQuestionListResponse(
                                 items, filter.page(), filter.size(), total,
                                 (total + filter.size() - 1) / filter.size()
+                        )
+                )).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of(
+                                "count", result.items().size(),
+                                "total", result.totalElements(),
+                                "page", result.page(),
+                                "size", result.size()
                         )
                 ));
     }

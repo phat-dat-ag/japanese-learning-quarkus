@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.quiz.admin.dto.QuizImportError;
 import com.japaneselearning.quiz.admin.dto.QuizQuestionCreateRequest;
 import io.smallrye.mutiny.Uni;
@@ -16,6 +18,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.validation.Validator;
 import jakarta.ws.rs.WebApplicationException;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @ApplicationScoped
 public class QuizImportFileReader {
@@ -66,6 +70,12 @@ public class QuizImportFileReader {
                 .without(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     }
 
+    @LogOperation(
+            value = "quiz.question.import.read",
+            level = Logger.Level.DEBUG,
+            description = "Quiz import file validation",
+            successMessage = "Read {total} quiz import records; {failed} records failed structure or field validation"
+    )
     public Uni<List<QuizImportItem>> read(Path file, String contentType) {
         String mediaType = contentType == null
                 ? "application/octet-stream"
@@ -86,7 +96,16 @@ public class QuizImportFileReader {
             checkSize(buffer.length());
             // Parsing and Bean Validation run on a worker; completion restores the caller's Vert.x context.
             return vertx.executeBlocking(() -> parse(buffer.getBytes()));
-        });
+        }).chain(items -> OperationLog.outcome(
+                Uni.createFrom().item(items),
+                "completed",
+                Map.of(
+                        "total", items.size(),
+                        "failed", items.stream()
+                                .filter(item -> !item.errors().isEmpty())
+                                .count()
+                )
+        ));
     }
 
     private void checkSize(long bytes) {

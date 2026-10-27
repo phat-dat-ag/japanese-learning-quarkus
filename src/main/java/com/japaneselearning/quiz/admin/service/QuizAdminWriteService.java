@@ -1,6 +1,7 @@
 package com.japaneselearning.quiz.admin.service;
 
 import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
@@ -29,6 +30,8 @@ import jakarta.persistence.PessimisticLockException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.hibernate.exception.LockAcquisitionException;
 
+import org.jboss.logging.Logger;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -40,6 +43,8 @@ import java.util.Map;
 
 @ApplicationScoped
 public class QuizAdminWriteService {
+    private static final Logger LOG = Logger.getLogger(QuizAdminWriteService.class);
+
     private final QuizQuestionRepository questions;
     private final QuizQuestionOptionRepository options;
     private final QuizAdminRepository repository;
@@ -61,7 +66,12 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.create", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.create",
+            id = "questionId",
+            description = "Quiz question creation",
+            successMessage = "Successfully created draft quiz question with id={questionId}"
+    )
     public Uni<QuizQuestionResponse> create(QuizQuestionCreateRequest request) {
         QuizQuestion question = new QuizQuestion();
 
@@ -72,7 +82,8 @@ public class QuizAdminWriteService {
                 .map(option -> new QuestionOption(option.text(), option.correct()))
                 .toList();
 
-        return complete(validateContent(question, request.content(), values)
+        return complete(Uni.createFrom().voidItem()
+                .chain(() -> validateContent(question, request.content(), values))
                 .chain(() -> questions.persist(question))
                 .call(() -> Multi.createFrom().iterable(values)
                         .onItem().transformToUniAndConcatenate(value -> {
@@ -87,7 +98,12 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.update", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.update",
+            id = "questionId",
+            description = "Quiz question update",
+            successMessage = "Successfully updated quiz question with id={questionId} and restored draft status"
+    )
     public Uni<QuizQuestionResponse> update(Long id, QuizQuestionUpdateRequest request) {
         return complete(editable(id, request.version()).chain(question -> {
             if (question.sourceType != request.content().sourceType()) {
@@ -105,7 +121,12 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.updateOption", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.updateOption",
+            id = "questionId",
+            description = "Quiz option update",
+            successMessage = "Successfully updated an option for quiz question with id={questionId} and restored draft status"
+    )
     public Uni<QuizQuestionResponse> updateOption(Long id, Long optionId, QuizOptionTextRequest request) {
         return complete(editable(id, request.version()).chain(question ->
                 options.findByQuestionId(id).chain(values -> {
@@ -123,7 +144,12 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.correctOption", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.correctOption",
+            id = "questionId",
+            description = "Quiz correct option change",
+            successMessage = "Successfully changed the correct option for quiz question with id={questionId} and restored draft status"
+    )
     public Uni<QuizQuestionResponse> correctOption(Long id, QuizCorrectOptionRequest request) {
         return complete(editable(id, request.version()).chain(question ->
                 options.findByQuestionId(id).chain(values -> {
@@ -142,7 +168,12 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.publish", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.publish",
+            id = "questionId",
+            description = "Quiz question publication",
+            successMessage = "Successfully published quiz question with id={questionId}"
+    )
     public Uni<QuizQuestionResponse> publish(Long id, long version) {
         return complete(editable(id, version).chain(question ->
                 publication.prepareForEdit(id).chain(() -> publication.publish(id)))
@@ -150,13 +181,23 @@ public class QuizAdminWriteService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.unpublish", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.unpublish",
+            id = "questionId",
+            description = "Quiz question unpublication",
+            successMessage = "Successfully restored quiz question with id={questionId} to draft status"
+    )
     public Uni<QuizQuestionResponse> unpublish(Long id, long version) {
         return complete(locked(id, version).chain(question -> publication.prepareForEdit(id)));
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.question.archive", id = "questionId")
+    @LogOperation(
+            value = "quiz.question.archive",
+            id = "questionId",
+            description = "Quiz question archival",
+            successMessage = "Successfully archived quiz question with id={questionId}"
+    )
     public Uni<QuizQuestionResponse> archive(Long id, long version) {
         return complete(locked(id, version).invoke(question -> {
             question.status = QuestionStatus.ARCHIVED;
@@ -307,6 +348,15 @@ public class QuizAdminWriteService {
     }
 
     private ConflictException conflict(String message) {
+        // All callers supply fixed descriptions; content and persistence exception messages are excluded.
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.question.validation_failed",
+                message,
+                Map.of("operation", "quiz.question.write", "reason", "question_write_not_allowed")
+        );
+
         return new ConflictException("QUIZ_QUESTION_CONFLICT", message);
     }
 

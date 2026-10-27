@@ -106,7 +106,10 @@ public class QuizSessionSnapshotService {
                                     LOG,
                                     Logger.Level.DEBUG,
                                     "quiz.session.revalidated",
+                                    matches ? "Selected quiz questions still match the filters after locking"
+                                            : "Selected quiz questions no longer match the filters after locking",
                                     Map.of(
+                                            "operation", "quiz.session.creation",
                                             "count", selected.size(),
                                             "reason", matches ? "eligible" : "bank_changed"
                                     )

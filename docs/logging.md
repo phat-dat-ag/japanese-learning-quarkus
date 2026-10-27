@@ -411,3 +411,43 @@ failure and slow request. Other formatter fields are omitted here for readabilit
 {"@timestamp":"2026-10-26T08:24:22.466Z","level":"ERROR","service.name":"backend","event.name":"http.request.failed","traceId":"2e8130c8302b86a0e41467a40596cb72","spanId":"aceba760b3c70279","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0-error","http.route":"/error-probe/{kind}","http.response.status_code":500,"durationMs":25,"outcome":"failure","error.type":"java.lang.IllegalStateException","error.code":"INTERNAL_SERVER_ERROR"}
 {"@timestamp":"2026-10-26T08:24:22.415Z","level":"WARN","service.name":"backend","event.name":"http.request.slow","traceId":"0123456789abcdef0123456789abcdef","spanId":"f7bd9380a1825ae5","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0","http.route":"/correlation-probe","http.response.status_code":200,"durationMs":34,"outcome":"success"}
 ```
+
+### Phase 1: descriptive Quiz business messages
+
+Quiz operations opt into `LogOperation.description` and `successMessage`.
+`StructuredLog.event(logger, level, event, message, fields)` separates English text
+from the stable event name; its original overload and existing annotation defaults
+retain their previous behavior for other modules. Completion templates substitute
+only explicitly allowlisted integer/long fields (IDs, counts and pagination).
+Neither templates nor the interceptor inspect DTOs, subjects or exception messages.
+`OperationLog.outcome` also accepts a message for result-dependent summaries.
+
+The Quiz audit covers both Resources, Admin query/write/import services and file
+validation, publication rules, locked snapshot/classification creation, gameplay,
+answers, history, progress, and their repositories. There is no Quiz delete,
+abandon, configuration-write or import-update API. Reading an in-progress session
+supports continuation; it does not create a separate resumption state transition.
+Progress and scores are derived from answers, not a separate progress write.
+
+Quiz retrievals now complete at INFO with actual response counts. Writes retain
+one post-transaction operation outcome. Expected rejections are WARN with safe
+codes/IDs; DEBUG rule and conflict diagnostics explain internal decisions without
+question/answer text, keywords, filenames or subjects. Empty results remain INFO.
+Import summaries count created and failed records; invalid prepared items are
+included in failed counts. An interrupted batch emits a separate ERROR summary
+with `count` completed records, `total` input records, committed `created` records,
+and `failed` including the interrupted item. Earlier item commits are retained by
+the existing import contract. The central handler remains the sole stack owner.
+
+Illustrative Quiz messages (normal context and formatter fields omitted):
+
+```json
+{"level":"INFO","event.name":"quiz.question.create.completed","message":"Successfully created draft quiz question with id=15","operation":"quiz.question.create","questionId":15,"outcome":"success"}
+{"level":"WARN","event.name":"quiz.question.import.partial_failure","message":"Quiz import completed: processed=2, created=1, failed=1","operation":"quiz.question.import","total":2,"created":1,"succeeded":1,"failed":1,"outcome":"partial_failure"}
+```
+
+Phase 4/final cleanup follow-ups: migrate common HTTP/error lifecycle messages
+from identifiers to descriptive text; review cross-module level consistency and
+field naming only in their assigned phases. The existing centralized sanitized
+stack format, JSON allowlist, HTTP lifecycle, configuration and other modules'
+messages are unchanged. Cancellation/slow events retain their existing ownership.

@@ -1,17 +1,34 @@
 package com.japaneselearning.quiz.admin.service;
 
 import com.japaneselearning.common.exception.BusinessException;
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.quiz.admin.dto.QuizImportError;
 
+import org.jboss.logging.Logger;
+
 import java.util.List;
+import java.util.Map;
 
 final class QuizImportErrors {
+    private static final Logger LOG = Logger.getLogger(QuizImportErrors.class);
+
     private QuizImportErrors() {
     }
 
     static ValidationException invalid(String field, String message) {
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "quiz.question.import.validation_failed",
+                message,
+                Map.of(
+                        "operation", "quiz.question.import.read",
+                        "reason", "invalid_file"
+                )
+        );
+
         return new ValidationException(
                 "QUIZ_IMPORT_INVALID", "Invalid quiz import; no questions processed",
                 List.of(new ValidationError(field, message))

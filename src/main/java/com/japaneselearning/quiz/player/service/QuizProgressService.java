@@ -1,6 +1,7 @@
 package com.japaneselearning.quiz.player.service;
 
 import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.quiz.player.dto.QuizProgressBreakdownResponse;
 import com.japaneselearning.quiz.player.dto.QuizProgressBreakdownResponse.Bucket;
 import com.japaneselearning.quiz.player.dto.QuizProgressResponse;
@@ -11,11 +12,11 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.jboss.logging.Logger.Level;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class QuizProgressService {
@@ -26,7 +27,11 @@ public class QuizProgressService {
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.progress", level = Level.DEBUG)
+    @LogOperation(
+            value = "quiz.progress",
+            description = "Quiz progress retrieval",
+            successMessage = "Successfully retrieved quiz statistics for {total} completed sessions and {count} answers"
+    )
     public Uni<QuizProgressResponse> overall(String subject) {
         return progress.overall(subject)
                 .map(counts -> new QuizProgressResponse(
@@ -38,11 +43,22 @@ public class QuizProgressService {
                         counts.bestScore(),
                         ratio(counts.correctCount(), counts.completedSessions(), 1),
                         counts.latestCompletedAt()
+                )).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of(
+                                "total", result.completedSessions(),
+                                "count", result.answeredCount()
+                        )
                 ));
     }
 
     @WithTransaction
-    @LogOperation(value = "quiz.progress.breakdown", level = Level.DEBUG)
+    @LogOperation(
+            value = "quiz.progress.breakdown",
+            description = "Quiz progress breakdown retrieval",
+            successMessage = "Successfully retrieved {count} quiz progress classification groups"
+    )
     public Uni<QuizProgressBreakdownResponse> breakdown(String subject) {
         return progress.levels(subject)
                 .chain(levels -> progress.lessons(subject)
@@ -50,7 +66,11 @@ public class QuizProgressService {
                                 buckets(levels),
                                 buckets(lessons)
                         ))
-                );
+                ).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of("count", result.levels().size() + result.lessons().size())
+                ));
     }
 
     private List<Bucket> buckets(List<BreakdownCounts> counts) {

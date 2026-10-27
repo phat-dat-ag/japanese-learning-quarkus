@@ -10,7 +10,23 @@ public final class StructuredLog {
     private StructuredLog() {
     }
 
-    public static void event(Logger logger, Logger.Level level, String event, Map<String, ?> fields) {
+    public static void event(
+            Logger logger,
+            Logger.Level level,
+            String event,
+            Map<String, ?> fields
+    ) {
+        event(logger, level, event, event, fields);
+    }
+
+    // Messages must contain only static text and explicitly safe scalar values.
+    public static void event(
+            Logger logger,
+            Logger.Level level,
+            String event,
+            String message,
+            Map<String, ?> fields
+    ) {
         if (!logger.isEnabled(level)) {
             return;
         }
@@ -26,7 +42,7 @@ public final class StructuredLog {
                 MDC.put(key, String.valueOf(value));
             });
 
-            logger.log(level, event);
+            logger.log(level, message);
         } finally {
             previous.forEach((key, value) -> {
                 if (value == null) {

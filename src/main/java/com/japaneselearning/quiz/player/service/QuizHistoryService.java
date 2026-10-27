@@ -1,6 +1,8 @@
 package com.japaneselearning.quiz.player.service;
 
 import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.common.logging.LogOperation;
+import com.japaneselearning.common.logging.OperationLog;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.quiz.domain.QuizSessionStatus;
@@ -46,6 +48,11 @@ public class QuizHistoryService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.history.list",
+            description = "Quiz history retrieval",
+            successMessage = "Successfully retrieved {count} completed quiz sessions from {total} history records"
+    )
     public Uni<QuizHistoryListResponse> list(String subject, int page, int size) {
         validatePagination(page, size);
         return sessions.countCompletedBySubject(subject)
@@ -58,7 +65,16 @@ public class QuizHistoryService {
                                         total,
                                         (total + size - 1) / size)
                         )
-                );
+                ).chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of(
+                                "count", result.items().size(),
+                                "total", result.totalElements(),
+                                "page", result.page(),
+                                "size", result.size()
+                        )
+                ));
     }
 
     private Uni<List<QuizHistorySummary>> listSummaries(String subject, int page, int size) {
@@ -85,6 +101,12 @@ public class QuizHistoryService {
     }
 
     @WithTransaction
+    @LogOperation(
+            value = "quiz.history.detail",
+            id = "sessionId",
+            description = "Quiz history detail retrieval",
+            successMessage = "Successfully retrieved history for sessionId={sessionId} with {count} answered questions"
+    )
     public Uni<QuizHistoryDetailResponse> detail(String subject, Long id) {
         return sessions.findOwnedById(id, subject)
                 .onItem()
@@ -95,7 +117,12 @@ public class QuizHistoryService {
                         throw notFound();
                     }
                 })
-                .chain(this::loadHistory);
+                .chain(this::loadHistory)
+                .chain(result -> OperationLog.outcome(
+                        Uni.createFrom().item(result),
+                        "completed",
+                        Map.of("count", result.questions().size())
+                ));
     }
 
     private Uni<QuizHistoryDetailResponse> loadHistory(QuizSession session) {
