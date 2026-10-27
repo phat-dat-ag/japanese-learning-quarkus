@@ -16,4 +16,11 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 public @interface LogVocabularyOperation {
     @Nonbinding
     String value() default "";
+
+    @Nonbinding
+    String description() default "Vocabulary operation";
+
+    @Nonbinding
+    // Templates substitute only safe numeric identifiers and result counts.
+    String successMessage() default "";
 }

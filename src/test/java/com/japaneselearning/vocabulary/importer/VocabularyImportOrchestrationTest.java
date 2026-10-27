@@ -151,6 +151,7 @@ class VocabularyImportOrchestrationTest {
             public Uni<Vocabulary> create(VocabularyImportItem item) {
                 calls.add("core:" + item.word);
                 Vocabulary vocabulary = new Vocabulary();
+                vocabulary.id = (long) calls.size();
                 vocabulary.word = item.word;
                 vocabulary.normalizedWord = item.normalizedWord;
                 return Uni.createFrom().item(vocabulary);

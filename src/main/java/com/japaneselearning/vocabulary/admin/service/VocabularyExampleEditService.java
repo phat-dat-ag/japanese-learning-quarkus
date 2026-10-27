@@ -37,7 +37,11 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.examples.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.examples.add",
+            description = "Vocabulary examples addition",
+            successMessage = "Successfully added {count} examples to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyExampleResponse>> addVocabularyExamples(
             Long vocabularyId,
             List<VocabularyExampleUpdateRequest> requests
@@ -53,7 +57,11 @@ public class VocabularyExampleEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.example.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.example.update",
+            description = "Vocabulary example update",
+            successMessage = "Successfully updated example with id={exampleId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyExampleResponse> updateVocabularyExample(
             Long vocabularyId,
             Long exampleId,
@@ -99,6 +107,7 @@ public class VocabularyExampleEditService {
                                     LOG,
                                     Logger.Level.DEBUG,
                                     "vocabulary.example.sharing_checked",
+                                    "Checked other vocabulary associations before changing example sentence content",
                                     Map.of(
                                             "vocabularyId", vocabularyId,
                                             "exampleId", exampleId,

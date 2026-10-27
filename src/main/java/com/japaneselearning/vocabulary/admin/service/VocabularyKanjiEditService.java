@@ -43,7 +43,11 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.kanji.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.kanji.add",
+            description = "Vocabulary kanji associations addition",
+            successMessage = "Successfully added {count} kanji associations to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyKanjiResponse>> addVocabularyKanji(
             Long vocabularyId,
             List<KanjiUpdateRequest> requests
@@ -59,7 +63,11 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.kanji.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.kanji.update",
+            description = "Vocabulary kanji update",
+            successMessage = "Successfully updated kanji with id={kanjiId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyKanjiResponse> updateVocabularyKanji(
             Long vocabularyId,
             Long kanjiId,
@@ -71,7 +79,11 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.kanji_readings.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.kanji_readings.add",
+            description = "Vocabulary kanji readings addition",
+            successMessage = "Successfully added {count} kanji readings to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<KanjiReadingResponse>> addKanjiReadings(
             Long vocabularyId,
             Long kanjiId,
@@ -90,7 +102,11 @@ public class VocabularyKanjiEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.kanji_reading.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.kanji_reading.update",
+            description = "Vocabulary kanji reading update",
+            successMessage = "Successfully updated kanji reading with id={readingId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<KanjiReadingResponse> updateKanjiReading(
             Long vocabularyId,
             Long kanjiId,
@@ -143,6 +159,7 @@ public class VocabularyKanjiEditService {
                             LOG,
                             Logger.Level.DEBUG,
                             "vocabulary.kanji.sharing_checked",
+                            "Checked other vocabulary associations before changing shared kanji data",
                             Map.of(
                                     "vocabularyId", vocabularyId,
                                     "kanjiId", kanjiEntity.id,
@@ -221,6 +238,7 @@ public class VocabularyKanjiEditService {
                             LOG,
                             Logger.Level.DEBUG,
                             "vocabulary.kanji.sharing_checked",
+                            "Checked other vocabulary associations before changing shared kanji data",
                             Map.of(
                                     "vocabularyId", vocabularyId,
                                     "kanjiId", kanjiId,

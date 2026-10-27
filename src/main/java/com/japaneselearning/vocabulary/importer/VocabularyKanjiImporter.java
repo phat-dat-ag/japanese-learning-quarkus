@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.entity.Kanji;
 import com.japaneselearning.vocabulary.entity.KanjiReading;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
@@ -12,9 +13,13 @@ import com.japaneselearning.vocabulary.repository.VocabularyKanjiRepository;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyKanjiImporter {
+    private static final Logger LOG = Logger.getLogger(VocabularyKanjiImporter.class);
 
     private final KanjiRepository kanjiRepository;
     private final KanjiReadingRepository kanjiReadingRepository;
@@ -69,6 +74,17 @@ public class VocabularyKanjiImporter {
                 .findByCharacter(item.character)
                 .flatMap(existing -> {
                     if (existing != null) {
+                        StructuredLog.event(
+                                LOG,
+                                Logger.Level.DEBUG,
+                                "vocabulary.import.kanji.reused",
+                                "Reusing existing kanji and applying imported metadata; changes await vocabulary transaction completion",
+                                Map.of(
+                                        "operation", "vocabulary.import",
+                                        "kanjiId", existing.id
+                                )
+                        );
+
                         existing.strokeCount = item.strokeCount;
 
                         existing.meaningVi = item.meaningVi;

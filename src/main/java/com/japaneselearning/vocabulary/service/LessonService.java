@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.vocabulary.dto.LessonResponse;
@@ -16,6 +17,7 @@ import org.jboss.logging.Logger;
 import org.hibernate.exception.ConstraintViolationException;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 
@@ -40,7 +42,11 @@ public class LessonService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("lesson.create")
+    @LogVocabularyOperation(
+            value = "lesson.create",
+            description = "Lesson creation",
+            successMessage = "Successfully created lesson with id={lessonId}"
+    )
     public Uni<LessonResponse> createLesson(LessonWriteRequest request) {
         return flushAndMapConflicts(requireLevel(request.levelId())
                 .call(() -> requireUniqueFields(null, request))
@@ -53,7 +59,11 @@ public class LessonService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("lesson.update")
+    @LogVocabularyOperation(
+            value = "lesson.update",
+            description = "Lesson update",
+            successMessage = "Successfully updated lesson with id={lessonId}"
+    )
     public Uni<LessonResponse> updateLesson(
             Long lessonId,
             LessonWriteRequest request
@@ -144,6 +154,11 @@ public class LessonService {
     }
 
     @WithSession
+    @LogVocabularyOperation(
+            value = "lesson.list",
+            description = "Lesson retrieval by JLPT level",
+            successMessage = "Successfully retrieved {count} lessons for the requested JLPT level"
+    )
     public Uni<List<LessonResponse>> getLessonsByLevel(String level) {
 
         return jlptLevelRepository
@@ -159,6 +174,16 @@ public class LessonService {
                 .chain(jlptLevel ->
                         lessonRepository
                                 .findByLevelId(jlptLevel.id)
+                                .onSubscription().invoke(() -> StructuredLog.event(
+                                        LOG,
+                                        Logger.Level.DEBUG,
+                                        "lesson.list.filters",
+                                        "Retrieving lessons for the resolved JLPT level in display order",
+                                        Map.of(
+                                                "operation", "lesson.list",
+                                                "levelId", jlptLevel.id
+                                        )
+                                ))
                 )
                 .map(lessons ->
                         lessons.stream()
@@ -171,7 +196,6 @@ public class LessonService {
                                         )
                                 )
                                 .toList()
-                )
-                .invoke(lessons -> LOG.debugf("Lessons loaded count=%d", lessons.size()));
+                );
     }
 }

@@ -52,6 +52,26 @@ public class VocabularyImporter {
 
     public Uni<ImportResult> importVocabulary(Path file) {
         return fileReader.readAsync(file)
+                .onSubscription().invoke(() -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.source",
+                        "Reading vocabulary import JSON from the uploaded file",
+                        Map.of(
+                                "operation", "vocabulary.import",
+                                "reason", "file"
+                        )
+                ))
+                .invoke(items -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.parsed",
+                        "Parsed vocabulary import JSON; validating the record structure",
+                        Map.of(
+                                "operation", "vocabulary.import",
+                                "total", items == null ? 0 : items.size()
+                        )
+                ))
                 .onFailure(JsonProcessingException.class).transform(failure ->
                         invalidInputException("file", "File must contain valid vocabulary JSON"))
                 .chain(items -> importVocabulary(items, "file"));
@@ -75,15 +95,26 @@ public class VocabularyImporter {
             return Uni.createFrom().failure(invalidInputException(field, message));
         }
 
-        StructuredLog.event(LOG, Logger.Level.DEBUG, "vocabulary.import.validated",
-                Map.of("total", items.size(), "reason", "structure"));
         return relationImporter.validateLessons(items)
+                .onSubscription().invoke(() -> StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.validated",
+                        "Validated vocabulary structure, supplied normalized words and duplicate input words; checking lesson references",
+                        Map.of(
+                                "operation", "vocabulary.import",
+                                "total", items.size(),
+                                "reason", "structure"
+                        )
+                ))
                 .chain(() -> validateExistingAssignments(items))
                 .invoke(() -> StructuredLog.event(
                         LOG,
                         Logger.Level.DEBUG,
                         "vocabulary.import.validated",
+                        "Validated lesson references and existing assignments; persisting the vocabulary batch atomically",
                         Map.of(
+                                "operation", "vocabulary.import",
                                 "total", items.size(),
                                 "reason", "assignments"
                         )
@@ -91,9 +122,7 @@ public class VocabularyImporter {
                 .chain(() -> Multi.createFrom().iterable(items)
                         .onItem().transformToUniAndConcatenate(this::importItem)
                         .collect().asList()
-                        .map(results -> summarize(items.size(), results)))
-                .invoke(result -> LOG.debugf("Vocabulary import processed total=%d created=%d updated=%d",
-                        result.total(), result.created(), result.updated()));
+                        .map(results -> summarize(items.size(), results)));
     }
 
     private ValidationException invalidInputException(String field, String message) {
@@ -114,6 +143,17 @@ public class VocabularyImporter {
         // Re-read after prevalidation: an earlier item may share this canonical identity.
         return coreImporter.findExisting(item.normalizedWord).flatMap(existing -> {
             if (existing != null) {
+                StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.existing",
+                        "Existing normalized vocabulary entry found; preserving core data and checking assignments before appending examples",
+                        Map.of(
+                                "operation", "vocabulary.import",
+                                "vocabularyId", existing.id
+                        )
+                );
+
                 return assignmentValidator.validate(existing, item)
                         .chain(() -> exampleImporter.importExamples(existing, item))
                         .replaceWith(ImportStatus.UPDATED);

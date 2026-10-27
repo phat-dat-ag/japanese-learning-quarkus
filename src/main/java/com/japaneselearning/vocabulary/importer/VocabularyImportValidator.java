@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyExampleImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyImportItem;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyKanjiImportItem;
@@ -9,13 +10,16 @@ import com.japaneselearning.vocabulary.importer.dto.VocabularyReadingImportItem;
 import com.japaneselearning.vocabulary.importer.dto.LessonImportItem;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @ApplicationScoped
 public class VocabularyImportValidator {
+    private static final Logger LOG = Logger.getLogger(VocabularyImportValidator.class);
 
     private static final Set<String> SUPPORTED_LEVELS = Set.of(
             "N1",
@@ -45,6 +49,18 @@ public class VocabularyImportValidator {
             validateItem(item);
 
             if (!words.add(item.word)) {
+                StructuredLog.event(
+                        LOG,
+                        Logger.Level.DEBUG,
+                        "vocabulary.import.duplicate_detected",
+                        "Duplicate vocabulary word detected within the import; the atomic batch cannot proceed",
+                        Map.of(
+                                "operation", "vocabulary.import",
+                                "reason", "duplicate_input",
+                                "total", items.size()
+                        )
+                );
+
                 throw new IllegalArgumentException(
                         "Duplicate vocabulary in import file: "
                                 + item.word

@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +15,7 @@ import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.List;
 
 @ApplicationScoped
@@ -35,12 +37,34 @@ public class LessonBatchFileReader {
     public Uni<List<LessonWriteRequest>> read(Path file) {
         return vertx.fileSystem().props(file.toString()).flatMap(properties -> {
             if (properties.size() > MAX_FILE_BYTES) {
-                LOG.warnf("Lesson batch rejected reason=file_size bytes=%d limit=%d", properties.size(), MAX_FILE_BYTES);
+                StructuredLog.event(
+                        LOG,
+                        Logger.Level.WARN,
+                        "lesson.batch.file.rejected",
+                        "Lesson batch upload rejected because the file exceeds the 1 MiB limit",
+                        Map.of(
+                                "operation", "lesson.batch.create",
+                                "reason", "file_size",
+                                "outcome", "failure"
+                        )
+                );
+
                 return Uni.createFrom().failure(new WebApplicationException(413));
             }
 
             if (properties.size() == 0) {
-                LOG.debug("Lesson batch rejected reason=empty_file");
+                StructuredLog.event(
+                        LOG,
+                        Logger.Level.WARN,
+                        "lesson.batch.file.rejected",
+                        "Lesson batch upload rejected because the file is empty",
+                        Map.of(
+                                "operation", "lesson.batch.create",
+                                "reason", "empty_file",
+                                "outcome", "failure"
+                        )
+                );
+
                 return Uni.createFrom().failure(new BadRequestException());
             }
 
@@ -57,12 +81,46 @@ public class LessonBatchFileReader {
                     || requests.isEmpty()
                     || requests.size() > LessonBatchService.MAX_BATCH_SIZE
             ) {
+                StructuredLog.event(
+                        LOG,
+                        Logger.Level.WARN,
+                        "lesson.batch.file.rejected",
+                        "Lesson batch upload rejected because the JSON array must contain 1 to 100 lessons",
+                        Map.of(
+                                "operation", "lesson.batch.create",
+                                "reason", "batch_size",
+                                "outcome", "failure"
+                        )
+                );
+
                 throw new BadRequestException();
             }
 
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "lesson.batch.file.parsed",
+                    "Parsed lesson batch JSON; each lesson will be validated and committed independently",
+                    Map.of(
+                            "operation", "lesson.batch.create",
+                            "total", requests.size()
+                    )
+            );
+
             return requests;
         } catch (IOException exception) {
-            LOG.debug("Lesson batch rejected reason=invalid_json");
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.WARN,
+                    "lesson.batch.file.rejected",
+                    "Lesson batch upload rejected because the file is not a valid JSON array of lessons",
+                    Map.of(
+                            "operation", "lesson.batch.create",
+                            "reason", "invalid_json",
+                            "outcome", "failure"
+                    )
+            );
+
             throw new BadRequestException();
         }
     }

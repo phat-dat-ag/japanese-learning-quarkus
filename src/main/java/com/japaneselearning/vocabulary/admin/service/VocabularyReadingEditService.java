@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.admin.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyReadingResponse;
 import com.japaneselearning.vocabulary.entity.VocabularyReading;
@@ -9,11 +10,15 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyReadingEditService {
+    private static final Logger LOG = Logger.getLogger(VocabularyReadingEditService.class);
+
     private static final long NO_READING_EXCLUDED = -1L;
 
     private final VocabularyEditPersistence persistence;
@@ -28,7 +33,11 @@ public class VocabularyReadingEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.readings.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.readings.add",
+            description = "Vocabulary readings addition",
+            successMessage = "Successfully added {count} readings to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyReadingResponse>> addVocabularyReadings(
             Long vocabularyId,
             List<VocabularyReadingUpdateRequest> requests
@@ -48,7 +57,11 @@ public class VocabularyReadingEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.reading.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.reading.update",
+            description = "Vocabulary reading update",
+            successMessage = "Successfully updated reading with id={readingId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyReadingResponse> updateVocabularyReading(
             Long vocabularyId,
             Long readingId,
@@ -80,6 +93,17 @@ public class VocabularyReadingEditService {
 
         return vocabularyReadings.countPrimaryReadingsExcluding(vocabularyId, excludedReadingId)
                 .invoke(primaryCount -> {
+                    StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "vocabulary.reading.primary_checked",
+                            "Checked remaining primary readings before applying vocabulary reading changes",
+                            Map.of(
+                                    "vocabularyId", vocabularyId,
+                                    "count", primaryCount
+                            )
+                    );
+
                     if (primaryCount == 0) {
                         throw VocabularyEditPersistence.invalidRequest(
                                 "isPrimary", "Vocabulary must retain at least one primary reading"

@@ -28,7 +28,11 @@ public class LessonBatchService {
     }
 
     // Do not add an outer session/transaction: each CDI createLesson call owns and closes its own.
-    @LogVocabularyOperation("lesson.batch.create")
+    @LogVocabularyOperation(
+            value = "lesson.batch.create",
+            description = "Lesson batch creation",
+            successMessage = "Lesson batch completed: processed={total}, created={succeeded}, failed={failed}"
+    )
     public Uni<LessonBatchResponse> createLessons(List<LessonWriteRequest> requests) {
         return Multi.createFrom().range(0, requests.size())
                 .onItem().transformToUniAndConcatenate(

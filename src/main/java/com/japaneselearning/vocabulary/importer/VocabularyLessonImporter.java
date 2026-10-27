@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
@@ -11,11 +12,14 @@ import com.japaneselearning.vocabulary.repository.LessonVocabularyRepository;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyLessonImporter {
+    private static final Logger LOG = Logger.getLogger(VocabularyLessonImporter.class);
 
     private final JlptLevelRepository jlptLevelRepository;
     private final LessonRepository lessonRepository;
@@ -64,6 +68,17 @@ public class VocabularyLessonImporter {
     }
 
     private ValidationException missingLesson(LessonImportItem lessonItem) {
+        StructuredLog.event(
+                LOG,
+                Logger.Level.DEBUG,
+                "vocabulary.import.reference_missing",
+                "Referenced lesson or JLPT level was not found; vocabulary imports require existing lessons",
+                Map.of(
+                        "operation", "vocabulary.import",
+                        "reason", "lesson"
+                )
+        );
+
         return new ValidationException(
                 "VALIDATION_ERROR",
                 "Invalid vocabulary import",

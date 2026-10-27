@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.ValidationError;
 import com.japaneselearning.common.exception.ValidationException;
 import com.japaneselearning.vocabulary.entity.Lesson;
@@ -11,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -59,11 +61,17 @@ public class VocabularyAssignmentValidator {
         }
 
         if (!errors.isEmpty()) {
-            LOG.debugf(
-                    "Vocabulary assignment mismatch vocabularyId=%d levels=%s lessons=%s",
-                    (Object) vocabulary.id,
-                    !storedLevels.equals(requestedLevels),
-                    !storedLessons.equals(requestedLessons)
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "vocabulary.import.assignment_mismatch",
+                    "Existing vocabulary JLPT levels or lessons differ from the import; assignment changes require the Admin editing API",
+                    Map.of(
+                            "operation", "vocabulary.import",
+                            "vocabularyId", vocabulary.id,
+                            "reason", !storedLevels.equals(requestedLevels)
+                                    ? "levels" : "lessons"
+                    )
             );
 
             throw new ValidationException(

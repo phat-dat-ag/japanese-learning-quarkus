@@ -21,13 +21,21 @@ public class VocabularyService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.import")
+    @LogVocabularyOperation(
+            value = "vocabulary.import",
+            description = "Vocabulary import",
+            successMessage = "Vocabulary import completed: processed={total}, created={created}, updated={updated}; updated counts existing entries processed"
+    )
     public Uni<ImportResult> importVocabulary(List<VocabularyImportItem> items) {
         return vocabularyImporter.importVocabulary(items);
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.import")
+    @LogVocabularyOperation(
+            value = "vocabulary.import",
+            description = "Vocabulary import",
+            successMessage = "Vocabulary import completed: processed={total}, created={created}, updated={updated}; updated counts existing entries processed"
+    )
     public Uni<ImportResult> importVocabulary(Path file) {
         return vocabularyImporter.importVocabulary(file);
     }

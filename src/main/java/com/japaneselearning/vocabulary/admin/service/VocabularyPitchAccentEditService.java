@@ -30,7 +30,11 @@ public class VocabularyPitchAccentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.pitch_accents.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.pitch_accents.add",
+            description = "Vocabulary pitch accents addition",
+            successMessage = "Successfully added {count} pitch accents to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyPitchAccentResponse>> addVocabularyPitchAccents(
             Long vocabularyId,
             List<VocabularyPitchAccentUpdateRequest> requests
@@ -46,7 +50,11 @@ public class VocabularyPitchAccentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.pitch_accent.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.pitch_accent.update",
+            description = "Vocabulary pitch accent update",
+            successMessage = "Successfully updated pitch accent with id={pitchAccentId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyPitchAccentResponse> updateVocabularyPitchAccent(
             Long vocabularyId,
             Long pitchAccentId,
