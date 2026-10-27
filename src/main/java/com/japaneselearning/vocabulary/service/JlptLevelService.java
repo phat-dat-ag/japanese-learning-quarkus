@@ -1,9 +1,6 @@
 package com.japaneselearning.vocabulary.service;
 
 import com.japaneselearning.common.logging.StructuredLog;
-
-import java.util.Map;
-
 import com.japaneselearning.vocabulary.dto.JlptLevelResponse;
 import com.japaneselearning.vocabulary.repository.JlptLevelRepository;
 import io.quarkus.hibernate.reactive.panache.common.WithSession;
@@ -12,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class JlptLevelService {
@@ -31,9 +29,14 @@ public class JlptLevelService {
                         .toList())
                 .invoke(levels -> StructuredLog.event(
                         LOG,
-                        Logger.Level.DEBUG,
+                        Logger.Level.INFO,
                         "jlpt.levels.retrieved",
-                        Map.of("count", levels.size())
+                        "Successfully retrieved " + levels.size() + " JLPT levels",
+                        Map.of(
+                                "operation", "jlpt.levels",
+                                "count", levels.size(),
+                                "outcome", "success"
+                        )
                 ));
     }
 }

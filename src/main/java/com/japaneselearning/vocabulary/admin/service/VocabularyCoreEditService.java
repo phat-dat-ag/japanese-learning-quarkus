@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.admin.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreUpdateRequest;
 import com.japaneselearning.vocabulary.admin.dto.VocabularyCoreResponse;
 import com.japaneselearning.vocabulary.repository.VocabularyRepository;
@@ -7,9 +8,14 @@ import com.japaneselearning.vocabulary.logging.LogVocabularyOperation;
 import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
+
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyCoreEditService {
+    private static final Logger LOG = Logger.getLogger(VocabularyCoreEditService.class);
+
     private final VocabularyEditPersistence persistence;
     private final VocabularyRepository vocabularies;
 
@@ -22,7 +28,11 @@ public class VocabularyCoreEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.core.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.core.update",
+            description = "Vocabulary core update",
+            successMessage = "Successfully updated vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyCoreResponse> updateVocabularyCore(
             Long vocabularyId,
             VocabularyCoreUpdateRequest request
@@ -40,6 +50,18 @@ public class VocabularyCoreEditService {
     private Uni<Void> requireUniqueNormalizedWord(Long vocabularyId, String normalizedWord) {
         return vocabularies.findByNormalizedWord(normalizedWord)
                 .invoke(existingVocabulary -> {
+                    StructuredLog.event(
+                            LOG,
+                            Logger.Level.DEBUG,
+                            "vocabulary.core.uniqueness_checked",
+                            "Checked whether the requested normalized word belongs to another vocabulary entry",
+                            Map.of(
+                                    "vocabularyId", vocabularyId,
+                                    "reason", existingVocabulary != null && !existingVocabulary.id.equals(vocabularyId)
+                                            ? "duplicate_normalized_word" : "available"
+                            )
+                    );
+
                     if (existingVocabulary != null && !existingVocabulary.id.equals(vocabularyId)) {
                         throw VocabularyEditPersistence.conflict(
                                 "Normalized word already belongs to another vocabulary");

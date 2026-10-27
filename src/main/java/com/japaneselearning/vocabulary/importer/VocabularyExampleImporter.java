@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.importer;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.entity.ExampleSentence;
 import com.japaneselearning.vocabulary.entity.Vocabulary;
 import com.japaneselearning.vocabulary.importer.dto.VocabularyExampleImportItem;
@@ -9,12 +10,16 @@ import com.japaneselearning.vocabulary.repository.VocabularyExampleRepository;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
+import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 
 @ApplicationScoped
 public class VocabularyExampleImporter {
+    private static final Logger LOG = Logger.getLogger(VocabularyExampleImporter.class);
+
     private final ExampleSentenceRepository exampleSentenceRepository;
     private final VocabularyExampleRepository vocabularyExampleRepository;
 
@@ -41,6 +46,9 @@ public class VocabularyExampleImporter {
             Set<ExampleKey> seen = new HashSet<>();
             existing.forEach(link -> seen.add(new ExampleKey(link.exampleSentence.japaneseText,
                     link.exampleSentence.japaneseReading, link.targetText)));
+
+            int existingCount = seen.size();
+
             return Multi.createFrom().iterable(item.examples)
                     .onItem().transformToUniAndConcatenate(example -> {
                         ExampleKey key = new ExampleKey(example.japaneseText, example.japaneseReading, example.targetText);
@@ -49,7 +57,28 @@ public class VocabularyExampleImporter {
                         }
                         return insert(vocabulary.id, example).invoke(() -> seen.add(key));
                     })
-                    .collect().asList().replaceWithVoid();
+                    .collect().asList()
+                    .invoke(ignored -> {
+                        if (LOG.isDebugEnabled()) {
+                            int inserted = seen.size() - existingCount;
+                            StructuredLog.event(
+                                    LOG,
+                                    Logger.Level.DEBUG,
+                                    "vocabulary.import.examples.prepared",
+                                    "Prepared example additions: inserted=" + inserted
+                                            + ", skipped=" + (item.examples.size() - inserted)
+                                            + "; awaiting vocabulary transaction completion",
+                                    Map.of(
+                                            "operation", "vocabulary.import",
+                                            "vocabularyId", vocabulary.id,
+                                            "total", item.examples.size(),
+                                            "created", inserted,
+                                            "count", item.examples.size() - inserted,
+                                            "reason", "duplicate_examples"
+                                    )
+                            );
+                        }
+                    }).replaceWithVoid();
         });
     }
 

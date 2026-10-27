@@ -26,7 +26,11 @@ public class VocabularyMeaningEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.meanings.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.meanings.add",
+            description = "Vocabulary meanings addition",
+            successMessage = "Successfully added {count} meanings to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyMeaningResponse>> addVocabularyMeanings(
             Long vocabularyId,
             List<VocabularyMeaningUpdateRequest> requests
@@ -42,7 +46,11 @@ public class VocabularyMeaningEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.meaning.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.meaning.update",
+            description = "Vocabulary meaning update",
+            successMessage = "Successfully updated meaning with id={meaningId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyMeaningResponse> updateVocabularyMeaning(
             Long vocabularyId,
             Long meaningId,

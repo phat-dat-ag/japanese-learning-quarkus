@@ -1,5 +1,6 @@
 package com.japaneselearning.vocabulary.admin.service;
 
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.admin.dto.LessonAssignmentAddRequest;
 import com.japaneselearning.vocabulary.admin.dto.LevelAssignmentAddRequest;
 import com.japaneselearning.vocabulary.admin.dto.AssignmentOrderUpdateRequest;
@@ -18,11 +19,15 @@ import io.quarkus.hibernate.reactive.panache.common.WithTransaction;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.jboss.logging.Logger;
 
 import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class VocabularyAssignmentEditService {
+    private static final Logger LOG = Logger.getLogger(VocabularyAssignmentEditService.class);
+
     private final VocabularyEditPersistence persistence;
     private final JlptLevelRepository levels;
     private final LessonRepository lessons;
@@ -50,7 +55,11 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.levels.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.levels.add",
+            description = "Vocabulary JLPT level assignments addition",
+            successMessage = "Successfully added {count} JLPT level assignments to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyLevelResponse>> addLevelAssignments(
             Long vocabularyId,
             List<LevelAssignmentAddRequest> requests
@@ -64,7 +73,11 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.level_order.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.level_order.update",
+            description = "Vocabulary JLPT level assignment order update",
+            successMessage = "Successfully updated JLPT level assignment order with id={levelId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyLevelResponse> updateLevelAssignmentOrder(
             Long vocabularyId,
             Long levelId,
@@ -82,7 +95,11 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.lessons.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.lessons.add",
+            description = "Vocabulary lesson assignments addition",
+            successMessage = "Successfully added {count} lesson assignments to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyLessonResponse>> addLessonAssignments(
             Long vocabularyId,
             List<LessonAssignmentAddRequest> requests
@@ -96,7 +113,11 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.lesson_order.update")
+    @LogVocabularyOperation(
+            value = "vocabulary.lesson_order.update",
+            description = "Vocabulary lesson assignment order update",
+            successMessage = "Successfully updated lesson assignment order with id={lessonId} for vocabulary entry with id={vocabularyId}"
+    )
     public Uni<VocabularyLessonResponse> updateLessonAssignmentOrder(
             Long vocabularyId,
             Long lessonId,
@@ -118,7 +139,11 @@ public class VocabularyAssignmentEditService {
     }
 
     @WithTransaction
-    @LogVocabularyOperation("vocabulary.parts_of_speech.add")
+    @LogVocabularyOperation(
+            value = "vocabulary.parts_of_speech.add",
+            description = "Vocabulary part of speech assignments addition",
+            successMessage = "Successfully added {count} part of speech assignments to vocabulary entry with id={vocabularyId}"
+    )
     public Uni<List<VocabularyPartOfSpeechResponse>> addPartOfSpeechAssignments(
             Long vocabularyId,
             List<PartOfSpeechAssignmentAddRequest> requests
@@ -172,6 +197,20 @@ public class VocabularyAssignmentEditService {
 
     private Uni<Void> requireLessonLevelAssignment(Long vocabularyId, Long levelId) {
         return levelAssignments.existsLevelAssignment(vocabularyId, levelId).invoke(assigned -> {
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    "vocabulary.lesson.level_checked",
+                    "Checked whether the lesson's JLPT level is already assigned to the vocabulary",
+                    Map.of(
+                            "vocabularyId", vocabularyId,
+                            "levelId", levelId,
+                            "reason", assigned
+                                    ? "assigned"
+                                    : "level_assignment_required"
+                    )
+            );
+
             if (!assigned) {
                 throw VocabularyEditPersistence.invalidRequest(
                         "lessonId", "Assign the lesson's JLPT level to the vocabulary first");
