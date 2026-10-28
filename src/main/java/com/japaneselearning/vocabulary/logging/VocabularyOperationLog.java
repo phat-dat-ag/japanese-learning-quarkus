@@ -106,6 +106,16 @@ public class VocabularyOperationLog {
                         StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".failed",
                                 description + " failed unexpectedly; see the centralized exception diagnostic", fields);
                     })
+                    .onCancellation().invoke(() -> {
+                        if (LOG.isDebugEnabled()) {
+                            Map<String, Object> fields = new HashMap<>(identifiers);
+                            fields.put("operation", operation);
+                            fields.put("outcome", "cancelled");
+                            fields.put("durationMs", (System.nanoTime() - started) / 1_000_000);
+                            StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".cancelled",
+                                    description + " was cancelled before completion", fields);
+                        }
+                    })
                     .onTermination().invoke(() -> {
                         context.delete(ACTIVE_OPERATION);
                         long duration = (System.nanoTime() - started) / 1_000_000;

@@ -168,6 +168,25 @@ class VocabularyOperationLogTest {
     }
 
     @Test
+    void cancellationIsVisibleAtDebugWithoutACompletionOrPayload() {
+        var previous = logger.getLevel();
+        logger.setLevel(java.util.logging.Level.FINE);
+        try {
+            var pending = observe(createMethod(), new Object[]{null}, Uni.createFrom().nothing())
+                    .subscribe().with(ignored -> fail("Cancelled operation must not complete"));
+            pending.cancel();
+            assertEquals(List.of("lesson.create.started", "lesson.create.cancelled"),
+                    records.stream().map(record -> record.getMdc("event.name")).toList());
+            assertEquals("cancelled", records.get(1).getMdc("outcome"));
+            assertNotNull(records.get(1).getMdc("durationMs"));
+            assertNull(records.get(1).getThrown());
+            assertTrue(message(1).contains("cancelled before completion"));
+        } finally {
+            logger.setLevel(previous);
+        }
+    }
+
+    @Test
     void adminSuccessKeepsResultIdentityAndLogsNoPayload() throws Exception {
         Method method = VocabularyCoreEditService.class.getMethod(
                 "updateVocabularyCore", Long.class, VocabularyCoreUpdateRequest.class);
