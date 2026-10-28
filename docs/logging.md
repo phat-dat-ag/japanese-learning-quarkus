@@ -451,3 +451,28 @@ from identifiers to descriptive text; review cross-module level consistency and
 field naming only in their assigned phases. The existing centralized sanitized
 stack format, JSON allowlist, HTTP lifecycle, configuration and other modules'
 messages are unchanged. Cancellation/slow events retain their existing ownership.
+
+### Phase 4: common lifecycle messages
+
+HTTP start, terminal and slow records now describe the method and safe route in
+English. Arrival still uses a safe family because REST matching has not happened;
+terminal records prefer the matched template. Interrupted responses retain the
+existing failed event and failure outcome, with a transport category and
+REQUEST_INTERRUPTED fallback code when no error status exists. The single end
+handler remains the terminal event owner. Central diagnostics retain sanitized
+stacks and now use descriptive text; API error responses are unchanged.
+
+Operation annotation and helper signatures remain compatible. Default operation
+messages are descriptive, and the five-argument `OperationLog.outcome(result,
+eventSuffix, message, fields, level)` overload permits explicit DEBUG replay/no-op
+summaries. A null level inherits the annotation; existing partial_failure summaries
+retain WARN. No replay/no-op classification is inferred. Disabled completion levels
+skip template construction. Outcome fields cannot overwrite measured duration or
+operation identifiers. Existing subscription, transaction and MDC behavior remains.
+
+No JSON keys were added: current structured business fields already fit the explicit
+text/integer allowlist. Rating remains `reason`, resulting state remains
+`learning.status`. No arbitrary MDC or boolean fields are exported. Phase 5 may
+add explicit business producers for skipped/lapse counts, previous state, progress
+percentages and booleans, with typed allowlist entries and tests, and opt routine
+replay/no-op callers into DEBUG. Those business changes are not part of Phase 4.

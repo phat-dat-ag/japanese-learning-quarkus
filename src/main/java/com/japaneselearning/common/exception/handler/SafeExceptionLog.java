@@ -35,6 +35,12 @@ final class SafeExceptionLog {
             fields.put("traceId", traceId);
         }
 
-        StructuredLog.event(LOG, Logger.Level.ERROR, "application.exception", fields);
+        StructuredLog.event(
+                LOG,
+                Logger.Level.ERROR,
+                "application.exception",
+                "Request failed because of an unexpected internal error",
+                fields
+        );
     }
 }

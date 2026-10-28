@@ -211,7 +211,7 @@ class OperationLogBehaviorTest {
         var legacy = (Uni<?>) observe(getClass().getMethod("reactive"), this, Uni.createFrom().failure(validation), null);
         assertThrows(RuntimeException.class, () -> legacy.await().indefinitely());
         assertEquals(org.jboss.logmanager.Level.DEBUG, records.get(1).getLevel());
-        assertEquals("test.reactive.rejected", records.get(1).getFormattedMessage());
+        assertEquals("Operation test.reactive rejected due to a business validation failure", records.get(1).getFormattedMessage());
     }
 
     @Test
@@ -222,6 +222,27 @@ class OperationLogBehaviorTest {
         observed.await().indefinitely();
         assertEquals("Created question with id=15; count=unavailable", records.get(1).getFormattedMessage());
         assertFalse(records.get(1).getFormattedMessage().contains("secret"));
+    }
+
+    @Test
+    void explicitCompletionLevelsDoNotInferReplayOrNoOpFromNames() throws Exception {
+        for (String name : List.of("replayed", "unchanged", "completed")) {
+            records.clear();
+            var source = OperationLog.outcome(Uni.createFrom().item("ok"), name,
+                    "Returned an existing result without modifying progress", Map.of("count", 2),
+                    org.jboss.logging.Logger.Level.DEBUG);
+            var observed = (Uni<?>) observe(getClass().getMethod("reactive"), this, source, null);
+            observed.await().indefinitely();
+            assertEquals(2, records.size());
+            assertEquals(org.jboss.logmanager.Level.DEBUG, records.get(1).getLevel());
+            assertEquals("success", records.get(1).getMdc("outcome"));
+            assertEquals("Returned an existing result without modifying progress", records.get(1).getFormattedMessage());
+            assertEquals("outer", MDC.get("operation"));
+        }
+        records.clear();
+        var legacy = OperationLog.outcome(Uni.createFrom().item("ok"), "replayed");
+        ((Uni<?>) observe(getClass().getMethod("reactive"), this, legacy, null)).await().indefinitely();
+        assertEquals(org.jboss.logmanager.Level.INFO, records.get(1).getLevel());
     }
 
     private List<String> events() {
