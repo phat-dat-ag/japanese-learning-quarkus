@@ -100,6 +100,10 @@ class ApplicationFileLoggingTest {
         }
         assertEquals(1, events(records, id, "http.request.started").size());
         JsonNode completed = single(records, id, "http.request.completed");
+        assertEquals("Started GET /unmatched", single(records, id, "http.request.started").path("message").asText());
+        assertEquals("GET", completed.path("http.request.method").asText());
+        assertEquals("Completed GET /correlation-probe with status 200 in "
+                + completed.path("durationMs").asLong() + " ms", completed.path("message").asText());
         assertEquals(trace, completed.path("traceId").asText());
         assertEquals("legacy-response-alias", completed.path("legacyTraceId").asText());
         assertEquals(200, completed.path("http.response.status_code").asInt());
@@ -123,6 +127,7 @@ class ApplicationFileLoggingTest {
         assertEquals("TEST_CONFLICT", single(records, id + "-conflict", "http.request.failed").path("error.code").asText());
         assertEquals("WARN", single(records, id + "-conflict", "http.request.failed").path("level").asText());
         JsonNode exception = single(records, id + "-error", "application.exception");
+        assertEquals("Request failed because of an unexpected internal error", exception.path("message").asText());
         assertTrue(exception.path("error.stack_trace").asText().contains("ErrorProbeResource.error"));
         assertEquals("java.lang.IllegalStateException", exception.path("error.type").asText());
         assertEquals(1, single(records, id + "-import", "vocabulary.import.completed").path("created").asInt());

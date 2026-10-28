@@ -19,6 +19,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StructuredLogTest {
     @Test
+    void businessFieldsKeepNumericTypesAndUnsupportedBooleansStayExcluded() throws Exception {
+        var formatter = new JsonFormatter();
+        formatter.setDiscoveredProviders(List.of(new ApplicationJsonFields()));
+        formatter.setExcludedKeys(Set.of("mdc", "ndc"));
+        var json = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        for (String state : List.of("true", "false", "TRUE", "credential-sentinel")) {
+            var record = new ExtLogRecord(org.jboss.logmanager.Level.INFO, "Business summary", getClass().getName());
+            record.setMdc(Map.of("bookmarked", state, "lapses", "2", "studiedBasisPoints", "3333",
+                    "masteryBasisPoints", "10000", "dueCount", "4", "studiedCount", "3",
+                    "masteredCount", "2", "learning.previous_status", "NEW", "subject", "private-sentinel"));
+            String output = formatter.format(record);
+            var value = json.readTree(output);
+            for (String key : List.of("lapses", "studiedBasisPoints", "masteryBasisPoints",
+                    "dueCount", "studiedCount", "masteredCount")) {
+                assertTrue(value.path(key).isIntegralNumber(), key);
+            }
+            assertEquals(3333, value.path("studiedBasisPoints").asInt());
+            assertFalse(value.has("bookmarked"));
+            assertFalse(output.contains("sentinel"));
+        }
+    }
+
+    @Test
     void descriptiveOverloadPreservesEventNumericJsonAndMdcWhileLegacyMessageStaysUnchanged() throws Exception {
         Logger logger = Logger.getLogger("test.structured.message");
         var records = new java.util.ArrayList<ExtLogRecord>();
@@ -117,6 +140,8 @@ class StructuredLogTest {
             assertEquals("GOOD", records.get(0).getMdc("reason"));
             assertEquals("86400", records.get(0).getMdc("intervalSeconds"));
             assertEquals("LEARNING", records.get(0).getMdc("learning.status"));
+            assertEquals("NEW", records.get(0).getMdc("learning.previous_status"));
+            assertEquals("0", records.get(0).getMdc("lapses"));
             assertNull(MDC.get("intervalSeconds"));
         } finally {
             logger.removeHandler(handler);

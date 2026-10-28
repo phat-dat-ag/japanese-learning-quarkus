@@ -205,11 +205,13 @@ class FlashcardBusinessLoggingTest {
         assertEquals("GOOD", accepted.getMdc("reason"));
         assertEquals("86400", accepted.getMdc("intervalSeconds"));
         assertEquals("42", accepted.getMdc("vocabularyId"));
+        assertEquals("0", accepted.getMdc("lapses"));
         assertEquals(1, progressRows.writes);
         assertEquals(1, reviewRows.writes);
         records.clear();
         review(reviews, ReviewRating.GOOD, 0L);
         assertTrue(only("flashcard.review.replayed").getFormattedMessage().contains("no review or progress was written"));
+        assertEquals(org.jboss.logmanager.Level.DEBUG, only("flashcard.review.replayed").getLevel());
         assertNo("flashcard.review.accepted");
         assertNo("flashcard.srs.scheduled");
         assertEquals(1, progressRows.writes);
@@ -327,6 +329,8 @@ class FlashcardBusinessLoggingTest {
         call(statistics, "statistics", new Class<?>[]{String.class, String.class, Long.class}, OWNER, null, null);
         var result = only("flashcard.statistics.completed");
         assertTrue(result.getFormattedMessage().contains("studied percentage=33.33"));
+        assertEquals("3333", result.getMdc("studiedBasisPoints"));
+        assertEquals("1", result.getMdc("studiedCount"));
         assertTrue(result.getFormattedMessage().contains("forgotten attempts=1"));
         assertTrue(result.getFormattedMessage().contains("practice attempts=1"));
         assertEquals("3", result.getMdc("total"));

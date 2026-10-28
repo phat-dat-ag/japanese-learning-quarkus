@@ -145,7 +145,8 @@ public class FlashcardReviewService {
                         "itemId", review.sessionItemId,
                         "vocabularyId", review.vocabularyId,
                         "reason", "idempotent_replay"
-                )
+                ),
+                Logger.Level.DEBUG
         );
     }
 
@@ -249,6 +250,7 @@ public class FlashcardReviewService {
                                         "learning.status", after.status().name(),
                                         "intervalSeconds", after.intervalSeconds(),
                                         "repetitions", after.successfulRepetitionCount(),
+                                        "lapses", after.lapseCount(),
                                         "count", session.completedCount,
                                         "total", session.itemCount
                                 )

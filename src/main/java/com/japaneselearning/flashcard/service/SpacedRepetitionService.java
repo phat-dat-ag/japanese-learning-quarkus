@@ -150,6 +150,8 @@ public class SpacedRepetitionService {
                             "operation", "flashcard.review",
                             "reason", rating.name(),
                             "learning.status", status.name(),
+                            "learning.previous_status", previous.status().name(),
+                            "lapses", lapses,
                             "intervalSeconds", interval,
                             "repetitions", repetitions
                     )

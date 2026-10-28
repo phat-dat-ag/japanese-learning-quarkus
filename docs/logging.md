@@ -49,12 +49,14 @@ are escaped inside the object. Dotted keys are literal top-level keys.
 | `http.request.method` | Allowlisted method or `OTHER` |
 | `http.route` | Static matched template; safe family before matching; `/unmatched` otherwise |
 | `http.response.status_code`, `durationMs` | Integers; duration uses a monotonic clock |
-| `outcome` | `success`, `failure`, or vocabulary batch `partial_failure` |
+| `outcome` | `success`, `failure`, batch `partial_failure`, or vocabulary `cancelled` |
 | `error.code`, `error.type` | Safe code and exception class or HTTP/security category |
 | `error.stack_trace` | Bounded sanitized cause classes and code locations |
 | `operation`, `reason` | Stable operation and decision/rejection category |
-| `learning.status` | SRS state name; never the learner subject |
-| `intervalSeconds`, `repetitions`, `page`, `size` | Integer scheduling/pagination diagnostics |
+| `learning.status`, `learning.previous_status` | Resulting/prior SRS state names; never the learner subject |
+| `intervalSeconds`, `repetitions`, `lapses`, `page`, `size` | Integer scheduling/pagination diagnostics |
+| `dueCount`, `studiedCount`, `masteredCount` | Integer statistics counts from the existing response |
+| `studiedBasisPoints`, `masteryBasisPoints` | Integer hundredths of a percentage point: 3333 means 33.33% |
 | `sessionId`, `itemId`, `vocabularyId`, `lessonId`, other allowlisted IDs | Integers, never subjects |
 | `count`, `total`, `created`, `updated`, `succeeded`, `failed` | Integer summary metrics |
 
@@ -87,7 +89,8 @@ source paths, SQL and payloads are omitted. The HTTP terminal event has no secon
 stack. Batch item errors retain central diagnostics. Propagated database/
 connectivity failures use this path; existing optimistic/unique conflict
 translations retain their 409 codes. Unknown framework throwable categories are
-`http`, `authentication` or `authorization`.
+`http`, `authentication` or `authorization`. Interrupted responses use `transport`
+and the `REQUEST_INTERRUPTED` fallback code when no error status is available.
 
 No JWTs, raw headers, subjects, whole entities or request/response bodies are logged
 by the new instrumentation. Preserve `OidcProvider=ERROR` because lower-level
@@ -99,14 +102,14 @@ sanitizer for third-party libraries or independently configured exporters.
 Vocabulary imports, lesson writes/batches and Admin edits retain
 `LogVocabularyOperation`, now with typed counts/IDs/durations and
 `<operation>.completed` / `.rejected` events. Nested lessons emit one batch
-summary. JLPT catalogue counts are structured DEBUG diagnostics.
+summary. JLPT catalogue counts are structured INFO summaries.
 
 `LogOperation` marks flashcard session creation/finish/abandon, bookmarks,
 statistics, quiz session creation/completion, answers, progress and question
-Admin operations. Success follows transaction completion. Statistics/progress reads complete at DEBUG. Conflicts use WARN;
-ordinary validation rejection uses DEBUG. Quiz imports suppress nested item logs and emit a WARN `quiz.question.import.partial_failure` summary when any items fail, with `total`, `succeeded`, and `failed` counts.
+Admin operations. Success follows transaction completion. Statistics/progress reads complete at INFO. Described business rejections use WARN;
+legacy undescribed validation retains its DEBUG default. Quiz imports suppress nested item logs and emit a WARN `quiz.question.import.partial_failure` summary when any items fail, with `total`, `succeeded`, and `failed` counts.
 
-Reviews emit `flashcard.review.accepted` or `flashcard.review.replayed` after
+Reviews emit INFO `flashcard.review.accepted` or DEBUG `flashcard.review.replayed` after
 commit, using subscription-local outcome state. `flashcard.review.rejected`
 includes session/item IDs and the existing code, including `FLASHCARD_NOT_DUE`.
 The logging does not modify persistence or response behavior.
@@ -127,7 +130,7 @@ attribute retention apply separately to exported telemetry.
 
 ## Correlation and W3C context
 
-Exactly one incoming `X-Correlation-ID` is accepted if it contains 1?64 ASCII
+Exactly one incoming `X-Correlation-ID` is accepted if it contains 1-64 ASCII
 letters, digits, underscore or hyphen. Missing, blank, oversized, duplicate,
 comma-joined or malformed values are replaced with a UUID without hyphens.
 The chosen value is returned even on early authentication failures.
@@ -159,7 +162,7 @@ collector is required. The incoming span is the parent, not the server span.
 | `APP_LOG_RETENTION_DAYS` | `30`, positive |
 | `APP_SLOW_OPERATION_MS` | `1000`; `0` emits every slow signal for diagnostics/tests |
 | `APP_OTEL_EXPORT_ENABLED` | `false`; tracing context remains active |
-| `APP_OTEL_SAMPLE_RATIO` | `0.1`, range 0?1 |
+| `APP_OTEL_SAMPLE_RATIO` | `0.1`, range 0-1 |
 | `QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT` | Set to your collector when enabling export |
 | `QUARKUS_OTEL_EXPORTER_OTLP_PROTOCOL` | Standard Quarkus setting; match the collector |
 
@@ -278,6 +281,7 @@ path:
 
 ```java
 StructuredLog.event(LOG, Logger.Level.DEBUG, "flashcard.review.mode",
+        "Selected the review scheduling mode; progress has not yet been committed",
         Map.of("sessionId", session.id, "itemId", item.id, "vocabularyId", item.vocabularyId,
                 "reason", scheduling ? "scheduling" : "practice"));
 ```
@@ -303,7 +307,7 @@ that do not need additional INFO business events.
 | Flashcard learning / SRS | Session selection mode/count/limit; generated session IDs after commit; review scheduling/practice decisions; DEBUG rating category, interval and resulting state. Accepted/replayed reviews, not-due/version conflicts, finish/abandon and bookmarks retain operation outcomes. Bookmark completion confirms requested state, not necessarily a new row. |
 | Quiz Admin / imports | Authoring/publication/archive operations, generated question IDs, DEBUG custom/example source selection; batch start and WARN partial summaries. Per-item transactions remain independent. |
 | Quiz gameplay / snapshots | DEBUG eligibility and locked-bank revalidation; generated session IDs/counts after commit; answer and completion events, ownership/ordering/conflict codes. Snapshot and classification persistence remain sequential and immutable. |
-| Quiz history / progress | HTTP route and lifecycle for history/detail/config/next reads; progress completion at DEBUG. Normal empty history/next results are not warnings. |
+| Quiz history / progress | HTTP route and lifecycle for history/detail/config/next reads; progress completion at INFO. Normal empty history/next results are not warnings. |
 | Repositories and external operations | Reactive persistence is represented by enclosing operation duration/outcome and sampled SQL spans. No per-query INFO logging or bind values. No business HTTP client exists; OIDC owns JWKS retrieval. |
 | Security and common infrastructure | Early 401/403, validation, deserialization and central errors share request tracing. Health probe noise stays excluded. Retention failure retries remain WARN and file I/O stays on its worker. |
 
@@ -324,155 +328,80 @@ quota and monitor free space; day retention and per-date backup count do not
 provide a strict aggregate byte cap. A full disk or discarded async queue can
 lose diagnostics. Launcher/JVM stderr and OTLP delivery still require separate
 collector configuration and deployment validation.
-## Verification
+## Final audit and verification
 
-Tests parse real HTTP/file logs as JSON and cover schema/types, correlation
-validation, W3C extraction/outbound propagation, concurrent reactive isolation,
-success, validation/deserialization, conflicts, unexpected errors, 401/403,
-unknown routes, one terminal event, secret sentinels, safe stacks, transaction
-completion, compressed rotation/reopen and archive cleanup.
+All application StructuredLog call sites use descriptive messages; the legacy
+four-argument overload remains available for compatibility. Event names remain
+stable. HTTP start messages use safe route families before REST matching, while
+terminal messages prefer matched templates and include method, status and elapsed
+milliseconds. Neither message path includes query strings or dynamic path values.
 
-```powershell
-.\mvnw.cmd test "-Dtest=ApplicationFileLoggingTest,CorrelationIdTest,CorrelationIdValidationTest,ProductionErrorTest,OperationLogTest,VocabularyOperationLogTest,LogRetentionTest" "-Dquarkus.http.test-port=0"
-.\mvnw.cmd verify "-Dquarkus.http.test-port=0"
-docker build --check .
-```
+The five-argument OperationLog.outcome(result, eventSuffix, message, fields, level)
+overload allows explicit completion levels. A null level inherits the annotation;
+partial_failure retains WARN. Replay/no-op status is never inferred from prose.
+Only the explicit flashcard review replay path opts into DEBUG in the final audit;
+other meaningful confirmations retain their existing levels. Nested operations
+share the enclosing summary; each independent subscription represents another
+execution. Do not add retries or cache subscriptions solely for logging.
 
-Quarkus 3.38.2 currently discovers the existing guarded MySQL test profiles before
-their disabled-test condition. If default verification fails with
-"dedicated vocabulary_import_test database", supply
-`-Dvocabulary.mysql.url=mysql://127.0.0.1:1/vocabulary_import_test` without enabling
-`vocabulary.mysql.tests`. This satisfies discovery and does not connect to MySQL.
-This pre-existing profile behavior was not changed by the logging enhancement.
+SRS diagnostics expose the already-computed prior/resulting states and lapse count.
+Committed review summaries also expose lapses. Statistics expose due/studied/mastered
+counts and fixed-point progress values without additional queries or recalculation
+of business results. Existing count/total/reason fields keep their meanings;
+example-import skipped counts remain in count with reason=duplicate_examples.
+Vocabulary cancellation now emits a DEBUG cancelled event before clearing its
+subscription scope. Cancellation is not a committed-success assertion.
 
-Opt-in MySQL checks remain documented in README. Rotation/reopen tests exercise
-the real file handler; they do not prove external collector, production volume
-or .NET tracing integration behavior. Validate those during deployment.
+No redundant production completion/stack owner or unused compatibility helper was
+confirmed. HTTP completion, business completion, DEBUG rule decisions and optional
+slow signals are distinct events. Mutation success logs remain after successful transaction
+completion; failed commits emit no success, and expected rejections never carry raw stacks.
+The final audit removes stale level documentation and duplicate historical
+verification narratives rather than removing useful diagnostics.
 
-### Current-checkout verification (2026-10-26)
+### Known limitations
 
-- Focused helper/business and HTTP tests passed; the final helper/HTTP diagnostic
-  run passed 14 tests. Six new regression tests cover malformed numeric MDC,
-  strict duplicate-key parsing, field isolation, disabled DEBUG behavior, SRS
-  decisions, synchronous/class bindings, reactive failure/cancellation and partial
-  quiz-import summaries.
-- Full offline `verify` and packaging passed: 261 executed, 135 skipped.
-- All 215 opt-in MySQL tests passed on a disposable MySQL 8.4 database migrated
-  externally through V11. Captured real output included generated session/question
-  IDs, accepted/replayed review events and WARN partial-import counts.
-- Dockerfile checks and the root source image build passed. Forty unauthorized
-  requests across a container restart produced 140 valid console records and 140
-  valid file records; twelve gzip archives were readable. Each request had one
-  terminal event and consistent trace/span IDs; the query secret sentinel was absent.
-- `git diff --check` passed. Existing containers, volumes and logs were preserved.
-  No external OTLP collector, native build or real .NET token integration was tested.
+- Quarkus 3.38.2 JsonLogGenerator has no top-level decimal overload, and its boolean
+  overload delegates to String.valueOf. A focused formatter test detected this.
+  No boolean field is exported as a misleading string. Bookmark state remains
+  represented by the existing reason/message; typed top-level boolean support is
+  deferred to a compatible formatter version. Progress is exported as explicitly
+  named integer basis points. The allowlist never exports arbitrary MDC.
+- Async discard queues, abrupt termination and disk exhaustion can lose records.
+  No aggregate disk quota or durable audit guarantee is provided. Verify collector
+  retention and avoid duplicate ingestion of console and file output.
+- The pinned Quarkus/OpenTelemetry combination emits an API-usage warning during
+  startup/GC metrics outside an active span. Prior diagnosis identified the
+  OpenTelemetry exemplar sampler; this audit does not suppress the warning or
+  upgrade dependencies. Request tracing is covered separately by tests.
+- HTTP parser rejections before routing and image-launcher stderr are outside the
+  application lifecycle/NDJSON contract. Real collector delivery, production load,
+  native builds and real .NET-issued token integration require deployment checks.
 
-The pinned Quarkus 3.38.2 / OpenTelemetry 1.62.0 combination emits an
-`io.opentelemetry.usage` warning. A focused diagnostic at JUL FINEST identified
-`Span.fromContextOrNull(): context is null` in Quarkus's
-`OpentelemetryExemplarSamplerProvider`, reached by JVM startup/GC metrics outside
-an active span. Request trace propagation and logging checks pass. The warning
-is retained; this change does not disable metrics/exemplars, suppress the warning,
-or upgrade dependencies. Track this framework integration when updating Quarkus.
-Diagnostic ALL/FINEST settings were temporary and are not production defaults.
-### Previous-session container verification (historical)
+Focused tests cover HTTP/error JSON, correlation/W3C propagation, safe messages,
+strict duplicate-key parsing, numeric types, unsupported-field exclusion, reactive
+completion/rollback/cancellation, MDC restoration, business outcomes and retention.
+Full verification and opt-in MySQL tests use the README commands and a disposable,
+externally migrated database. Results below describe this audit only.
 
-The root source-built image was run with a new isolated bind directory and an
-8 KiB rotation threshold. Forty unauthorized API requests were sent across a
-container stop/start. All 140 stdout and file records parsed as JSON, twelve
-gzip archives were readable, and each request had one terminal event and
-consistent trace/span IDs. A query-string secret sentinel was absent. The four
-launcher stderr lines (two starts) were separate from application NDJSON.
-The task-created container was removed; existing containers/volumes were untouched.
-This verifies local restart/rotation behavior, not production collector delivery.
+### Final audit results (2026-10-28)
 
-### Previous-session automated results (historical)
-
-- Offline `verify` passed: 255 executed tests; 135 opt-in test cases were skipped.
-  The documented dedicated-database URL discovery workaround was supplied.
-- All opt-in MySQL checks passed on a new MySQL 8.4 tmpfs database after V1?V11:
-  203 `*MysqlTest` cases plus 12 `VocabularyMysqlImportTest` cases.
-- Quarkus packaging, root Docker source build, Docker BuildKit checks and
-  `git diff --check` passed. Database containers were removed without volumes.
-- No OTLP collector delivery, production collector configuration, native build
-  or real .NET-issued access-token end-to-end verification is claimed.
-
-### Representative test log excerpts
-
-The following are parsed output excerpts, in order: successful request,
-validation failure, authentication failure, business conflict, unexpected server
-failure and slow request. Other formatter fields are omitted here for readability.
-
-```json
-{"@timestamp":"2026-10-26T08:24:22.415Z","level":"WARN","service.name":"backend","event.name":"http.request.completed","traceId":"0123456789abcdef0123456789abcdef","spanId":"f7bd9380a1825ae5","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0","http.route":"/correlation-probe","http.response.status_code":200,"durationMs":34,"outcome":"success"}
-{"@timestamp":"2026-10-26T08:24:22.528Z","level":"WARN","service.name":"backend","event.name":"http.request.failed","traceId":"ee869db51c4022966b43f24b4427bb6a","spanId":"a02c1af53043cc52","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0-validation","http.route":"/error-probe","http.response.status_code":400,"durationMs":27,"outcome":"failure","error.type":"io.quarkus.hibernate.validator.runtime.jaxrs.ResteasyReactiveViolationException","error.code":"BAD_REQUEST"}
-{"@timestamp":"2026-10-26T08:24:22.571Z","level":"WARN","service.name":"backend","event.name":"http.request.failed","traceId":"c7f1b0c3ddb341313d5164fd82e6df3b","spanId":"865a3d9227ba9901","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0-rejected","http.route":"/api/v1/jlpt-levels/*","http.response.status_code":401,"durationMs":7,"outcome":"failure","error.type":"authentication","error.code":"UNAUTHORIZED"}
-{"@timestamp":"2026-10-26T08:24:22.492Z","level":"WARN","service.name":"backend","event.name":"http.request.failed","traceId":"9643183314a486b3399e10c2a6ce3a9b","spanId":"72e4b37bd7c90f70","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0-conflict","http.route":"/error-probe/{kind}","http.response.status_code":409,"durationMs":2,"outcome":"failure","error.type":"com.japaneselearning.common.exception.ConflictException","error.code":"TEST_CONFLICT"}
-{"@timestamp":"2026-10-26T08:24:22.466Z","level":"ERROR","service.name":"backend","event.name":"http.request.failed","traceId":"2e8130c8302b86a0e41467a40596cb72","spanId":"aceba760b3c70279","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0-error","http.route":"/error-probe/{kind}","http.response.status_code":500,"durationMs":25,"outcome":"failure","error.type":"java.lang.IllegalStateException","error.code":"INTERNAL_SERVER_ERROR"}
-{"@timestamp":"2026-10-26T08:24:22.415Z","level":"WARN","service.name":"backend","event.name":"http.request.slow","traceId":"0123456789abcdef0123456789abcdef","spanId":"f7bd9380a1825ae5","correlationId":"file-2e6ead63-104f-48fb-8681-7184b6941df0","http.route":"/correlation-probe","http.response.status_code":200,"durationMs":34,"outcome":"success"}
-```
-
-### Phase 1: descriptive Quiz business messages
-
-Quiz operations opt into `LogOperation.description` and `successMessage`.
-`StructuredLog.event(logger, level, event, message, fields)` separates English text
-from the stable event name; its original overload and existing annotation defaults
-retain their previous behavior for other modules. Completion templates substitute
-only explicitly allowlisted integer/long fields (IDs, counts and pagination).
-Neither templates nor the interceptor inspect DTOs, subjects or exception messages.
-`OperationLog.outcome` also accepts a message for result-dependent summaries.
-
-The Quiz audit covers both Resources, Admin query/write/import services and file
-validation, publication rules, locked snapshot/classification creation, gameplay,
-answers, history, progress, and their repositories. There is no Quiz delete,
-abandon, configuration-write or import-update API. Reading an in-progress session
-supports continuation; it does not create a separate resumption state transition.
-Progress and scores are derived from answers, not a separate progress write.
-
-Quiz retrievals now complete at INFO with actual response counts. Writes retain
-one post-transaction operation outcome. Expected rejections are WARN with safe
-codes/IDs; DEBUG rule and conflict diagnostics explain internal decisions without
-question/answer text, keywords, filenames or subjects. Empty results remain INFO.
-Import summaries count created and failed records; invalid prepared items are
-included in failed counts. An interrupted batch emits a separate ERROR summary
-with `count` completed records, `total` input records, committed `created` records,
-and `failed` including the interrupted item. Earlier item commits are retained by
-the existing import contract. The central handler remains the sole stack owner.
-
-Illustrative Quiz messages (normal context and formatter fields omitted):
-
-```json
-{"level":"INFO","event.name":"quiz.question.create.completed","message":"Successfully created draft quiz question with id=15","operation":"quiz.question.create","questionId":15,"outcome":"success"}
-{"level":"WARN","event.name":"quiz.question.import.partial_failure","message":"Quiz import completed: processed=2, created=1, failed=1","operation":"quiz.question.import","total":2,"created":1,"succeeded":1,"failed":1,"outcome":"partial_failure"}
-```
-
-Phase 4/final cleanup follow-ups: migrate common HTTP/error lifecycle messages
-from identifiers to descriptive text; review cross-module level consistency and
-field naming only in their assigned phases. The existing centralized sanitized
-stack format, JSON allowlist, HTTP lifecycle, configuration and other modules'
-messages are unchanged. Cancellation/slow events retain their existing ownership.
-
-### Phase 4: common lifecycle messages
-
-HTTP start, terminal and slow records now describe the method and safe route in
-English. Arrival still uses a safe family because REST matching has not happened;
-terminal records prefer the matched template. Interrupted responses retain the
-existing failed event and failure outcome, with a transport category and
-REQUEST_INTERRUPTED fallback code when no error status exists. The single end
-handler remains the terminal event owner. Central diagnostics retain sanitized
-stacks and now use descriptive text; API error responses are unchanged.
-
-Operation annotation and helper signatures remain compatible. Default operation
-messages are descriptive, and the five-argument `OperationLog.outcome(result,
-eventSuffix, message, fields, level)` overload permits explicit DEBUG replay/no-op
-summaries. A null level inherits the annotation; existing partial_failure summaries
-retain WARN. No replay/no-op classification is inferred. Disabled completion levels
-skip template construction. Outcome fields cannot overwrite measured duration or
-operation identifiers. Existing subscription, transaction and MDC behavior remains.
-
-No JSON keys were added: current structured business fields already fit the explicit
-text/integer allowlist. Rating remains `reason`, resulting state remains
-`learning.status`. No arbitrary MDC or boolean fields are exported. Phase 5 may
-add explicit business producers for skipped/lapse counts, previous state, progress
-percentages and booleans, with typed allowlist entries and tests, and opt routine
-replay/no-op callers into DEBUG. Those business changes are not part of Phase 4.
+- Focused common/Quiz/Vocabulary/Flashcard logging suite: 81 passed, 0 failed,
+  0 errors, 0 skipped. An initial run had 80 passes and one new boolean-type
+  assertion failure; the incompatible proposed export was removed before the
+  passing run. No dependency workaround or schema misrepresentation was retained.
+- Full Maven verify with MySQL enabled: 530 passed, 0 failed, 0 errors, 0 skipped;
+  includes 215 tests across 15 MySQL suites. Tests used disposable MySQL 8.4,
+  externally migrated through V11, including idempotency, concurrent updates,
+  rollback, session lifecycle and atomic vocabulary imports. Packaging passed.
+- Strict parsing of 4,041 emitted console JSON records found no duplicate keys.
+  All 1,297 real HTTP request groups had one start and one terminal event; no
+  business/HTTP messages merely repeated their event name. New numeric fields
+  retained JSON integer types; checked credential/payload/subject/file/SQL sentinel
+  values were absent. The async file test separately validates real file output.
+- Rotation/reopen/gzip and bounded retention tests passed. Dockerfile validation
+  passed with no warnings; Docker hosted the isolated MySQL tests. A new application
+  image build/runtime smoke test was not run in this phase.
+- API contracts, schema, security, business rules, SRS calculations and transaction
+  boundaries were unchanged. No logging dependency/configuration changes, new
+  database queries or blocking request operations were introduced.

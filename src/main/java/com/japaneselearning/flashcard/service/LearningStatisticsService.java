@@ -97,7 +97,12 @@ public class LearningStatisticsService {
                         + ", mastery percentage=" + result.masteryPercentage(),
                 Map.of(
                         "total", result.totalVocabularyCount(),
-                        "count", result.totalReviewAttempts()
+                        "count", result.totalReviewAttempts(),
+                        "dueCount", result.dueCount(),
+                        "studiedCount", result.studiedCount(),
+                        "masteredCount", result.masteredCount(),
+                        "studiedBasisPoints", result.studiedPercentage().movePointRight(2).longValueExact(),
+                        "masteryBasisPoints", result.masteryPercentage().movePointRight(2).longValueExact()
                 )
         ));
     }

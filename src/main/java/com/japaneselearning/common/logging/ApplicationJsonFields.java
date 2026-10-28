@@ -10,12 +10,14 @@ import java.util.Set;
 public class ApplicationJsonFields implements JsonProvider {
     private static final Set<String> TEXT = Set.of(
             "event.name", "traceId", "spanId", "correlationId", "legacyTraceId", "http.request.method", "http.route",
-            "learning.status", "outcome", "error.type", "error.code", "error.stack_trace", "operation", "reason"
+            "learning.status", "learning.previous_status", "outcome", "error.type", "error.code",
+            "error.stack_trace", "operation", "reason"
     );
     private static final Set<String> NUMBERS = Set.of(
             "page", "size", "intervalSeconds", "repetitions", "http.response.status_code", "durationMs", "sessionId",
             "itemId", "vocabularyId", "lessonId", "levelId", "questionId", "readingId", "meaningId", "exampleId",
-            "pitchAccentId", "kanjiId", "total", "count", "created", "updated", "succeeded", "failed"
+            "pitchAccentId", "kanjiId", "total", "count", "created", "updated", "succeeded", "failed",
+            "lapses", "dueCount", "studiedCount", "masteredCount", "studiedBasisPoints", "masteryBasisPoints"
     );
 
     @Override
