@@ -84,7 +84,15 @@ public class CorrelationIdFilter {
         boolean applicationRequest = !context.normalizedPath().startsWith("/q/");
 
         if (applicationRequest) {
-            StructuredLog.event(LOG, Logger.Level.INFO, "http.request.started", fields);
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.INFO,
+                    "http.request.started",
+                    "Started "
+                            + fields.get("http.request.method")
+                            + " " + fields.get("http.route"),
+                    fields
+            );
         }
         context.addHeadersEndHandler(ignored -> {
             context.response().putHeader(HEADER, id);
@@ -120,9 +128,22 @@ public class CorrelationIdFilter {
                     if (failed) {
                         String code = context.get(ERROR_CODE_KEY);
                         String type = context.get(ERROR_TYPE_KEY);
-                        fields.put("error.code", code != null ? code : HttpErrors.forStatus(status).code());
-                        fields.put("error.type", type != null ? type
-                                : status == 401 ? "authentication" : status == 403 ? "authorization" : "http");
+                        fields.put("error.code", code != null
+                                ? code
+                                : ignored.failed() && status < 400
+                                ? "REQUEST_INTERRUPTED"
+                                : HttpErrors.forStatus(status).code()
+                        );
+                        fields.put("error.type", type != null
+                                ? type
+                                : ignored.failed()
+                                ? "transport"
+                                : status == 401
+                                ? "authentication"
+                                : status == 403
+                                ? "authorization"
+                                : "http"
+                        );
                     }
 
                     StructuredLog.event(LOG, status >= 500
@@ -130,10 +151,19 @@ public class CorrelationIdFilter {
                                     : failed || duration >= slowOperationMs
                                     ? Logger.Level.WARN
                                     : Logger.Level.INFO,
-                            failed ? "http.request.failed" : "http.request.completed", fields);
+                            failed ? "http.request.failed" : "http.request.completed",
+                            terminalMessage(fields, status, duration, ignored.failed()), fields);
 
                     if (duration >= slowOperationMs) {
-                        StructuredLog.event(LOG, Logger.Level.WARN, "http.request.slow", fields);
+                        StructuredLog.event(
+                                LOG,
+                                Logger.Level.WARN,
+                                "http.request.slow",
+                                "Request exceeded the configured duration threshold: "
+                                        + fields.get("http.request.method")
+                                        + " " + fields.get("http.route")
+                                        + " in " + duration + " ms", fields
+                        );
                     }
                 }
             } finally {
@@ -145,6 +175,17 @@ public class CorrelationIdFilter {
             }
         });
         context.next();
+    }
+
+    static String terminalMessage(Map<String, Object> fields, int status, long duration, boolean interrupted) {
+        String action = interrupted ? "Interrupted" : status >= 500 ? "Failed" : status >= 400 ? "Rejected" : "Completed";
+        String reason = interrupted ? " before the response completed"
+                : status >= 500 ? " because of an unexpected internal error"
+                : status == 404 ? " because the referenced resource was not found"
+                : status == 409 ? " because the request conflicts with the current state"
+                : status == 400 ? " due to a request or business validation failure" : "";
+        return action + " " + fields.get("http.request.method") + " " + fields.get("http.route")
+                + " with status " + status + " in " + duration + " ms" + reason;
     }
 
     private static String safeRoute(String path) {
