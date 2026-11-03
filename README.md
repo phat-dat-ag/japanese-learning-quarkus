@@ -43,7 +43,7 @@ flowchart LR
     Services --> Repositories[Reactive repositories]
     Repositories --> DB[(MySQL)]
     REST --> Security[Quarkus OIDC token verification]
-    Security -->|Fetch public signing keys| Auth[External .NET JWKS endpoint]
+    Security -->|Fetch public signing keys| Auth[Independent JWKS service]
 ```
 
 ### API Gateway boundary
@@ -55,21 +55,22 @@ No Gateway application, proxy resource, routing table, or downstream forwarding 
 - JDK 17 with `JAVA_HOME` set for local Maven execution. A separate Maven installation is unnecessary when using the wrapper.
 - Network access to retrieve the pinned Maven distribution and Maven dependencies on first use.
 - A MySQL 8 server supporting the migration syntax and an externally managed Flyway runner for real application/database testing.
-- A reachable .NET public JWKS endpoint and valid User/Admin tokens for normal API use. Default automated tests supply their own JWKS server.
+- An independent JWKS endpoint publishing the .NET issuer's public keys and valid User/Admin tokens for normal API use. Default automated tests supply their own JWKS server.
 - Docker only for container builds/runs or infrastructure managed outside this repository. The root image build does not require a host JDK.
 
 ## Getting started
 
 1. Open the Quarkus checkout containing this README and `pom.xml`. If accessed through a parent checkout, enter its `quarkus` directory. Repository clone URLs and submodule initialization instructions are not defined here.
 2. Start your MySQL instance, create a UTF-8 application database and application account, then apply all migrations as described under [Database and persistence](#database-and-persistence).
-3. Start the external authentication service and confirm its configured public JWKS URL is reachable from the machine/container running Quarkus.
+3. Start the independent JWKS service and confirm its public JWKS URL is reachable from the machine/container running Quarkus. .NET remains responsible for login and token issuance.
 4. Create an untracked `.env` in this directory, replacing the placeholders with your local configuration:
 
    ```dotenv
    DB_USERNAME=<application-database-user>
    DB_PASSWORD=<local-database-password>
    DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
-   AUTH_SERVER_URL=http://localhost:5116
+   AUTH_SERVER_URL=http://localhost:8083
+   AUTH_JWKS_URL=http://localhost:8083/.well-known/jwks.json
    AUTH_JWT_ISSUER=JapaneseLearning.User
    AUTH_JWT_AUDIENCE=JapaneseLearning
    ```
@@ -95,8 +96,9 @@ Runtime defaults live in [application.properties](src/main/resources/application
 | `DB_USERNAME` | Required, nonblank MySQL username |
 | `DB_PASSWORD` | Required, nonblank password, supplied separately from the URL |
 | `DB_REACTIVE_URL` | Required; `mysql://host:3306/database_name` |
-| `AUTH_SERVER_URL` | `http://localhost:5116` |
+| `AUTH_SERVER_URL` | Independent JWKS base URL; `http://localhost:8083` |
 | `AUTH_JWKS_URL` | `${AUTH_SERVER_URL}/.well-known/jwks.json`; override with a full HTTP(S) URL |
+| `AUTH_JWKS_CACHE_TTL` | `10M`; per-key cache lifetime with lazy resolution |
 | `AUTH_JWT_ISSUER` | `JapaneseLearning.User`; must match the token issuer |
 | `AUTH_JWT_AUDIENCE` | `JapaneseLearning`; must match the token audience |
 | `VOCABULARY_IMPORT_MAX_BATCH_SIZE` | `500` items per vocabulary batch |
@@ -145,7 +147,7 @@ Security enforcement primarily uses configuration and resource annotations; ther
 
 ## Authentication and authorization
 
-The .NET service owns login, user accounts, and token issuance. Quarkus only requires its public signing keys. Configure the issuer/audience and JWKS URL to match that service; do not provide private signing keys or client secrets to this backend.
+The .NET service owns login, user accounts, and token issuance. Quarkus retrieves its public signing keys from the independent JWKS service (`http://jwks-api:8080/.well-known/jwks.json` in the root Docker network). Configure issuer/audience to match .NET, and publish its corresponding public key and kid in JWKS; do not provide private signing keys or client secrets to this backend. JWKS resolution is lazy, so startup does not wait for a key fetch. Known keys are cached for `AUTH_JWKS_CACHE_TTL` (default 10 minutes); an uncached kid triggers retrieval. Cached-key verification can continue during a JWKS outage, while an uncached key fails authentication. Publish overlapping keys before switching the issuer and keep old keys until their tokens expire plus cache/rollout time. Discovery and introspection stay disabled; the base URL is not a login or issuer URL.
 
 **Authentication:** OIDC runs in bearer-token service mode with discovery and JWT/opaque-token introspection disabled. Verification accepts RS256, requires a subject and expiration, validates issuer/audience, and rejects expired tokens and future `nbf` values with zero clock grace. `iat` is not required. The principal is `sub`. JWKS keys are cached; cached-key verification does not require a network call for every request. Key refresh still requires a reachable JWKS endpoint.
 

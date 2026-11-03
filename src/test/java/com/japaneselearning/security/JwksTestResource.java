@@ -17,6 +17,18 @@ public class JwksTestResource implements QuarkusTestResourceLifecycleManager {
     private HttpServer server;
     private RsaJsonWebKey signingKey;
     private final AtomicInteger requests = new AtomicInteger();
+    private volatile byte[] jwks;
+    private volatile boolean unavailable;
+
+    public void setUnavailable(boolean value) {
+        unavailable = value;
+    }
+
+    public void publish(RsaJsonWebKey... keys) {
+        jwks = new JsonWebKeySet(keys)
+                .toJson(JsonWebKey.OutputControlLevel.PUBLIC_ONLY)
+                .getBytes(StandardCharsets.UTF_8);
+    }
 
     @Override
     public Map<String, String> start() {
@@ -29,12 +41,20 @@ public class JwksTestResource implements QuarkusTestResourceLifecycleManager {
             otherKey.setKeyId("japanese-learning-test-2");
             otherKey.setUse("sig");
             otherKey.setAlgorithm("RS256");
-            byte[] jwks = new JsonWebKeySet(otherKey, signingKey)
-                    .toJson(JsonWebKey.OutputControlLevel.PUBLIC_ONLY)
-                    .getBytes(StandardCharsets.UTF_8);
+            publish(otherKey, signingKey);
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.createContext("/.well-known/jwks.json", exchange -> {
                 requests.incrementAndGet();
+
+                if (unavailable) {
+                    exchange.sendResponseHeaders(503, -1);
+                    exchange.close();
+
+                    return;
+                }
+
+                byte[] response = jwks;
+
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, jwks.length);
                 try (var output = exchange.getResponseBody()) {
@@ -61,6 +81,7 @@ public class JwksTestResource implements QuarkusTestResourceLifecycleManager {
     public void inject(TestInjector injector) {
         injector.injectIntoFields(signingKey, new TestInjector.MatchesType(RsaJsonWebKey.class));
         injector.injectIntoFields(requests, new TestInjector.MatchesType(AtomicInteger.class));
+        injector.injectIntoFields(this, new TestInjector.MatchesType(JwksTestResource.class));
     }
 
     @Override

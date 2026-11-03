@@ -32,6 +32,7 @@ class JwtSecurityTest {
 
     RsaJsonWebKey signingKey;
     AtomicInteger jwksRequests;
+    JwksTestResource jwksServer;
     private JwtTestTokens tokens;
     private static final String[] NORMAL_APIS = {
             LEVELS, "/api/v1/lessons?level=N5", "/api/v1/flashcards", "/api/v1/flashcards/42"
@@ -170,6 +171,39 @@ class JwtSecurityTest {
     void rejectsImportWithoutToken() {
         given().multiPart("file", "test.json", "[]".getBytes(StandardCharsets.UTF_8), "application/json")
                 .post(IMPORT).then().statusCode(401);
+    }
+
+    @Test
+    void discoversRotatedKeyAndKeepsOverlappingOldKey() throws Exception {
+        RsaJsonWebKey next = RsaJwkGenerator.generateJwk(2048);
+        next.setKeyId("rotation-test-key");
+        next.setUse("sig");
+        next.setAlgorithm("RS256");
+        jwksServer.publish(signingKey, next);
+        try {
+            given().auth().oauth2(new JwtTestTokens(next).token("User"))
+                    .get(LEVELS).then().statusCode(200);
+            given().auth().oauth2(tokens.token("User")).get(LEVELS).then().statusCode(200);
+        } finally {
+            jwksServer.publish(signingKey);
+        }
+    }
+
+    @Test
+    void outageKeepsCachedKeyButRejectsUncachedKey() throws Exception {
+        given().auth().oauth2(tokens.token("User")).get(LEVELS).then().statusCode(200);
+        int requests = jwksRequests.get();
+        jwksServer.setUnavailable(true);
+        try {
+            given().auth().oauth2(tokens.token("User")).get(LEVELS).then().statusCode(200);
+            assertEquals(requests, jwksRequests.get());
+            RsaJsonWebKey unknown = RsaJwkGenerator.generateJwk(2048);
+            unknown.setKeyId("outage-unknown-key");
+            given().auth().oauth2(new JwtTestTokens(unknown).token("User"))
+                    .get(LEVELS).then().statusCode(401);
+        } finally {
+            jwksServer.setUnavailable(false);
+        }
     }
 
     private void assertUnauthorized(String token) {
