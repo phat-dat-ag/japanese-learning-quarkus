@@ -43,12 +43,24 @@ are escaped inside the object. Dotted keys are literal top-level keys.
 | `@timestamp` | ISO-8601 UTC string, millisecond precision |
 | `level`, `logger.name`, `thread.name`, `message` | Strings |
 | `service.name`, `service.version`, `deployment.environment` | Service metadata |
+| `service.instance.id` | `APP_INSTANCE_ID`, otherwise container `HOSTNAME`, otherwise `unknown` |
+| `log.schema.version` | Integer `1`; identifies this structured schema |
 | `event.name` | Stable application event name, when applicable |
 | `traceId`, `spanId`, `correlationId` | Strings for request-associated logs |
 | `legacyTraceId` | Optional validated legacy response alias, independent of W3C tracing |
+| `parentSpanId` | Valid incoming W3C parent span, when it belongs to the current trace |
+| `caller.service.claimed` | Validated `X-Caller-Service`, or `unknown`; not authenticated identity |
+| `network.peer.address`, `network.peer.port` | Direct connection peer address and integer port |
+| `network.protocol.version`, `url.scheme` | HTTP protocol enum (for example `HTTP_1_1`) and scheme |
+| `handler.class`, `handler.method` | Matched REST resource class and Java method, when matching reaches the REST filter |
+| `operation.class`, `operation.method` | Declaring class and method of the intercepted business operation |
 | `http.request.method` | Allowlisted method or `OTHER` |
 | `http.route` | Static matched template; safe family before matching; `/unmatched` otherwise |
 | `http.response.status_code`, `durationMs` | Integers; duration uses a monotonic clock |
+| `http.response.body.size` | Integer response bytes reported by Vert.x at completion |
+| `http.response.started` | Validated `"true"`/`"false"` string; response headers have been written |
+| `security.authenticated` | Validated `"true"`/`"false"` authentication state observed by the matched REST filter; no subject/token |
+| `isSlow`, `slowThresholdMs` | Validated `"true"`/`"false"` threshold result and configured integer threshold on terminal events |
 | `outcome` | `success`, `failure`, batch `partial_failure`, or vocabulary `cancelled` |
 | `error.code`, `error.type` | Safe code and exception class or HTTP/security category |
 | `error.stack_trace` | Bounded sanitized cause classes and code locations |
@@ -71,6 +83,9 @@ events retain the server span captured at arrival.
 captures the server span/start time and registers headers and an end handler.
 `RequestRouteFilter` records static route templates after matching. Raw paths and
 query strings never become arbitrary event fields.
+The shared request fields also accompany application logs after asynchronous boundaries.
+Before matching or early authentication rejection, handler metadata may be absent.
+No per-method payload dumps or extra database queries are introduced.
 
 - `http.request.started`: INFO, safe route family, method and identifiers.
 - `http.request.completed`: INFO, status/duration/outcome; WARN when slow.
@@ -96,6 +111,11 @@ No JWTs, raw headers, subjects, whole entities or request/response bodies are lo
 by the new instrumentation. Preserve `OidcProvider=ERROR` because lower-level
 verification messages can expose tokens. Application redaction is not a universal
 sanitizer for third-party libraries or independently configured exporters.
+`X-Caller-Service` is the only new header value exported. It must be a single value
+with 1-64 ASCII letters, digits, underscores or hyphens; invalid/duplicate values
+become `unknown`. It is an untrusted caller claim, not authorization evidence.
+Forwarded IP headers are not read by this instrumentation. With the existing proxy
+configuration, the peer is the direct connection (often the gateway), not the browser.
 
 ## Business and database visibility
 
@@ -151,6 +171,7 @@ collector is required. The incoming span is the parent, not the server span.
 | Environment variable | Default / use |
 | --- | --- |
 | `APP_SERVICE_NAME` | `quarkus-service` |
+| `APP_INSTANCE_ID` | Optional; falls back to `HOSTNAME`, then `unknown`; pass into the container runtime when overriding |
 | `APP_ENVIRONMENT` | `production`; `development` in dev and `test` in tests |
 | `ROOT_LOG_LEVEL`, `APP_LOG_LEVEL` | `INFO`; latter applies to application packages |
 | `APP_LOG_CONSOLE_JSON`, `APP_LOG_FILE_JSON` | `true` |
@@ -204,6 +225,58 @@ Both handlers retain 8192-record discard-on-overflow queues to protect reactive
 threads. Overload/abrupt termination can lose records: these are diagnostics, not
 a durable audit trail. Collect console NDJSON or tail the stable active file with
 rotation-aware offsets; avoid collecting both without deduplication.
+
+## Fluent Bit and Loki preparation
+
+No collector or Loki backend is installed here. Parse the active file as JSON,
+preserving the literal dotted top-level keys. Use service/environment as
+low-cardinality labels; keep trace/correlation IDs, peer addresses and business IDs
+as searchable fields. Compared with .NET, these fields are top-level rather than
+nested under `Properties`; normalize in the collector if a common query schema is needed.
+The pinned Quarkus 3.38.2 formatter SPI serializes boolean values as strings, so
+flag fields deliberately use validated `"true"`/`"false"` strings. Normalize these
+to booleans in a collector if required; duration/status/size fields remain JSON integers.
+Persist collector file offsets and a bounded delivery buffer separately from the
+read-only application log mount. Test daily/size rotation and collector outages;
+do not assume ordinary file tailing will replay gzip archives. Local archive
+retention and future Loki retention must be configured independently.
+
+An incoming service call can send:
+
+```http
+X-Correlation-ID: support-42
+X-Caller-Service: user-api
+traceparent: 00-0123456789abcdef0123456789abcdef-0123456789abcdef-01
+```
+
+Illustrative abbreviated JSON (one line in the actual file):
+
+```json
+{
+  "@timestamp": "2026-11-04T08:00:00.032Z",
+  "level": "INFO",
+  "event.name": "http.request.completed",
+  "service.name": "quarkus-service",
+  "service.instance.id": "vocabulary-api-01",
+  "log.schema.version": 1,
+  "correlationId": "support-42",
+  "traceId": "0123456789abcdef0123456789abcdef",
+  "parentSpanId": "0123456789abcdef",
+  "caller.service.claimed": "user-api",
+  "network.peer.address": "172.20.0.5",
+  "network.peer.port": 45210,
+  "handler.class": "com.japaneselearning.quiz.player.resource.KanjiQuizResource",
+  "handler.method": "quizConfiguration",
+  "http.request.method": "GET",
+  "http.route": "/api/v1/kanji-quiz/config",
+  "http.response.status_code": 200,
+  "durationMs": 32,
+  "outcome": "success",
+  "isSlow": "false",
+  "slowThresholdMs": 1000,
+  "security.authenticated": "true"
+}
+```
 
 ## Troubleshooting
 

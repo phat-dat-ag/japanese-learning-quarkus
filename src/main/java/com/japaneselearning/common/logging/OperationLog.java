@@ -72,6 +72,8 @@ public class OperationLog {
         Map<String, Object> identifiers = new HashMap<>();
 
         identifiers.put("operation", operation);
+        identifiers.put("operation.class", invocation.getMethod().getDeclaringClass().getName());
+        identifiers.put("operation.method", invocation.getMethod().getName());
 
         var parameters = invocation.getMethod().getParameters();
         for (int i = 0; i < parameters.length; i++) {

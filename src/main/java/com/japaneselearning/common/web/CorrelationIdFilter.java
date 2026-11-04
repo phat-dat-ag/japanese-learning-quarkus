@@ -3,6 +3,10 @@ package com.japaneselearning.common.web;
 import com.japaneselearning.common.exception.handler.HttpErrors;
 import com.japaneselearning.common.logging.StructuredLog;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import io.vertx.core.MultiMap;
 import io.quarkus.vertx.http.runtime.filters.Filters;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,6 +26,7 @@ import java.util.regex.Pattern;
 public class CorrelationIdFilter {
 
     public static final String HEADER = "X-Correlation-ID";
+    public static final String CALLER_SERVICE_HEADER = "X-Caller-Service";
     public static final String CONTEXT_KEY = CorrelationIdFilter.class.getName();
     private static final Pattern VALID_ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Logger LOG = Logger.getLogger(CorrelationIdFilter.class);
@@ -32,6 +37,7 @@ public class CorrelationIdFilter {
     public static final String ROUTE_KEY = CONTEXT_KEY + ".route";
     public static final String ERROR_CODE_KEY = CONTEXT_KEY + ".errorCode";
     public static final String ERROR_TYPE_KEY = CONTEXT_KEY + ".errorType";
+    public static final String FIELDS_KEY = CONTEXT_KEY + ".fields";
     private static final Set<String> METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
 
     @ConfigProperty(name = "application.logging.slow-operation-ms", defaultValue = "1000")
@@ -74,12 +80,47 @@ public class CorrelationIdFilter {
         fields.put("traceId", traceId);
         fields.put("spanId", spanId);
 
+        var parent = Span.fromContext(W3CTraceContextPropagator.getInstance().extract(
+                        Context.root(), context.request().headers(), new TextMapGetter<MultiMap>() {
+                            public Iterable<String> keys(MultiMap headers) {
+                                return headers.names();
+                            }
+
+                            public String get(MultiMap headers, String key) {
+                                var values = headers.getAll(key);
+                                return values.size() == 1 ? values.get(0) : null;
+                            }
+                        }
+                )
+        ).getSpanContext();
+
+        if (parent.isValid() && parent.getTraceId().equals(traceId)) {
+            fields.put("parentSpanId", parent.getSpanId());
+        }
+
+        String caller = validatedId(context.request().headers().getAll(CALLER_SERVICE_HEADER));
+        // Caller metadata is diagnostic only; it never establishes service identity.
+        fields.put("caller.service.claimed", caller == null ? "unknown" : caller);
+
+        var peer = context.request().remoteAddress();
+
+        if (peer != null && peer.isInetSocket()) {
+            fields.put("network.peer.address", peer.hostAddress());
+            fields.put("network.peer.port", peer.port());
+        }
+
+        fields.put("network.protocol.version", context.request().version().name());
+        fields.put("url.scheme", context.request().scheme());
+
         if (legacyTraceId != null) {
             fields.put("legacyTraceId", legacyTraceId);
         }
 
         fields.put("http.request.method", METHODS.contains(method) ? method : "OTHER");
         fields.put("http.route", safeRoute(context.normalizedPath()));
+
+        context.put(FIELDS_KEY, fields);
+        fields.forEach((key, value) -> MDC.put(key, String.valueOf(value)));
 
         boolean applicationRequest = !context.normalizedPath().startsWith("/q/");
 
@@ -114,6 +155,10 @@ public class CorrelationIdFilter {
 
                     fields.put("durationMs", duration);
                     fields.put("http.response.status_code", status);
+                    fields.put("http.response.body.size", context.response().bytesWritten());
+                    fields.put("http.response.started", context.response().headWritten());
+                    fields.put("isSlow", duration >= slowOperationMs);
+                    fields.put("slowThresholdMs", slowOperationMs);
 
                     String route = context.get(ROUTE_KEY);
 
@@ -172,6 +217,7 @@ public class CorrelationIdFilter {
                 MDC.remove("spanId");
                 MDC.remove("legacyTraceId");
                 MDC.remove("operation");
+                fields.keySet().forEach(MDC::remove);
             }
         });
         context.next();
