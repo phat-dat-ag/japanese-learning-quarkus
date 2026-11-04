@@ -46,14 +46,20 @@ class HttpLifecycleMessageTest {
         var values = new java.util.HashMap<String, Object>();
         var end = new java.util.concurrent.atomic.AtomicReference<io.vertx.core.Handler<io.vertx.core.AsyncResult<Void>>>();
         var headers = io.vertx.core.MultiMap.caseInsensitiveMultiMap()
-                .add(CorrelationIdFilter.HEADER, "interrupted-request");
+                .add(CorrelationIdFilter.HEADER, "interrupted-request")
+                .add(CorrelationIdFilter.CALLER_SERVICE_HEADER, "user-api");
         var request = proxy(io.vertx.core.http.HttpServerRequest.class, (object, method, args) -> switch (method.getName()) {
             case "headers" -> headers;
             case "method" -> io.vertx.core.http.HttpMethod.POST;
+            case "remoteAddress" -> io.vertx.core.net.SocketAddress.inetSocketAddress(43210, "127.0.0.1");
+            case "version" -> io.vertx.core.http.HttpVersion.HTTP_1_1;
+            case "scheme" -> "http";
             default -> throw new UnsupportedOperationException(method.getName());
         });
         var response = proxy(io.vertx.core.http.HttpServerResponse.class, (object, method, args) -> switch (method.getName()) {
             case "getStatusCode" -> 200;
+            case "bytesWritten" -> 0L;
+            case "headWritten" -> false;
             default -> throw new UnsupportedOperationException(method.getName());
         });
         var context = proxy(io.vertx.ext.web.RoutingContext.class, (object, method, args) -> switch (method.getName()) {
@@ -89,11 +95,17 @@ class HttpLifecycleMessageTest {
             assertEquals("transport", terminal.getMdc("error.type"));
             assertEquals("failure", terminal.getMdc("outcome"));
             assertEquals("interrupted-request", terminal.getMdc("correlationId"));
+            assertEquals("user-api", terminal.getMdc("caller.service.claimed"));
+            assertEquals("127.0.0.1", terminal.getMdc("network.peer.address"));
+            assertEquals("false", terminal.getMdc("http.response.started"));
             assertEquals(records.get(0).getMdc("traceId"), terminal.getMdc("traceId"));
             assertTrue(terminal.getFormattedMessage().startsWith("Interrupted POST /api/v1/flashcards/{id}"));
             assertTrue(records.stream().noneMatch(record -> record.getFormattedMessage().contains("sentinel")));
             assertNull(org.jboss.logmanager.MDC.get("correlationId"));
             assertNull(org.jboss.logmanager.MDC.get("traceId"));
+            assertNull(org.jboss.logmanager.MDC.get("caller.service.claimed"));
+            assertNull(org.jboss.logmanager.MDC.get("network.peer.address"));
+            assertNull(org.jboss.logmanager.MDC.get("http.route"));
         } finally {
             logger.removeHandler(handler);
             org.jboss.logmanager.MDC.clear();

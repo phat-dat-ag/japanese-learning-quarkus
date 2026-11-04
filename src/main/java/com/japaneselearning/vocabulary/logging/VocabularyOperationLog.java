@@ -52,6 +52,9 @@ public class VocabularyOperationLog {
 
         Map<String, Object> identifiers = identifiers(invocation);
 
+        identifiers.put("operation.class", invocation.getMethod().getDeclaringClass().getName());
+        identifiers.put("operation.method", invocation.getMethod().getName());
+
         Uni<?> result;
         try {
             result = (Uni<?>) invocation.proceed();

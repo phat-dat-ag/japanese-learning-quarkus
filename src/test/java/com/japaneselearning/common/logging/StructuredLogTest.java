@@ -19,6 +19,36 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StructuredLogTest {
     @Test
+    void requestContextKeepsValidatedFlagsAndNumericTypesAndOmitsMalformedValues() throws Exception {
+        var formatter = new JsonFormatter();
+        formatter.setDiscoveredProviders(List.of(new ApplicationJsonFields()));
+        formatter.setExcludedKeys(Set.of("mdc", "ndc"));
+        var json = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+        for (String state : List.of("true", "false", "TRUE", "credential-sentinel")) {
+            var record = new ExtLogRecord(org.jboss.logmanager.Level.INFO, "Request summary", getClass().getName());
+            record.setMdc(Map.of("isSlow", state, "http.response.started", state, "security.authenticated", state,
+                    "network.peer.port", "43210", "http.response.body.size", "128", "slowThresholdMs", "1000",
+                    "handler.class", "example.Resource", "handler.method", "get",
+                    "authorization", "credential-sentinel"));
+            String output = formatter.format(record);
+            var value = json.readTree(output);
+            assertEquals(1, value.path("log.schema.version").asInt());
+            for (String field : List.of("isSlow", "http.response.started", "security.authenticated")) {
+                if (state.equals("true") || state.equals("false")) {
+                    assertTrue(value.path(field).isTextual());
+                    assertEquals(state, value.path(field).asText());
+                } else {
+                    assertFalse(value.has(field));
+                }
+            }
+            assertTrue(value.path("network.peer.port").isIntegralNumber());
+            assertTrue(value.path("http.response.body.size").isIntegralNumber());
+            assertEquals("get", value.path("handler.method").asText());
+            assertFalse(output.contains("credential-sentinel"));
+        }
+    }
+
+    @Test
     void businessFieldsKeepNumericTypesAndUnsupportedBooleansStayExcluded() throws Exception {
         var formatter = new JsonFormatter();
         formatter.setDiscoveredProviders(List.of(new ApplicationJsonFields()));

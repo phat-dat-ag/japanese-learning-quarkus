@@ -7,6 +7,9 @@ import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.container.ResourceInfo;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.ext.Provider;
+import org.jboss.logmanager.MDC;
+
+import java.util.Map;
 
 @Provider
 public class RequestRouteFilter implements ContainerRequestFilter {
@@ -26,9 +29,17 @@ public class RequestRouteFilter implements ContainerRequestFilter {
         String route = (root == null ? "" : root.value())
                 + "/" + (method == null ? "" : method.value());
 
-        routingContext.put(
-                CorrelationIdFilter.ROUTE_KEY,
-                route.replaceAll("/+", "/").replaceAll("/$", "")
-        );
+        route = route.replaceAll("/+", "/").replaceAll("/$", "");
+        routingContext.put(CorrelationIdFilter.ROUTE_KEY, route);
+
+        Map<String, Object> fields = routingContext.get(CorrelationIdFilter.FIELDS_KEY);
+
+        if (fields != null) {
+            fields.put("http.route", route);
+            fields.put("handler.class", resourceInfo.getResourceClass().getName());
+            fields.put("handler.method", resourceInfo.getResourceMethod().getName());
+            fields.put("security.authenticated", request.getSecurityContext().getUserPrincipal() != null);
+            fields.forEach((key, value) -> MDC.put(key, String.valueOf(value)));
+        }
     }
 }

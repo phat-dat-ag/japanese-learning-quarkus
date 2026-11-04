@@ -80,6 +80,9 @@ class OperationLogBehaviorTest {
     void synchronousAndClassBindingsPreserveValuesAndFailures() throws Exception {
         assertEquals("ok", observe(getClass().getMethod("sync"), this, "ok", null));
         assertEquals(List.of("test.sync.started", "test.sync.completed"), events());
+        assertEquals(getClass().getName(), records.get(1).getMdc("operation.class"));
+        assertEquals("sync", records.get(1).getMdc("operation.method"));
+        assertNull(MDC.get("operation.method"));
         assertEquals("outer", MDC.get("operation"));
         records.clear();
         var conflict = new ConflictException("TEST_CONFLICT", "credential-sentinel");

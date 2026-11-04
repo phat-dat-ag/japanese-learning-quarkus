@@ -266,6 +266,8 @@ Console and file logging default to structured NDJSON with asynchronous discard-
 
 [Logging and distributed tracing](docs/logging.md) documents the architecture, schema, configuration, business events, redaction, W3C propagation, rotation, and request troubleshooting.
 
+JSON request context includes a validated caller-service claim, direct peer address/port, REST resource/method, parent span, and typed response/slow-request fields. Business lifecycle events identify the intercepted Java class/method. `service.instance.id` uses optional `APP_INSTANCE_ID` or container `HOSTNAME`; `log.schema.version` is integer `1`. See the logging guide for examples and future Fluent Bit/Loki collection guidance.
+
 ## Troubleshooting
 
 | Symptom | Check |
