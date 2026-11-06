@@ -34,6 +34,8 @@ Library versions other than explicitly pinned Maven plugins are managed by the Q
 
 Resources handle HTTP and validation, services orchestrate business rules, and repositories perform reactive persistence. Service methods use `Uni` and reactive session/transaction boundaries. DTOs and service assemblers construct API views; there is no separate mapper package or mapping framework. Imports move file parsing off the event loop.
 
+See [Grammar lesson management](docs/grammar-lessons.md) for the structured content schema, editing revisions, safe deletion, and complete-lesson JSON import.
+
 All feature areas share the configured MySQL datasource. Flashcards read vocabulary entities; quizzes can reference vocabulary/examples and store session snapshots and user progress. User ownership comes from the JWT subject, without a local authentication service or per-request user-service lookup.
 
 ```mermaid
@@ -165,7 +167,7 @@ Initialize a database with the external Flyway runner:
 
 1. Create the chosen application database and separate runtime/migration credentials through your infrastructure setup.
 2. Configure the runner's MySQL JDBC connection and migration location to this checkout's `src/main/resources/db/migration` directory.
-3. Apply migrations in version order, currently V1 through V11, and confirm Flyway validation succeeds before starting Quarkus.
+3. Apply migrations in version order, currently V1 through V12, and confirm Flyway validation succeeds before starting Quarkus.
 4. Point `DB_REACTIVE_URL` at the same database using the reactive `mysql://` URL format.
 
 V1-V5 define vocabulary/master data and lessons; V6-V8 add quiz persistence, Admin identity fields, and classification snapshots. V9 adds personal flashcard learning persistence; V10 adds session abandonment and V11 indexes session lists. V2 seeds JLPT levels and parts of speech. Migrations do not populate lessons or import `n5.json`: create lessons through the Admin lesson APIs before importing vocabulary that references them.
@@ -232,7 +234,7 @@ These commands follow the checked-in build configuration; they are not a record 
 
 The default suite contains plain JUnit tests and `@QuarkusTest` HTTP tests using REST Assured. Tests cover business rules, response contracts, JWT roles/claims, OpenAPI, configuration, logging, metrics, and health. Service/repository alternatives and offline Hibernate startup avoid a live database for the default suite. `JwksTestResource` starts an ephemeral loopback HTTP server and generates RSA keys in memory, so a running .NET service is unnecessary.
 
-Real-database tests are opt-in and exercise persistence, rollback, concurrency, Admin editing, and quiz lifecycle behavior. Provision a **disposable** database named exactly `vocabulary_import_test`, apply all current migrations through V11, and provide its test root password. The test profile hardcodes username `root` and rejects URLs not ending in `/vocabulary_import_test`. Tests write fixtures and may modify/delete data.
+Real-database tests are opt-in and exercise persistence, rollback, concurrency, Admin editing, and quiz lifecycle behavior. Provision a **disposable** database named exactly `vocabulary_import_test`, apply all current migrations through V12, and provide its test root password. The test profile hardcodes username `root` and rejects URLs not ending in `/vocabulary_import_test`. Tests write fixtures and may modify/delete data.
 
 ```powershell
 .\mvnw.cmd verify "-Dquarkus.http.test-port=0" "-Dvocabulary.mysql.tests=true" `

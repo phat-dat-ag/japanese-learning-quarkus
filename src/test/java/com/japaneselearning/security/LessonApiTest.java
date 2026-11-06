@@ -25,13 +25,47 @@ class LessonApiTest {
     RsaJsonWebKey signingKey;
 
     @ParameterizedTest
-    @CsvSource({"POST,/api/v1/lessons", "PUT,/api/v1/lessons/1"})
+    @CsvSource({"POST,/api/v1/lessons", "PUT,/api/v1/lessons/1", "DELETE,/api/v1/lessons/1",
+            "PUT,/api/v1/lessons/1/content", "DELETE,/api/v1/lessons/1/content?expectedVersion=1"})
     void mutationsRequireAdmin(String method, String path) throws Exception {
         given().contentType("application/json").body("{}").request(method, path)
                 .then().statusCode(401).body("success", equalTo(false), "meta.traceId", notNullValue());
         given().auth().oauth2(new JwtTestTokens(signingKey).token("User"))
                 .contentType("application/json").body("{}").request(method, path)
                 .then().statusCode(403).body("success", equalTo(false), "meta.traceId", notNullValue());
+    }
+
+    @Test
+    void grammarImportRequiresAdmin() throws Exception {
+        byte[] file = "[]".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        given().multiPart("file", "lessons.json", file, "application/json")
+                .post("/api/v1/lessons/content/import").then().statusCode(401);
+        given().auth().oauth2(new JwtTestTokens(signingKey).token("User"))
+                .multiPart("file", "lessons.json", file, "application/json")
+                .post("/api/v1/lessons/content/import").then().statusCode(403);
+    }
+
+    @Test
+    void runtimeOpenApiDefinesOneTypedContentContractAndRevisionPreconditions() {
+        var doc = given().accept("application/json").get("/q/openapi").then().statusCode(200).extract().jsonPath();
+        String path = "paths.'/api/v1/lessons/{lessonId}/content'";
+        for (String method : List.of("get", "put", "delete")) {
+            assertEquals(List.of(Map.of("bearerAuth", List.of())), doc.getList(path + "." + method + ".security"));
+            for (String status : List.of("200", "400", "401", "403", "404", "500")) {
+                assertNotNull(doc.getMap(path + "." + method + ".responses.'" + status + "'"));
+            }
+        }
+        assertNotNull(doc.getMap(path + ".put.responses.'409'"));
+        assertNotNull(doc.getMap(path + ".get.responses.'200'.headers.ETag"));
+        assertEquals(8, doc.getList("components.schemas.LessonContentBlock.oneOf").size());
+        assertEquals(false, doc.getBoolean("components.schemas.LessonContentDocument.additionalProperties"));
+        assertEquals(200, doc.getInt("components.schemas.LessonContentDocument.properties.blocks.maxItems"));
+        String upload = "paths.'/api/v1/lessons/content/import'.post";
+        assertEquals("importLessonContents", doc.getString(upload + ".operationId"));
+        assertEquals("binary", doc.getString(upload + ".requestBody.content.'multipart/form-data'.schema.properties.file.format"));
+        assertTrue(doc.getString(upload + ".description").contains("UPDATE_EXISTING"));
+        assertEquals("#/components/schemas/LessonContentImportResponse", doc.getString(upload
+                + ".responses.'200'.content.'application/json'.schema.allOf[1].properties.data.'$ref'"));
     }
 
     @ParameterizedTest
@@ -102,7 +136,9 @@ class LessonApiTest {
         assertEquals(List.of("string", "null"), doc.getList(schema + ".properties.description.type"));
         assertEquals(Set.of("id", "lessonNumber", "title", "description"),
                 doc.getMap("components.schemas.LessonResponse.properties").keySet());
-        assertNull(doc.getMap("paths.'" + path + "'.delete"));
+        if (method.equals("put")) {
+            assertNotNull(doc.getMap("paths.'" + path + "'.delete"));
+        }
         if (method.equals("put")) {
             assertEquals("lessonId", doc.getString(op + ".parameters[0].name"));
             assertEquals(1, doc.getInt(op + ".parameters[0].schema.minimum"));

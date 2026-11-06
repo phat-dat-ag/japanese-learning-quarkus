@@ -70,7 +70,8 @@ are escaped inside the object. Dotted keys are literal top-level keys.
 | `dueCount`, `studiedCount`, `masteredCount` | Integer statistics counts from the existing response |
 | `studiedBasisPoints`, `masteryBasisPoints` | Integer hundredths of a percentage point: 3333 means 33.33% |
 | `sessionId`, `itemId`, `vocabularyId`, `lessonId`, other allowlisted IDs | Integers, never subjects |
-| `count`, `total`, `created`, `updated`, `succeeded`, `failed` | Integer summary metrics |
+| `count`, `total`, `created`, `updated`, `succeeded`, `skipped`, `failed` | Integer summary metrics |
+| `schemaVersion`, `contentVersion` | Integer grammar document schema and editing revision; no document text |
 
 Startup/framework records need not have application events or request context.
 The formatter also includes sequence/process metadata. No redundant request ID

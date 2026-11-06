@@ -83,6 +83,8 @@ class OpenApiSecurityTest {
                 "/api/v1/admin/vocabularies/{vocabularyId}/kanji/{kanjiId}/readings/{readingId}",
                 "put");
         operations.put("/api/v1/lessons/{lessonId}", "put");
+        operations.put("/api/v1/lessons/{lessonId}/content", "get");
+        operations.put("/api/v1/lessons/content/import", "post");
         operations.put("/api/v1/lessons/batch", "post");
         operations.put("/api/v1/admin/kanji-quiz/questions", "post");
         operations.put("/api/v1/admin/kanji-quiz/questions/{id}", "get");

@@ -318,6 +318,144 @@ paths:
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
   /api/v1/lessons/{lessonId}:
+    get:
+      operationId: "getLesson"
+      summary: "Retrieve lesson metadata"
+      tags:
+        - "Lessons"
+      description: "User or Admin. Existing LessonResponse fields only; does not load grammar content."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "lessonId"
+          description: "Existing positive lesson ID; represented as a signed Java Long."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonResponse"
+        "400":
+          description: "BAD_REQUEST for invalid boundary input."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "RESOURCE_NOT_FOUND for a missing lesson; NOT_FOUND for an unparseable lesson ID."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+    delete:
+      operationId: "deleteLesson"
+      summary: "Safely delete a lesson"
+      tags:
+        - "Lessons"
+      description: "Admin only. Returns the deleted metadata. 409 if vocabulary assignments, quiz assignments, flashcard sessions or immutable quiz lesson snapshots reference the lesson. Only optional grammar content cascades. Missing lesson is 404. Existing foreign-key rules are unchanged."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "lessonId"
+          description: "Existing positive lesson ID; represented as a signed Java Long."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonResponse"
+        "400":
+          description: "BAD_REQUEST for invalid boundary input."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "RESOURCE_NOT_FOUND for a missing lesson; NOT_FOUND for an unparseable lesson ID."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "LESSON_CONTENT_CONFLICT for stale/missing revision or ETag; LESSON_CONFLICT for referenced lessons or uniqueness/concurrent import conflicts."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
     put:
       tags: [ Lessons ]
       operationId: updateLesson
@@ -380,6 +518,396 @@ paths:
           $ref: '#/components/responses/AdminEditErrorResponseStatus415'
         '500':
           $ref: '#/components/responses/AdminEditErrorResponseStatus500'
+  "/api/v1/lessons/{lessonId}/content":
+    get:
+      operationId: "getLessonContent"
+      summary: "Read grammar lesson content"
+      tags:
+        - "Lessons"
+      description: "User or Admin. Missing lesson: RESOURCE_NOT_FOUND. Existing lesson without content: LESSON_CONTENT_NOT_FOUND. Both are 404. Empty blocks is a valid existing document."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "lessonId"
+          description: "Existing positive lesson ID; represented as a signed Java Long."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          headers:
+            ETag:
+              description: "Strong revision and document-creation identity. Supply verbatim in If-Match on edits/deletes."
+              schema:
+                type: "string"
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonContentResponse"
+        "400":
+          description: "BAD_REQUEST for malformed/boundary input; LESSON_CONTENT_INVALID for invalid blocks, unknown fields or limits; LESSON_CONTENT_SCHEMA_UNSUPPORTED for unsupported schema versions."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "RESOURCE_NOT_FOUND for a missing lesson; LESSON_CONTENT_NOT_FOUND for an existing lesson without content; NOT_FOUND for unparseable route values."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+    put:
+      operationId: "putLessonContent"
+      summary: "Create or replace grammar content"
+      tags:
+        - "Lessons"
+      description: "Admin only. schemaVersion=1. expectedVersion=0 creates only when absent and returns revision 1. Positive expectedVersion and current If-Match replace the complete document and increment revision. Mismatches return 409. ETag also prevents stale edits after deletion/recreation. Maximum encoded document 1 MiB, 200 blocks, 12 JSON nesting levels; no nested blocks, HTML, scripts, CSS or media. See docs/grammar-lessons.md for exact v1 limits."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "lessonId"
+          description: "Existing positive lesson ID; represented as a signed Java Long."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+        -
+          name: "If-Match"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+          description: "Exact ETag from the latest GET/PUT content. Required for update and delete; absent on creation. Wildcards and weak ETags are not accepted. Missing or mismatched preconditions return 409."
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          headers:
+            ETag:
+              description: "Strong revision and document-creation identity. Supply verbatim in If-Match on edits/deletes."
+              schema:
+                type: "string"
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonContentResponse"
+        "400":
+          description: "BAD_REQUEST for malformed/boundary input; LESSON_CONTENT_INVALID for invalid blocks, unknown fields or limits; LESSON_CONTENT_SCHEMA_UNSUPPORTED for unsupported schema versions."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "RESOURCE_NOT_FOUND for a missing lesson; LESSON_CONTENT_NOT_FOUND for an existing lesson without content; NOT_FOUND for unparseable route values."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "LESSON_CONTENT_CONFLICT for stale/missing revision or ETag; LESSON_CONFLICT for referenced lessons or uniqueness/concurrent import conflicts."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "413":
+          description: "PAYLOAD_TOO_LARGE - content or uploaded file exceeds its documented limit."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+      requestBody:
+        required: true
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/LessonContentWriteRequest"
+            example:
+              schemaVersion: 1
+              expectedVersion: 0
+              content:
+                blocks:
+                  -
+                    id: "heading-1"
+                    type: "heading"
+                    level: 2
+                    inlines:
+                      -
+                        text: "Trợ từ は"
+                        marks:
+                          - "bold"
+                  -
+                    id: "example-1"
+                    type: "example"
+                    japanese: "私は学生です。"
+                    reading: "わたしはがくせいです。"
+                    translations:
+                      en: "I am a student."
+                      vi: "Tôi là học sinh."
+    delete:
+      operationId: "deleteLessonContent"
+      summary: "Remove grammar content"
+      tags:
+        - "Lessons"
+      description: "Admin only. Requires positive expectedVersion and exact current If-Match. Returns the removed document in the normal envelope. Repeated deletion returns 404 LESSON_CONTENT_NOT_FOUND. Preserves lesson, vocabulary assignments, quizzes and flashcards."
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "lessonId"
+          description: "Existing positive lesson ID; represented as a signed Java Long."
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+        -
+          name: "expectedVersion"
+          description: "Required current positive content revision; stale values return LESSON_CONTENT_CONFLICT."
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+            minimum: 1
+            maximum: 9223372036854775807
+        -
+          name: "If-Match"
+          in: "header"
+          required: true
+          schema:
+            type: "string"
+          description: "Exact ETag from the latest GET/PUT content. Required for update and delete; absent on creation. Wildcards and weak ETags are not accepted. Missing or mismatched preconditions return 409."
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonContentResponse"
+        "400":
+          description: "BAD_REQUEST for malformed/boundary input; LESSON_CONTENT_INVALID for invalid blocks, unknown fields or limits; LESSON_CONTENT_SCHEMA_UNSUPPORTED for unsupported schema versions."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "RESOURCE_NOT_FOUND for a missing lesson; LESSON_CONTENT_NOT_FOUND for an existing lesson without content; NOT_FOUND for unparseable route values."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "LESSON_CONTENT_CONFLICT for stale/missing revision or ETag; LESSON_CONFLICT for referenced lessons or uniqueness/concurrent import conflicts."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+  "/api/v1/lessons/content/import":
+    post:
+      operationId: "importLessonContents"
+      summary: "Import complete grammar lessons from a JSON file"
+      tags:
+        - "Lessons"
+      description: "Admin only. Multipart file is a strict JSON array of LessonContentImportItem. Entire file is parsed, validated and all levels/display orders checked before writes. Duplicate resolved level+lessonNumber or level+displayOrder rejects the whole file. Unknown levels are never created. Each lesson and its content commit atomically; independent item failures return HTTP 200 with FAILED results. Default SKIP_EXISTING leaves existing metadata and content untouched. UPDATE_EXISTING requires expectedVersion and etag for existing content; absent content requires expectedVersion=0 and no etag. Retries with SKIP_EXISTING skip prior successes; retries with consumed UPDATE_EXISTING revisions fail per item. Concurrent imports serialize by level; ordinary create uniqueness races return a per-item conflict. Default limits: 5 MiB and 100 items; configurable via lesson.content.import.max-file-bytes (1–10485760) and lesson.content.import.max-items (1–500). Uploaded files are temporary only.\n\nComplete example file:\n```json\n[\n  {\n    \"level\": \"N5\",\n    \"lessonNumber\": 1,\n    \"title\": \"Trợ từ は\",\n    \"description\": \"Topic marker\",\n    \"displayOrder\": 1,\n    \"schemaVersion\": 1,\n    \"expectedVersion\": 0,\n    \"content\": {\n      \"blocks\": [\n        {\n          \"id\": \"heading-1\",\n          \"type\": \"heading\",\n          \"level\": 2,\n          \"inlines\": [\n            {\n              \"text\": \"Trợ từ は\",\n              \"marks\": [\n                \"bold\"\n              ]\n            }\n          ]\n        },\n        {\n          \"id\": \"example-1\",\n          \"type\": \"example\",\n          \"japanese\": \"私は学生です。\",\n          \"reading\": \"わたしはがくせいです。\",\n          \"translations\": {\n            \"en\": \"I am a student.\",\n            \"vi\": \"Tôi là học sinh.\"\n          }\n        }\n      ]\n    }\n  },\n  {\n    \"level\": \"N5\",\n    \"lessonNumber\": 2,\n    \"title\": \"Trợ từ が\",\n    \"description\": null,\n    \"displayOrder\": 2,\n    \"schemaVersion\": 1,\n    \"expectedVersion\": 0,\n    \"content\": {\n      \"blocks\": [\n        {\n          \"id\": \"p-1\",\n          \"type\": \"paragraph\",\n          \"inlines\": [\n            {\n              \"text\": \"Trợ từ が\",\n              \"marks\": []\n            }\n          ]\n        }\n      ]\n    }\n  }\n]\n```"
+      security:
+        -
+          bearerAuth: []
+      parameters:
+        -
+          name: "mode"
+          description: "SKIP_EXISTING preserves existing lessons; UPDATE_EXISTING requires explicit content revision preconditions."
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            enum:
+              - "SKIP_EXISTING"
+              - "UPDATE_EXISTING"
+            default: "SKIP_EXISTING"
+      responses:
+        "200":
+          description: "Successful ApiResponse. Null fields are omitted."
+          content:
+            "application/json":
+              schema:
+                allOf:
+                  -
+                    $ref: "#/components/schemas/AdminEditResponse"
+                  -
+                    type: "object"
+                    required:
+                      - "data"
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LessonContentImportResponse"
+        "400":
+          description: "BAD_REQUEST for malformed/boundary input; LESSON_CONTENT_INVALID for invalid blocks, unknown fields or limits; LESSON_CONTENT_SCHEMA_UNSUPPORTED for unsupported schema versions."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "401":
+          description: "UNAUTHORIZED - authentication is required."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "403":
+          description: "FORBIDDEN - caller lacks the required case-sensitive role."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "404":
+          description: "JLPT_LEVEL_NOT_FOUND for a whole-file unknown level reference; NOT_FOUND for an unparseable mode query value."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "409":
+          description: "LESSON_CONTENT_CONFLICT for stale/missing revision or ETag; LESSON_CONFLICT for referenced lessons or uniqueness/concurrent import conflicts."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "413":
+          description: "PAYLOAD_TOO_LARGE - content or uploaded file exceeds its documented limit."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "415":
+          description: "UNSUPPORTED_MEDIA_TYPE."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+        "500":
+          description: "INTERNAL_SERVER_ERROR - sanitized unexpected failure."
+          content:
+            "application/json":
+              schema:
+                $ref: "#/components/schemas/AdminEditErrorResponse"
+      requestBody:
+        required: true
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              additionalProperties: false
+              required:
+                - "file"
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+                  description: "UTF-8 JSON array. Example file content is included in this operation description and docs/grammar-lessons-import-example.json."
+            encoding:
+              file:
+                contentType: "application/json"
+            example:
+              file: "[\n  {\n    \"level\": \"N5\",\n    \"lessonNumber\": 1,\n    \"title\": \"Trợ từ は\",\n    \"description\": \"Topic marker\",\n    \"displayOrder\": 1,\n    \"schemaVersion\": 1,\n    \"expectedVersion\": 0,\n    \"content\": {\n      \"blocks\": [\n        {\n          \"id\": \"heading-1\",\n          \"type\": \"heading\",\n          \"level\": 2,\n          \"inlines\": [\n            {\n              \"text\": \"Trợ từ は\",\n              \"marks\": [\n                \"bold\"\n              ]\n            }\n          ]\n        },\n        {\n          \"id\": \"example-1\",\n          \"type\": \"example\",\n          \"japanese\": \"私は学生です。\",\n          \"reading\": \"わたしはがくせいです。\",\n          \"translations\": {\n            \"en\": \"I am a student.\",\n            \"vi\": \"Tôi là học sinh.\"\n          }\n        }\n      ]\n    }\n  },\n  {\n    \"level\": \"N5\",\n    \"lessonNumber\": 2,\n    \"title\": \"Trợ từ が\",\n    \"description\": null,\n    \"displayOrder\": 2,\n    \"schemaVersion\": 1,\n    \"expectedVersion\": 0,\n    \"content\": {\n      \"blocks\": [\n        {\n          \"id\": \"p-1\",\n          \"type\": \"paragraph\",\n          \"inlines\": [\n            {\n              \"text\": \"Trợ từ が\",\n              \"marks\": []\n            }\n          ]\n        }\n      ]\n    }\n  }\n]"
   /api/v1/lessons/batch:
     post:
       tags: [ Lessons ]
@@ -3884,6 +4412,466 @@ components:
         format: int64
         minimum: 1
   schemas:
+    LessonContentDocument:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "blocks"
+      properties:
+        blocks:
+          type: "array"
+          minItems: 0
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/LessonContentBlock"
+    LessonContentInline:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "text"
+        - "marks"
+      properties:
+        text:
+          type: "string"
+          minLength: 1
+          maxLength: 10000
+          description: "Plain text; no angle brackets or control characters except tab, CR and LF. Inline whitespace is allowed."
+        marks:
+          type: "array"
+          minItems: 0
+          maxItems: 3
+          items:
+            type: "string"
+            enum:
+              - "bold"
+              - "italic"
+              - "underline"
+          uniqueItems: true
+    LessonContentWriteRequest:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "schemaVersion"
+        - "expectedVersion"
+        - "content"
+      properties:
+        schemaVersion:
+          type: "integer"
+          enum:
+            - 1
+        expectedVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        content:
+          $ref: "#/components/schemas/LessonContentDocument"
+    LessonContentResponse:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "lessonId"
+        - "schemaVersion"
+        - "version"
+        - "content"
+        - "createdAt"
+        - "updatedAt"
+      properties:
+        lessonId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          maximum: 9223372036854775807
+        schemaVersion:
+          type: "integer"
+          enum:
+            - 1
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          maximum: 9223372036854775807
+          description: "Editing revision; independent of schemaVersion."
+        content:
+          $ref: "#/components/schemas/LessonContentDocument"
+        createdAt:
+          type: "string"
+          description: "UTC LocalDateTime with microsecond precision, without an offset suffix."
+          example: "2026-11-06T07:00:00.123456"
+        updatedAt:
+          type: "string"
+          description: "UTC LocalDateTime with microsecond precision, without an offset suffix."
+    LessonContentTranslations:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "en"
+        - "vi"
+      properties:
+        en:
+          type: "string"
+          minLength: 1
+          maxLength: 10000
+          description: "Nonblank English translation."
+        vi:
+          type: "string"
+          minLength: 1
+          maxLength: 10000
+          description: "Nonblank Vietnamese translation."
+    LessonContentHeading:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "level"
+        - "inlines"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "heading"
+        level:
+          type: "integer"
+          minimum: 1
+          maximum: 6
+        inlines:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LessonContentInline"
+    LessonContentParagraph:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "inlines"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "paragraph"
+        inlines:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LessonContentInline"
+    LessonContentList:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "ordered"
+        - "items"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "list"
+        ordered:
+          type: "boolean"
+        items:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            type: "array"
+            minItems: 1
+            maxItems: 100
+            items:
+              $ref: "#/components/schemas/LessonContentInline"
+    LessonContentTable:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "headers"
+        - "rows"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "table"
+        headers:
+          type: "array"
+          minItems: 0
+          maxItems: 20
+          items:
+            type: "array"
+            minItems: 1
+            maxItems: 100
+            items:
+              $ref: "#/components/schemas/LessonContentInline"
+        rows:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            type: "array"
+            minItems: 1
+            maxItems: 20
+            items:
+              type: "array"
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: "#/components/schemas/LessonContentInline"
+    LessonContentExample:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "japanese"
+        - "reading"
+        - "translations"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "example"
+        japanese:
+          type: "string"
+          minLength: 1
+          maxLength: 10000
+          description: "Plain text; no angle brackets or control characters except tab, CR and LF. Inline whitespace is allowed."
+        reading:
+          type: "string"
+          minLength: 1
+          maxLength: 10000
+          description: "Plain text; no angle brackets or control characters except tab, CR and LF. Inline whitespace is allowed."
+        translations:
+          $ref: "#/components/schemas/LessonContentTranslations"
+    LessonContentCallout:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "variant"
+        - "inlines"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "callout"
+        variant:
+          type: "string"
+          enum:
+            - "note"
+            - "tip"
+            - "warning"
+            - "information"
+        inlines:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LessonContentInline"
+    LessonContentQuote:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+        - "inlines"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "quote"
+        inlines:
+          type: "array"
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/LessonContentInline"
+    LessonContentDivider:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "id"
+        - "type"
+      properties:
+        id:
+          type: "string"
+          pattern: "^[A-Za-z0-9_-]{1,64}$"
+          minLength: 1
+          maxLength: 64
+        type:
+          type: "string"
+          enum:
+            - "divider"
+    LessonContentBlock:
+      oneOf:
+        -
+          $ref: "#/components/schemas/LessonContentHeading"
+        -
+          $ref: "#/components/schemas/LessonContentParagraph"
+        -
+          $ref: "#/components/schemas/LessonContentList"
+        -
+          $ref: "#/components/schemas/LessonContentTable"
+        -
+          $ref: "#/components/schemas/LessonContentExample"
+        -
+          $ref: "#/components/schemas/LessonContentCallout"
+        -
+          $ref: "#/components/schemas/LessonContentQuote"
+        -
+          $ref: "#/components/schemas/LessonContentDivider"
+      discriminator:
+        propertyName: "type"
+        mapping:
+          heading: "#/components/schemas/LessonContentHeading"
+          paragraph: "#/components/schemas/LessonContentParagraph"
+          list: "#/components/schemas/LessonContentList"
+          table: "#/components/schemas/LessonContentTable"
+          example: "#/components/schemas/LessonContentExample"
+          callout: "#/components/schemas/LessonContentCallout"
+          quote: "#/components/schemas/LessonContentQuote"
+          divider: "#/components/schemas/LessonContentDivider"
+      description: "Schema v1 named subtypes only. IDs are unique across the document. No nested blocks. Table rows must be rectangular; headers are empty or match the column count."
+    LessonContentImportItem:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "level"
+        - "lessonNumber"
+        - "title"
+        - "displayOrder"
+        - "schemaVersion"
+        - "expectedVersion"
+        - "content"
+      properties:
+        level:
+          type: "string"
+          minLength: 1
+          maxLength: 10
+        lessonNumber:
+          type: "integer"
+          minimum: 1
+        title:
+          type: "string"
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+            - "string"
+            - "null"
+          maxLength: 1000
+        displayOrder:
+          type: "integer"
+          minimum: 1
+        schemaVersion:
+          type: "integer"
+          enum:
+            - 1
+        expectedVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        etag:
+          type: "string"
+          maxLength: 200
+          description: "Exact ETag from GET content, including its surrounding quotation marks; required when replacing existing content."
+        content:
+          $ref: "#/components/schemas/LessonContentDocument"
+    LessonContentImportResult:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "index"
+        - "level"
+        - "lessonNumber"
+        - "status"
+      properties:
+        index:
+          type: "integer"
+          minimum: 0
+        level:
+          type: "string"
+        lessonNumber:
+          type: "integer"
+        status:
+          type: "string"
+          enum:
+            - "CREATED"
+            - "UPDATED"
+            - "SKIPPED"
+            - "FAILED"
+        lessonId:
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          maximum: 9223372036854775807
+        error:
+          $ref: "#/components/schemas/ErrorResponse"
+    LessonContentImportResponse:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "total"
+        - "created"
+        - "updated"
+        - "skipped"
+        - "failed"
+        - "results"
+      properties:
+        total:
+          type: "integer"
+        created:
+          type: "integer"
+        updated:
+          type: "integer"
+        skipped:
+          type: "integer"
+        failed:
+          type: "integer"
+        results:
+          type: "array"
+          minItems: 0
+          items:
+            $ref: "#/components/schemas/LessonContentImportResult"
     QuizProgressResponse:
       type: object
       required: [ completedSessions, answeredCount, correctCount, incorrectCount, accuracyPercentage, bestScore, averageScore, latestCompletedAt ]
