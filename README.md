@@ -70,7 +70,7 @@ No Gateway application, proxy resource, routing table, or downstream forwarding 
    DB_PASSWORD=<local-database-password>
    DB_REACTIVE_URL=mysql://localhost:3306/japanese_learning
    AUTH_SERVER_URL=http://localhost:8083
-   AUTH_JWKS_URL=http://localhost:8083/.well-known/jwks.json
+   AUTH_JWKS_URL=http://localhost:8083/api/v1/jwks/user
    AUTH_JWT_ISSUER=JapaneseLearning.User
    AUTH_JWT_AUDIENCE=JapaneseLearning
    ```
@@ -97,7 +97,7 @@ Runtime defaults live in [application.properties](src/main/resources/application
 | `DB_PASSWORD` | Required, nonblank password, supplied separately from the URL |
 | `DB_REACTIVE_URL` | Required; `mysql://host:3306/database_name` |
 | `AUTH_SERVER_URL` | Independent JWKS base URL; `http://localhost:8083` |
-| `AUTH_JWKS_URL` | `${AUTH_SERVER_URL}/.well-known/jwks.json`; override with a full HTTP(S) URL |
+| `AUTH_JWKS_URL` | `${AUTH_SERVER_URL}/api/v1/jwks/user`; override with a full HTTP(S) URL |
 | `AUTH_JWKS_CACHE_TTL` | `10M`; per-key cache lifetime with lazy resolution |
 | `AUTH_JWT_ISSUER` | `JapaneseLearning.User`; must match the token issuer |
 | `AUTH_JWT_AUDIENCE` | `JapaneseLearning`; must match the token audience |
@@ -147,7 +147,7 @@ Security enforcement primarily uses configuration and resource annotations; ther
 
 ## Authentication and authorization
 
-The .NET service owns login, user accounts, and token issuance. Quarkus retrieves its public signing keys from the independent JWKS service (`http://jwks-api:8080/.well-known/jwks.json` in the root Docker network). Configure issuer/audience to match .NET, and publish its corresponding public key and kid in JWKS; do not provide private signing keys or client secrets to this backend. JWKS resolution is lazy, so startup does not wait for a key fetch. Known keys are cached for `AUTH_JWKS_CACHE_TTL` (default 10 minutes); an uncached kid triggers retrieval. Cached-key verification can continue during a JWKS outage, while an uncached key fails authentication. Publish overlapping keys before switching the issuer and keep old keys until their tokens expire plus cache/rollout time. Discovery and introspection stay disabled; the base URL is not a login or issuer URL.
+The .NET service owns login, user accounts, and token issuance. Quarkus retrieves its public signing keys from the independent JWKS service (`http://jwks-api:8080/api/v1/jwks/user` in the root Docker network). Configure issuer/audience to match .NET, and publish its corresponding public key and kid in JWKS; do not provide private signing keys or client secrets to this backend. JWKS resolution is lazy, so startup does not wait for a key fetch. Known keys are cached for `AUTH_JWKS_CACHE_TTL` (default 10 minutes); an uncached kid triggers retrieval. Cached-key verification can continue during a JWKS outage, while an uncached key fails authentication. Publish overlapping keys before switching the issuer and keep old keys until their tokens expire plus cache/rollout time. Discovery and introspection stay disabled; the base URL is not a login or issuer URL.
 
 **Authentication:** OIDC runs in bearer-token service mode with discovery and JWT/opaque-token introspection disabled. Verification accepts RS256, requires a subject and expiration, validates issuer/audience, and rejects expired tokens and future `nbf` values with zero clock grace. `iat` is not required. The principal is `sub`. JWKS keys are cached; cached-key verification does not require a network call for every request. Key refresh still requires a reachable JWKS endpoint.
 
@@ -287,3 +287,7 @@ JSON request context includes a validated caller-service claim, direct peer addr
 ## External setup information still required
 
 The following cannot be derived from this checkout: clone/submodule URLs, the infrastructure startup command, exact MySQL/Flyway deployment versions, .NET login/startup and key-provisioning procedures, Angular API/proxy settings, Gateway routes/security, and production network/TLS configuration. Obtain these from their owning repositories before a full-system deployment. The local token contract and simulated security tests do not replace integration testing with real .NET-issued tokens.
+
+The User JWKS endpoint is an explicit trust boundary. Keep the configured issuer
+and audience checks; do not accept Learning keys or choose a key endpoint from
+unverified token claims. This deployment leaves Learning ownership unconfigured.
