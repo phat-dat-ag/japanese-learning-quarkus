@@ -56,13 +56,15 @@ class StructuredLogTest {
         var json = new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
         for (String state : List.of("true", "false", "TRUE", "credential-sentinel")) {
             var record = new ExtLogRecord(org.jboss.logmanager.Level.INFO, "Business summary", getClass().getName());
-            record.setMdc(Map.of("bookmarked", state, "lapses", "2", "studiedBasisPoints", "3333",
-                    "masteryBasisPoints", "10000", "dueCount", "4", "studiedCount", "3",
-                    "masteredCount", "2", "learning.previous_status", "NEW", "subject", "private-sentinel"));
+            record.setMdc(Map.ofEntries(Map.entry("bookmarked", state), Map.entry("lapses", "2"),
+                    Map.entry("studiedBasisPoints", "3333"), Map.entry("masteryBasisPoints", "10000"),
+                    Map.entry("dueCount", "4"), Map.entry("studiedCount", "3"), Map.entry("masteredCount", "2"),
+                    Map.entry("learning.previous_status", "NEW"), Map.entry("subject", "private-sentinel"),
+                    Map.entry("schemaVersion", "1"), Map.entry("contentVersion", "7"), Map.entry("skipped", "2")));
             String output = formatter.format(record);
             var value = json.readTree(output);
             for (String key : List.of("lapses", "studiedBasisPoints", "masteryBasisPoints",
-                    "dueCount", "studiedCount", "masteredCount")) {
+                    "dueCount", "studiedCount", "masteredCount", "schemaVersion", "contentVersion", "skipped")) {
                 assertTrue(value.path(key).isIntegralNumber(), key);
             }
             assertEquals(3333, value.path("studiedBasisPoints").asInt());

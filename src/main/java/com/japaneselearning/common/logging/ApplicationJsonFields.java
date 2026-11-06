@@ -21,7 +21,7 @@ public class ApplicationJsonFields implements JsonProvider {
             "itemId", "vocabularyId", "lessonId", "levelId", "questionId", "readingId", "meaningId", "exampleId",
             "pitchAccentId", "kanjiId", "total", "count", "created", "updated", "succeeded", "failed",
             "lapses", "dueCount", "studiedCount", "masteredCount", "studiedBasisPoints", "masteryBasisPoints",
-            "network.peer.port", "http.response.body.size", "slowThresholdMs"
+            "network.peer.port", "http.response.body.size", "slowThresholdMs", "schemaVersion", "contentVersion", "skipped"
     );
 
     private static final Set<String> FLAGS = Set.of("isSlow", "http.response.started", "security.authenticated");

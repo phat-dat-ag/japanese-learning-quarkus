@@ -1,6 +1,7 @@
 package com.japaneselearning.vocabulary.service;
 
 import com.japaneselearning.common.logging.StructuredLog;
+import com.japaneselearning.common.logging.LogOperation;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
 import com.japaneselearning.vocabulary.dto.LessonResponse;
@@ -41,6 +42,61 @@ public class LessonService {
         this.jlptLevelRepository = jlptLevelRepository;
     }
 
+    @WithSession
+    @LogOperation(
+            value = "lesson.detail",
+            description = "Lesson metadata retrieval",
+            level = Logger.Level.DEBUG
+    )
+    public Uni<LessonResponse> getLesson(Long lessonId) {
+        return lessonRepository.findById(lessonId)
+                .onItem().ifNull().failWith(() -> new ResourceNotFoundException(
+                        "RESOURCE_NOT_FOUND",
+                        "Lesson not found with id: " + lessonId
+                ))
+                .map(this::toResponse);
+    }
+
+    @WithTransaction
+    @LogOperation(
+            value = "lesson.delete",
+            description = "Lesson deletion"
+    )
+    public Uni<LessonResponse> deleteLesson(Long lessonId) {
+        return lessonRepository.findByIdForUpdate(lessonId)
+                .onItem().ifNull().failWith(() -> new ResourceNotFoundException(
+                        "RESOURCE_NOT_FOUND",
+                        "Lesson not found with id: " + lessonId
+                ))
+                .chain(lesson -> lessonRepository.hasDeletionReferences(lessonId)
+                        .invoke(referenced -> {
+                            if (referenced) {
+                                throw deletionConflict();
+                            }
+                        })
+                        .chain(() -> lessonRepository.deleteIfUnreferenced(lessonId))
+                        .invoke(deleted -> {
+                            if (deleted != 1) {
+                                throw deletionConflict();
+                            }
+                        })
+                        .replaceWith(toResponse(lesson))
+                )
+                .onFailure(failure -> failure instanceof ConstraintViolationException violation
+                        && violation.getSQLState() != null
+                        && violation.getSQLState().startsWith("23")
+                )
+                .transform(failure -> deletionConflict());
+    }
+
+    private ConflictException deletionConflict() {
+        return new ConflictException(
+                "LESSON_CONFLICT",
+                "Lesson is referenced by vocabulary assignments, "
+                        + "quizzes, flashcards or learning history"
+        );
+    }
+
     @WithTransaction
     @LogVocabularyOperation(
             value = "lesson.create",
@@ -48,6 +104,11 @@ public class LessonService {
             successMessage = "Successfully created lesson with id={lessonId}"
     )
     public Uni<LessonResponse> createLesson(LessonWriteRequest request) {
+        return createLessonInTransaction(request);
+    }
+
+    // Import items already own a transaction and its post-commit business log.
+    Uni<LessonResponse> createLessonInTransaction(LessonWriteRequest request) {
         return flushAndMapConflicts(requireLevel(request.levelId())
                 .call(() -> requireUniqueFields(null, request))
                 .chain(() -> {
@@ -65,6 +126,13 @@ public class LessonService {
             successMessage = "Successfully updated lesson with id={lessonId}"
     )
     public Uni<LessonResponse> updateLesson(
+            Long lessonId,
+            LessonWriteRequest request
+    ) {
+        return updateLessonInTransaction(lessonId, request);
+    }
+
+    Uni<LessonResponse> updateLessonInTransaction(
             Long lessonId,
             LessonWriteRequest request
     ) {

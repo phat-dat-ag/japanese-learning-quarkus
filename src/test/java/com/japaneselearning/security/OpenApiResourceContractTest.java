@@ -141,7 +141,7 @@ class OpenApiResourceContractTest {
                     assertFalse(resolved.path("description").asText().isBlank(), label);
                     assertFalse(resolved.path("schema").isMissingNode(), label);
                 }
-                if (path.endsWith("/finish") || path.endsWith("/abandon") || path.endsWith("/bookmark")) {
+                if (verb.equals("delete") || path.endsWith("/finish") || path.endsWith("/abandon") || path.endsWith("/bookmark")) {
                     assertFalse(operation.has("requestBody"), label);
                 } else if (!verb.equals("get")) {
                     assertTrue(operation.at("/requestBody/required").asBoolean(), label);
@@ -171,7 +171,7 @@ class OpenApiResourceContractTest {
                                                         documented.add(verb + " " + path.getKey());
                                                     }
                                                 }));
-        assertEquals(59, operations.size());
+        assertEquals(65, operations.size());
         assertEquals(operations, documented);
     }
 
@@ -221,6 +221,7 @@ class OpenApiResourceContractTest {
         for (String path :
                 List.of(
                         "/api/v1/lessons/batch",
+                        "/api/v1/lessons/content/import",
                         "/api/vocabularies/import",
                         "/api/v1/admin/kanji-quiz/questions/import")) {
             JsonNode operation = document.path("paths").path(path).path("post");
