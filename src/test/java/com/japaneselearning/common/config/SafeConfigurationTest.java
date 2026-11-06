@@ -51,7 +51,7 @@ class SafeConfigurationTest {
         assertDoesNotThrow(() -> {
             SafeConfigurationInterceptor.validate("quarkus.datasource.reactive.url", "mysql://mysql:3306/japanese_learning");
             SafeConfigurationInterceptor.validate("quarkus.oidc.auth-server-url", "http://localhost:5116");
-            SafeConfigurationInterceptor.validate("quarkus.oidc.jwks-path", "https://auth.example.invalid/.well-known/jwks.json");
+            SafeConfigurationInterceptor.validate("quarkus.oidc.jwks-path", "https://auth.example.invalid/api/v1/jwks/user");
             SafeConfigurationInterceptor.validate("quarkus.datasource.password", "synthetic;quotes'\"$value");
         });
     }

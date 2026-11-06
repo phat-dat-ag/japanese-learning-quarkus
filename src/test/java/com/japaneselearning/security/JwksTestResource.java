@@ -43,7 +43,7 @@ public class JwksTestResource implements QuarkusTestResourceLifecycleManager {
             otherKey.setAlgorithm("RS256");
             publish(otherKey, signingKey);
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext("/.well-known/jwks.json", exchange -> {
+            server.createContext("/api/v1/jwks/user", exchange -> {
                 requests.incrementAndGet();
 
                 if (unavailable) {
@@ -67,7 +67,7 @@ public class JwksTestResource implements QuarkusTestResourceLifecycleManager {
             String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
             return Map.of(
                     "quarkus.oidc.auth-server-url", baseUrl,
-                    "quarkus.oidc.jwks-path", baseUrl + "/.well-known/jwks.json",
+                    "quarkus.oidc.jwks-path", baseUrl + "/api/v1/jwks/user",
                     "quarkus.oidc.token.issuer", "JapaneseLearning.User",
                     "quarkus.oidc.token.audience", "JapaneseLearning"
             );
