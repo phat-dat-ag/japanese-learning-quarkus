@@ -5,6 +5,7 @@ import com.japaneselearning.common.exception.handler.BatchItemErrors;
 import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.dto.content.LessonContentImportItem;
 import com.japaneselearning.vocabulary.dto.content.LessonContentImportResponse;
+import com.japaneselearning.vocabulary.dto.content.LessonContentImportResponse.Mode;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
