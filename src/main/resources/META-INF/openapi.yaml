@@ -191,7 +191,7 @@ paths:
       operationId: getLevels
       summary: List JLPT levels
       tags: [ JLPT Levels ]
-      description: Requires the User or Admin role. Returns level codes and names ordered by master-data display order; IDs are not included.
+      description: Requires the User or Admin role. Returns persisted level IDs, codes and names ordered by master-data display order.
       responses:
         '200':
           description: Successful response; data contains an ordered array of JlptLevelResponse.
@@ -5584,11 +5584,16 @@ components:
           minimum: 0
     JlptLevelResponse:
       type: object
-      required: [ code, name ]
+      required: [ id, code, name ]
       properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted JLPT level ID used as levelId in lesson writes.
         code:
           type: string
-          description: JLPT level code, for example N5. This endpoint does not return a numeric level ID.
+          description: JLPT level code, for example N5.
         name:
           type: string
           description: Display name of the level.
@@ -5726,7 +5731,7 @@ components:
     LessonResponse:
       description: Existing lesson representation. Null description is omitted from JSON.
       type: object
-      required: [ id, lessonNumber, title ]
+      required: [ id, lessonNumber, title, levelId, displayOrder ]
       properties:
         id:
           type: integer
@@ -5742,6 +5747,16 @@ components:
         description:
           type: [ string, 'null' ]
           maxLength: 1000
+        levelId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Persisted JLPT level ID.
+        displayOrder:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Persisted lesson display order within its JLPT level.
     FlashcardDetailResponse:
       type: object
       required: [ vocabulary, readings, meanings, partsOfSpeech, levels, lessons, kanji, examples ]

@@ -42,7 +42,7 @@ public class JwtSecurityTestProfile implements QuarkusTestProfile {
 
         @Override
         public Uni<List<JlptLevelResponse>> getLevels() {
-            return Uni.createFrom().item(List.of(new JlptLevelResponse("N5", "Beginner")));
+            return Uni.createFrom().item(List.of(new JlptLevelResponse(17L, "N5", "Beginner")));
         }
     }
 
@@ -71,7 +71,7 @@ public class JwtSecurityTestProfile implements QuarkusTestProfile {
 
         @Override
         public Uni<List<LessonResponse>> getLessonsByLevel(String level) {
-            return Uni.createFrom().item(List.of(new LessonResponse(1L, 1, "Lesson 1", "Test lesson")));
+            return Uni.createFrom().item(List.of(new LessonResponse(1L, 1, "Lesson 1", "Test lesson", 17L, 9)));
         }
     }
 

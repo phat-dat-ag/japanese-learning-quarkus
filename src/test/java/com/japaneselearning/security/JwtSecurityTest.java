@@ -59,7 +59,11 @@ class JwtSecurityTest {
     void acceptsUserTokenWithoutIssuedAtAndCachesJwks() throws Exception {
         String token = tokens.token("User");
         given().auth().oauth2(token).get(LEVELS).then().statusCode(200)
-                .body("success", equalTo(true)).body("data[0].code", equalTo("N5"));
+                .body("success", equalTo(true)).body(
+                        "data[0].code", equalTo("N5"),
+                        "data[0].id", equalTo(17),
+                        "data[0].name", equalTo("Beginner")
+                );
         int requests = jwksRequests.get();
         assertTrue(requests > 0);
         given().auth().oauth2(token).get(LEVELS).then().statusCode(200);

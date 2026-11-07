@@ -217,7 +217,8 @@ public class LessonService {
 
     private LessonResponse toResponse(Lesson lesson) {
         return new LessonResponse(
-                lesson.id, lesson.lessonNumber, lesson.title, lesson.description
+                lesson.id, lesson.lessonNumber, lesson.title, lesson.description,
+                lesson.levelId, lesson.displayOrder
         );
     }
 
@@ -255,14 +256,7 @@ public class LessonService {
                 )
                 .map(lessons ->
                         lessons.stream()
-                                .map(lesson ->
-                                        new LessonResponse(
-                                                lesson.id,
-                                                lesson.lessonNumber,
-                                                lesson.title,
-                                                lesson.description
-                                        )
-                                )
+                                .map(this::toResponse)
                                 .toList()
                 );
     }
