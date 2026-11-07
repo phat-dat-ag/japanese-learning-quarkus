@@ -4,6 +4,8 @@ public record LessonResponse(
         Long id,
         Integer lessonNumber,
         String title,
-        String description
+        String description,
+        Long levelId,
+        Integer displayOrder
 ) {
 }

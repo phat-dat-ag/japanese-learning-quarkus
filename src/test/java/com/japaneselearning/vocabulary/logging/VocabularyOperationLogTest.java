@@ -80,7 +80,7 @@ class VocabularyOperationLogTest {
                 .subscribe().with(returned::set, Assertions::fail);
 
         assertTrue(records.isEmpty());
-        LessonResponse lesson = new LessonResponse(7L, 1, "secret-title", "secret-description");
+        LessonResponse lesson = new LessonResponse(7L, 1, "secret-title", "secret-description", 17L, 9);
         commit.get().complete(lesson);
         assertSame(lesson, returned.get());
         assertEquals(1, records.size());
@@ -131,7 +131,7 @@ class VocabularyOperationLogTest {
         Method batchMethod = LessonBatchService.class.getMethod("createLessons", List.class);
         Uni<?> batch = Uni.createFrom().voidItem()
                 .chain(() -> observe(createMethod(), new Object[]{null},
-                        Uni.createFrom().item(new LessonResponse(1L, 1, "secret", "secret"))))
+                        Uni.createFrom().item(new LessonResponse(1L, 1, "secret", "secret", 17L, 9))))
                 .chain(() -> observe(createMethod(), new Object[]{null},
                         Uni.createFrom().failure(new ConflictException("CONFLICT", "secret"))))
                 .onFailure(ConflictException.class).recoverWithNull()
@@ -159,7 +159,7 @@ class VocabularyOperationLogTest {
 
         for (int i = 0; i < 2; i++) {
             observe(createMethod(), new Object[]{null},
-                    Uni.createFrom().item(new LessonResponse(8L, 1, "secret", "secret")))
+                    Uni.createFrom().item(new LessonResponse(8L, 1, "secret", "secret", 17L, 9)))
                     .subscribe().with(shared, ignored -> {
                     }, Assertions::fail);
         }
@@ -214,7 +214,7 @@ class VocabularyOperationLogTest {
     void lessonRetrievalUsesActualCountsAndNeverWarnsForEmptyResults(int count) throws Exception {
         Method method = LessonService.class.getMethod("getLessonsByLevel", String.class);
         var lessons = java.util.stream.IntStream.range(0, count)
-                .mapToObj(i -> new LessonResponse((long) i, i, "secret", "secret")).toList();
+                .mapToObj(i -> new LessonResponse((long) i, i, "secret", "secret", 17L, 9)).toList();
 
         observe(method, new Object[]{"secret-query"}, Uni.createFrom().item(lessons)).await().indefinitely();
 

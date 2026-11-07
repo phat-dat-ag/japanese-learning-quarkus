@@ -24,6 +24,11 @@ class LessonServiceTest {
     private final Lessons lessons = new Lessons();
     private final LessonService service = new LessonService(lessons, new JlptLevelRepository() {
         @Override
+        public Uni<JlptLevel> findByCode(String code) {
+            return findById(37L);
+        }
+
+        @Override
         public Uni<JlptLevel> findById(Long id) {
             JlptLevel level = new JlptLevel();
             level.id = id;
@@ -36,6 +41,8 @@ class LessonServiceTest {
         var result = await(service.createLesson(request(1L, 1, 1)));
         Lesson saved = lessons.rows.get(0);
         assertEquals(saved.id, result.id());
+        assertEquals(saved.levelId, result.levelId());
+        assertEquals(saved.displayOrder, result.displayOrder());
         assertEquals(1L, saved.levelId);
         assertEquals(1, saved.lessonNumber);
         assertEquals("Title", saved.title);
@@ -54,6 +61,8 @@ class LessonServiceTest {
         var result = await(service.updateLesson(id, new LessonWriteRequest(2L, 2, "Changed", null, 3)));
         Lesson saved = lessons.rows.get(0);
         assertEquals(id, result.id());
+        assertEquals(2L, result.levelId());
+        assertEquals(3, result.displayOrder());
         assertEquals(2L, saved.levelId);
         assertEquals(2, saved.lessonNumber);
         assertEquals("Changed", result.title());
@@ -105,6 +114,17 @@ class LessonServiceTest {
                 () -> await(service.createLesson(request(1L, 1, 1)))));
     }
 
+    @Test
+    void readsPersistedLevelAndDisplayOrderForListAndDetail() {
+        var created = await(service.createLesson(request(37L, 4, 19)));
+        var detail = await(service.getLesson(created.id()));
+
+        assertEquals(created, detail);
+        assertEquals(List.of(created), await(service.getLessonsByLevel("N5")));
+        assertEquals(37L, detail.levelId());
+        assertEquals(19, detail.displayOrder());
+    }
+
     private LessonWriteRequest request(Long levelId, int number, int order) {
         return new LessonWriteRequest(levelId, number, "Title", "Description", order);
     }
@@ -117,6 +137,16 @@ class LessonServiceTest {
         final List<Lesson> rows = new ArrayList<>();
         int flushes;
         RuntimeException flushFailure;
+
+        @Override
+        public Uni<Lesson> findById(Long id) {
+            return findByIdForUpdate(id);
+        }
+
+        @Override
+        public Uni<List<Lesson>> findByLevelId(Long levelId) {
+            return Uni.createFrom().item(rows.stream().filter(row -> row.levelId.equals(levelId)).toList());
+        }
 
         @Override
         public Uni<Lesson> findByIdForUpdate(Long id) {

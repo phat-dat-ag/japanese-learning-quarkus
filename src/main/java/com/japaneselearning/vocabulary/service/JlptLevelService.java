@@ -25,7 +25,7 @@ public class JlptLevelService {
     public Uni<List<JlptLevelResponse>> getLevels() {
         return jlptLevelRepository.findAllOrdered()
                 .map(levels -> levels.stream()
-                        .map(level -> new JlptLevelResponse(level.code, level.name))
+                        .map(level -> new JlptLevelResponse(level.id, level.code, level.name))
                         .toList())
                 .invoke(levels -> StructuredLog.event(
                         LOG,

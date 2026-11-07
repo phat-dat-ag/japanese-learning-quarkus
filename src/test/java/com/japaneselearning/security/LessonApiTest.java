@@ -107,6 +107,7 @@ class LessonApiTest {
         given().auth().oauth2(new JwtTestTokens(signingKey).token("User"))
                 .get("/api/v1/lessons?level=N5").then().statusCode(200)
                 .body("data[0].id", equalTo(1), "data[0].lessonNumber", equalTo(1),
+                        "data[0].levelId", equalTo(17), "data[0].displayOrder", equalTo(9),
                         "data[0].title", equalTo("Lesson 1"), "data[0].description", equalTo("Test lesson"));
     }
 
@@ -125,6 +126,13 @@ class LessonApiTest {
         for (String status : List.of("400", "401", "403", "404", "409", "500")) {
             assertNotNull(doc.getMap(op + ".responses.'" + status + "'"));
         }
+        assertEquals(Set.of("id", "code", "name"),
+                Set.copyOf(doc.getList("components.schemas.JlptLevelResponse.required")));
+        assertEquals("int64", doc.getString("components.schemas.JlptLevelResponse.properties.id.format"));
+        assertEquals(Set.of("id", "lessonNumber", "title", "levelId", "displayOrder"),
+                Set.copyOf(doc.getList("components.schemas.LessonResponse.required")));
+        assertEquals("int64", doc.getString("components.schemas.LessonResponse.properties.levelId.format"));
+        assertEquals("int32", doc.getString("components.schemas.LessonResponse.properties.displayOrder.format"));
         String schema = "components.schemas.LessonWriteRequest";
         assertEquals(Set.of("levelId", "lessonNumber", "title", "displayOrder"),
                 Set.copyOf(doc.getList(schema + ".required")));
@@ -134,7 +142,7 @@ class LessonApiTest {
         assertEquals(200, doc.getInt(schema + ".properties.title.maxLength"));
         assertEquals(1000, doc.getInt(schema + ".properties.description.maxLength"));
         assertEquals(List.of("string", "null"), doc.getList(schema + ".properties.description.type"));
-        assertEquals(Set.of("id", "lessonNumber", "title", "description"),
+        assertEquals(Set.of("id", "lessonNumber", "title", "description", "levelId", "displayOrder"),
                 doc.getMap("components.schemas.LessonResponse.properties").keySet());
         if (method.equals("put")) {
             assertNotNull(doc.getMap("paths.'" + path + "'.delete"));
