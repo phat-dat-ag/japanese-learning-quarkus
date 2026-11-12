@@ -1,5 +1,7 @@
 package com.japaneselearning.security;
 
+import com.japaneselearning.common.web.CorrelationProbeResource;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.common.QuarkusTestResource;
@@ -17,12 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
 
 import static io.restassured.RestAssured.given;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 @TestProfile(ApplicationFileLoggingTest.FileLoggingProfile.class)
@@ -32,12 +36,24 @@ class ApplicationFileLoggingTest {
     private final ObjectMapper json = new ObjectMapper();
 
     public static class FileLoggingProfile extends JwtSecurityTestProfile {
-        static final Path LOG_FILE = Path.of("target", "logging-test", UUID.randomUUID() + ".json.log");
+        static final Path LOG_FILE =
+                Path.of(
+                        "target",
+                        "p02-logging-test",
+                        UUID.randomUUID().toString(),
+                        "application.json.log"
+                );
 
         @Override
         public Map<String, String> getConfigOverrides() {
-            return Map.of("quarkus.log.file.enabled", "true", "quarkus.log.file.path", LOG_FILE.toString(),
-                    "application.logging.slow-operation-ms", "0");
+            return Map.of(
+                    "quarkus.log.file.enabled",
+                    "true",
+                    "quarkus.log.file.path",
+                    LOG_FILE.toString(),
+                    "application.logging.slow-operation-ms",
+                    "0"
+            );
         }
     }
 
@@ -45,52 +61,99 @@ class ApplicationFileLoggingTest {
     void writesTypedCorrelatedRedactedLifecycleEventsThroughAsyncFileHandler() throws Exception {
         String id = "file-" + UUID.randomUUID();
         String trace = "0123456789abcdef0123456789abcdef";
-        var success = given().header("X-Correlation-ID", id).header("X-Trace-Id", "legacy-response-alias")
-                .header("X-Caller-Service", "user-api")
-                .header("X-Forwarded-For", "credential-sentinel")
-                .header("traceparent", "00-" + trace + "-0123456789abcdef-01")
-                .get("/correlation-probe");
+        var success =
+                given().header("X-Correlation-ID", id)
+                        .header("X-Trace-Id", "legacy-response-alias")
+                        .header("X-Caller-Service", "user-api")
+                        .header("X-Forwarded-For", "credential-sentinel")
+                        .header("traceparent", "00-" + trace + "-0123456789abcdef-01")
+                        .get("/correlation-probe");
         assertEquals(200, success.statusCode());
         assertEquals("legacy-response-alias", success.header("X-Trace-Id"));
         assertEquals(trace, success.header("X-Distributed-Trace-Id"));
         assertEquals(id, success.asString());
 
-        given().header("X-Correlation-ID", id + "-error").get("/error-probe/unexpected").then().statusCode(500);
-        given().header("X-Correlation-ID", id + "-conflict").get("/error-probe/conflict").then().statusCode(409);
-        given().header("X-Correlation-ID", id + "-validation").contentType("application/json")
-                .body("{}").post("/error-probe").then().statusCode(400);
-        given().header("X-Correlation-ID", id + "-json").contentType("application/json")
-                .body("{credential-sentinel").post("/error-probe").then().statusCode(400);
-        given().header("X-Correlation-ID", id + "-health").get("/q/health/live").then().statusCode(200);
-        given().header("X-Correlation-ID", id + "-rejected").auth().oauth2("credential-sentinel")
-                .get("/api/v1/jlpt-levels").then().statusCode(401);
-        given().header("X-Correlation-ID", id + "-missing").get("/api/v1/jlpt-levels").then().statusCode(401);
+        given().header("X-Correlation-ID", id + "-error")
+                .get("/error-probe/unexpected")
+                .then()
+                .statusCode(500);
+        given().header("X-Correlation-ID", id + "-conflict")
+                .get("/error-probe/conflict")
+                .then()
+                .statusCode(409);
+        given().header("X-Correlation-ID", id + "-validation")
+                .contentType("application/json")
+                .body("{}")
+                .post("/error-probe")
+                .then()
+                .statusCode(400);
+        given().header("X-Correlation-ID", id + "-json")
+                .contentType("application/json")
+                .body("{credential-sentinel")
+                .post("/error-probe")
+                .then()
+                .statusCode(400);
+        given().header("X-Correlation-ID", id + "-health")
+                .get("/q/health/live")
+                .then()
+                .statusCode(200);
+        given().header("X-Correlation-ID", id + "-rejected")
+                .auth()
+                .oauth2("credential-sentinel")
+                .get("/api/v1/jlpt-levels")
+                .then()
+                .statusCode(401);
+        given().header("X-Correlation-ID", id + "-missing")
+                .get("/api/v1/jlpt-levels")
+                .then()
+                .statusCode(401);
         given().header("X-Correlation-ID", id + "-forbidden")
-                .auth().oauth2(new JwtTestTokens(signingKey).token("Guest"))
-                .get("/api/v1/jlpt-levels").then().statusCode(403);
+                .auth()
+                .oauth2(new JwtTestTokens(signingKey).token("Guest"))
+                .get("/api/v1/jlpt-levels")
+                .then()
+                .statusCode(403);
         given().header("X-Correlation-ID", id + "-unknown")
-                .get("/credential-sentinel?password=secret").then().statusCode(404);
+                .get("/credential-sentinel?password=secret")
+                .then()
+                .statusCode(404);
         given().header("X-Correlation-ID", id + "-caller-invalid")
                 .header("X-Caller-Service", "credential-sentinel.invalid")
-                .get("/correlation-probe").then().statusCode(200);
+                .get("/correlation-probe")
+                .then()
+                .statusCode(200);
         given().header("X-Correlation-ID", id + "-caller-duplicate")
                 .header("X-Caller-Service", "first", "second")
-                .get("/correlation-probe").then().statusCode(200);
-        java.util.concurrent.CompletableFuture.allOf(java.util.stream.IntStream.range(0, 4)
-                .mapToObj(index -> java.util.concurrent.CompletableFuture.runAsync(() ->
-                        given().header("X-Correlation-ID", id + "-concurrent-" + index)
-                                .header("X-Caller-Service", "service-" + index)
-                                .get("/correlation-probe").then().statusCode(200)))
-                .toArray(java.util.concurrent.CompletableFuture[]::new)).join();
-        var invalid = given().header("X-Correlation-ID", "unsafe value")
-                .header("traceparent", "invalid").get("/correlation-probe");
+                .get("/correlation-probe")
+                .then()
+                .statusCode(200);
+
+        CompletableFuture.allOf(
+                IntStream.range(0, 4)
+                        .mapToObj(index -> concurrentProbe(id, index))
+                        .toArray(CompletableFuture[]::new)
+        ).join();
+
+        var invalid =
+                given().header("X-Correlation-ID", "unsafe value")
+                        .header("traceparent", "invalid")
+                        .get("/correlation-probe");
+
         assertTrue(invalid.header("X-Trace-Id").matches("[a-f0-9]{32}"));
         assertNotEquals("0".repeat(32), invalid.header("X-Trace-Id"));
         assertTrue(invalid.header("X-Correlation-ID").matches("[a-f0-9]{32}"));
         given().header("X-Correlation-ID", id + "-import")
-                .auth().oauth2(new JwtTestTokens(signingKey).token("Admin"))
-                .multiPart("file", "private-filename.json", "uploaded-secret".getBytes(), "application/json")
-                .post("/api/vocabularies/import").then().statusCode(200);
+                .auth()
+                .oauth2(new JwtTestTokens(signingKey).token("Admin"))
+                .multiPart(
+                        "file",
+                        "private-filename.json",
+                        "uploaded-secret".getBytes(),
+                        "application/json"
+                )
+                .post("/api/vocabularies/import")
+                .then()
+                .statusCode(200);
 
         Path logFile = ConfigProvider.getConfig().getValue("quarkus.log.file.path", Path.class);
         // Await the final async write, not an assumed fixed flush delay.
@@ -107,60 +170,122 @@ class ApplicationFileLoggingTest {
         for (JsonNode record : records) {
             assertTrue(record.isObject());
             Instant.parse(record.get("@timestamp").asText());
-            for (String field : List.of("level", "logger.name", "thread.name", "message", "service.name",
-                    "service.version", "deployment.environment", "service.instance.id")) {
+            for (String field :
+                    List.of(
+                            "level",
+                            "logger.name",
+                            "thread.name",
+                            "message",
+                            "service.name",
+                            "service.version",
+                            "deployment.environment",
+                            "service.instance.id"
+                    )
+            ) {
                 assertTrue(record.path(field).isTextual(), field);
             }
             assertEquals(1, record.path("log.schema.version").asInt());
         }
         assertEquals(1, events(records, id, "http.request.started").size());
         JsonNode completed = single(records, id, "http.request.completed");
-        assertEquals("Started GET /unmatched", single(records, id, "http.request.started").path("message").asText());
+        assertEquals(
+                "Started GET /unmatched",
+                single(records, id, "http.request.started").path("message").asText()
+        );
         assertEquals("GET", completed.path("http.request.method").asText());
-        assertEquals("Completed GET /correlation-probe with status 200 in "
-                + completed.path("durationMs").asLong() + " ms", completed.path("message").asText());
+        assertEquals(
+                "Completed GET /correlation-probe with status 200 in "
+                        + completed.path("durationMs").asLong()
+                        + " ms",
+                completed.path("message").asText()
+        );
         assertEquals(trace, completed.path("traceId").asText());
         assertEquals("0123456789abcdef", completed.path("parentSpanId").asText());
         assertEquals("user-api", completed.path("caller.service.claimed").asText());
-        assertEquals("com.japaneselearning.common.web.CorrelationProbeResource", completed.path("handler.class").asText());
+        assertEquals(
+                CorrelationProbeResource.class.getName(),
+                completed.path("handler.class").asText()
+        );
         assertEquals("probe", completed.path("handler.method").asText());
-        assertFalse(completed.path("network.peer.address").asText().isEmpty());
-        assertTrue(completed.path("network.peer.port").isIntegralNumber());
+        assertFalse(completed.has("network.peer.address"));
+        assertFalse(completed.has("network.peer.port"));
         assertTrue(completed.path("http.response.body.size").isIntegralNumber());
         assertEquals("true", completed.path("http.response.started").asText());
         assertTrue(completed.path("isSlow").asBoolean());
         assertEquals(0, completed.path("slowThresholdMs").asInt());
         assertFalse(completed.path("security.authenticated").asBoolean());
         for (String suffix : List.of("-caller-invalid", "-caller-duplicate")) {
-            assertEquals("unknown", single(records, id + suffix, "http.request.completed")
-                    .path("caller.service.claimed").asText());
+            assertEquals(
+                    "unknown",
+                    single(records, id + suffix, "http.request.completed")
+                            .path("caller.service.claimed")
+                            .asText()
+            );
         }
-        JsonNode application = records.stream().filter(r -> id.equals(r.path("correlationId").asText())
-                && "Correlation probe application log".equals(r.path("message").asText())).findFirst().orElseThrow();
+        JsonNode application =
+                records.stream()
+                        .filter(
+                                r ->
+                                        id.equals(r.path("correlationId").asText())
+                                                && "Correlation probe application log"
+                                                .equals(r.path("message").asText())
+                        )
+                        .findFirst()
+                        .orElseThrow();
+
         assertEquals("user-api", application.path("caller.service.claimed").asText());
         assertEquals("probe", application.path("handler.method").asText());
         assertEquals("/correlation-probe", application.path("http.route").asText());
+
         for (int index = 0; index < 4; index++) {
             String requestId = id + "-concurrent-" + index;
-            var requestRecords = records.stream().filter(r -> requestId.equals(r.path("correlationId").asText())).toList();
+
+            var requestRecords =
+                    records.stream()
+                            .filter(r -> requestId.equals(r.path("correlationId").asText()))
+                            .toList();
+
             assertFalse(requestRecords.isEmpty());
             for (JsonNode record : requestRecords) {
                 assertEquals("service-" + index, record.path("caller.service.claimed").asText());
             }
-            assertEquals("probe", single(records, requestId, "http.request.completed").path("handler.method").asText());
+
+            assertEquals(
+                    "probe",
+                    single(records, requestId, "http.request.completed")
+                            .path("handler.method")
+                            .asText()
+            );
         }
+
         assertEquals("legacy-response-alias", completed.path("legacyTraceId").asText());
         assertEquals(200, completed.path("http.response.status_code").asInt());
         assertTrue(completed.path("http.response.status_code").isIntegralNumber());
         assertTrue(completed.path("durationMs").isIntegralNumber());
         assertEquals("/correlation-probe", completed.path("http.route").asText());
         assertEquals("success", completed.path("outcome").asText());
-        for (JsonNode record : records.stream().filter(r -> id.equals(r.path("correlationId").asText())).toList()) {
+
+        for (JsonNode record :
+                records.stream()
+                        .filter(r -> id.equals(r.path("correlationId").asText()))
+                        .toList()
+        ) {
             assertEquals(trace, record.path("traceId").asText());
             assertEquals(completed.path("spanId"), record.path("spanId"));
         }
-        for (String suffix : List.of("-error", "-conflict", "-validation", "-json", "-rejected",
-                "-missing", "-forbidden", "-unknown")) {
+
+        for (String suffix :
+                List.of(
+                        "-error",
+                        "-conflict",
+                        "-validation",
+                        "-json",
+                        "-rejected",
+                        "-missing",
+                        "-forbidden",
+                        "-unknown"
+                )
+        ) {
             JsonNode failure = single(records, id + suffix, "http.request.failed");
             assertTrue(failure.path("traceId").asText().matches("[a-f0-9]{32}"));
             assertNotEquals("0".repeat(32), failure.path("traceId").asText());
@@ -168,22 +293,62 @@ class ApplicationFileLoggingTest {
             assertFalse(failure.path("error.code").asText().isEmpty());
             assertTrue(events(records, id + suffix, "http.request.completed").isEmpty());
         }
-        assertEquals("TEST_CONFLICT", single(records, id + "-conflict", "http.request.failed").path("error.code").asText());
-        assertEquals("WARN", single(records, id + "-conflict", "http.request.failed").path("level").asText());
+
+        assertEquals(
+                "TEST_CONFLICT",
+                single(records, id + "-conflict", "http.request.failed")
+                        .path("error.code")
+                        .asText()
+        );
+        assertEquals(
+                "WARN",
+                single(records, id + "-conflict", "http.request.failed").path("level").asText()
+        );
         JsonNode exception = single(records, id + "-error", "application.exception");
-        assertEquals("Request failed because of an unexpected internal error", exception.path("message").asText());
-        assertTrue(exception.path("error.stack_trace").asText().contains("ErrorProbeResource.error"));
+        assertEquals(
+                "Request failed because of an unexpected internal error",
+                exception.path("message").asText()
+        );
+        assertTrue(
+                exception.path("error.stack_trace").asText().contains("ErrorProbeResource.error")
+        );
         assertEquals("java.lang.IllegalStateException", exception.path("error.type").asText());
-        assertEquals(1, single(records, id + "-import", "vocabulary.import.completed").path("created").asInt());
+        assertEquals(
+                1,
+                single(records, id + "-import", "vocabulary.import.completed")
+                        .path("created")
+                        .asInt()
+        );
         JsonNode imported = single(records, id + "-import", "vocabulary.import.completed");
         assertFalse(imported.path("operation.class").asText().isEmpty());
         assertFalse(imported.path("operation.method").asText().isEmpty());
         assertTrue(imported.path("security.authenticated").asBoolean());
         String output = records.toString();
-        for (String secret : List.of("credential-sentinel", "uploaded-secret", "private-filename", "private_table",
-                "password=", "unsafe value", id + "-health")) {
+
+        for (String secret :
+                List.of(
+                        "credential-sentinel",
+                        "uploaded-secret",
+                        "private-filename",
+                        "private_table",
+                        "password=",
+                        "unsafe value",
+                        id + "-health"
+                )
+        ) {
             assertFalse(output.contains(secret), secret);
         }
+    }
+
+    private static CompletableFuture<Void> concurrentProbe(String id, int index) {
+        return CompletableFuture.runAsync(() -> {
+            String correlation = id + "-concurrent-" + index;
+            given().header("X-Correlation-ID", correlation)
+                    .header("X-Caller-Service", "service-" + index)
+                    .get("/correlation-probe")
+                    .then()
+                    .statusCode(200);
+        });
     }
 
     private List<JsonNode> readCompleteLines(Path path) throws Exception {
@@ -199,8 +364,13 @@ class ApplicationFileLoggingTest {
     }
 
     private List<JsonNode> events(List<JsonNode> records, String id, String event) {
-        return records.stream().filter(r -> id.equals(r.path("correlationId").asText())
-                && event.equals(r.path("event.name").asText())).toList();
+        return records.stream()
+                .filter(
+                        r ->
+                                id.equals(r.path("correlationId").asText())
+                                        && event.equals(r.path("event.name").asText())
+                )
+                .toList();
     }
 
     private JsonNode single(List<JsonNode> records, String id, String event) {

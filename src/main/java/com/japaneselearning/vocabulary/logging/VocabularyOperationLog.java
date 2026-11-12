@@ -1,49 +1,62 @@
 package com.japaneselearning.vocabulary.logging;
 
-import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.common.exception.BusinessException;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
+import com.japaneselearning.common.logging.StructuredLog;
 import com.japaneselearning.vocabulary.dto.LessonBatchResponse;
 import com.japaneselearning.vocabulary.dto.LessonResponse;
 import com.japaneselearning.vocabulary.dto.LessonWriteRequest;
 import com.japaneselearning.vocabulary.importer.dto.ImportResult;
+
 import io.smallrye.mutiny.Uni;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
+
 import jakarta.annotation.Priority;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 import jakarta.ws.rs.WebApplicationException;
-import org.jboss.logging.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.lang.reflect.Parameter;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @LogVocabularyOperation
 @Interceptor
-// WithTransaction has priority PLATFORM_BEFORE + 200: observe its completed Uni, not a pending write.
+// WithTransaction has priority PLATFORM_BEFORE + 200: observe its completed Uni, not a pending
+// write.
 @Priority(Interceptor.Priority.PLATFORM_BEFORE + 199)
 public class VocabularyOperationLog {
     private static final Logger LOG = Logger.getLogger(VocabularyOperationLog.class);
+
     @ConfigProperty(name = "application.logging.slow-operation-ms", defaultValue = "1000")
     long slowOperationMs = 1000;
 
     private static final Object ACTIVE_OPERATION = new Object();
-    private static final Set<String> ID_PARAMETERS = Set.of(
-            "vocabularyId", "lessonId", "levelId", "readingId",
-            "meaningId", "exampleId", "pitchAccentId", "kanjiId"
-    );
+    private static final Set<String> ID_PARAMETERS =
+            Set.of(
+                    "vocabularyId",
+                    "lessonId",
+                    "levelId",
+                    "readingId",
+                    "meaningId",
+                    "exampleId",
+                    "pitchAccentId",
+                    "kanjiId"
+            );
 
     @AroundInvoke
     Object log(InvocationContext invocation) throws Exception {
-        LogVocabularyOperation annotation = invocation.getMethod().getAnnotation(LogVocabularyOperation.class);
+        LogVocabularyOperation annotation =
+                invocation.getMethod().getAnnotation(LogVocabularyOperation.class);
 
         if (annotation == null) {
-            annotation = invocation.getTarget().getClass().getAnnotation(LogVocabularyOperation.class);
+            annotation =
+                    invocation.getTarget().getClass().getAnnotation(LogVocabularyOperation.class);
         }
 
         String operation = annotation.value();
@@ -64,74 +77,127 @@ public class VocabularyOperationLog {
             throw failure;
         }
 
-        return result.withContext((uni, context) -> {
-            // Nested lesson creates belong to the outer batch summary, not per-record INFO/WARN logs.
-            if (context.contains(ACTIVE_OPERATION)) {
-                return uni;
-            }
+        return result.withContext(
+                (uni, context) -> {
+                    // Nested lesson creates belong to the outer batch summary, not per-record
+                    // INFO/WARN logs.
+                    if (context.contains(ACTIVE_OPERATION)) {
+                        return uni;
+                    }
 
-            context.put(ACTIVE_OPERATION, true);
-            long started = System.nanoTime();
+                    context.put(ACTIVE_OPERATION, true);
+                    long started = System.nanoTime();
 
-            Map<String, Object> startFields = new HashMap<>(identifiers);
+                    Map<String, Object> startFields = new HashMap<>(identifiers);
 
-            startFields.put("operation", operation);
+                    startFields.put("operation", operation);
 
-            StructuredLog.event(
-                    LOG,
-                    (operation.equals("vocabulary.import") || operation.equals("lesson.batch.create"))
-                            ? Logger.Level.INFO
-                            : Logger.Level.DEBUG,
-                    operation + ".started",
-                    description + " requested",
-                    startFields
-            );
+                    StructuredLog.event(
+                            LOG,
+                            (operation.equals("vocabulary.import")
+                                    || operation.equals("lesson.batch.create")
+                            )
+                                    ? Logger.Level.INFO
+                                    : Logger.Level.DEBUG,
+                            operation + ".started",
+                            description + " requested",
+                            startFields
+                    );
 
-            return uni.invoke(item -> completed(
-                            operation,
-                            description,
-                            successMessage,
-                            identifiers,
-                            item,
-                            (System.nanoTime() - started) / 1_000_000
-                    ))
-                    .onFailure(failure -> failure instanceof BusinessException || isInputFailure(failure))
-                    .invoke(failure -> rejected(operation, description, identifiers, failure))
-                    .onFailure(failure -> !(failure instanceof BusinessException) && !isInputFailure(failure))
-                    .invoke(failure -> {
-                        Map<String, Object> fields = new HashMap<>(identifiers);
+                    return uni.invoke(
+                                    item ->
+                                            completed(
+                                                    operation,
+                                                    description,
+                                                    successMessage,
+                                                    identifiers,
+                                                    item,
+                                                    (System.nanoTime() - started) / 1_000_000
+                                            )
+                            )
+                            .onFailure(
+                                    failure ->
+                                            failure instanceof BusinessException
+                                                    || isInputFailure(failure)
+                            )
+                            .invoke(
+                                    failure ->
+                                            rejected(operation, description, identifiers, failure)
+                            )
+                            .onFailure(
+                                    failure ->
+                                            !(failure instanceof BusinessException)
+                                                    && !isInputFailure(failure)
+                            )
+                            .invoke(
+                                    failure -> {
+                                        Map<String, Object> fields = new HashMap<>(identifiers);
 
-                        fields.put("operation", operation);
-                        fields.put("error.type", failure.getClass().getName());
-                        fields.put("durationMs", (System.nanoTime() - started) / 1_000_000);
-                        fields.put("outcome", "failure");
+                                        fields.put("operation", operation);
+                                        fields.put("error.type", failure.getClass().getName());
+                                        fields.put(
+                                                "durationMs",
+                                                (System.nanoTime() - started) / 1_000_000
+                                        );
+                                        fields.put("outcome", "failure");
 
-                        StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".failed",
-                                description + " failed unexpectedly; see the centralized exception diagnostic", fields);
-                    })
-                    .onCancellation().invoke(() -> {
-                        if (LOG.isDebugEnabled()) {
-                            Map<String, Object> fields = new HashMap<>(identifiers);
-                            fields.put("operation", operation);
-                            fields.put("outcome", "cancelled");
-                            fields.put("durationMs", (System.nanoTime() - started) / 1_000_000);
-                            StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".cancelled",
-                                    description + " was cancelled before completion", fields);
-                        }
-                    })
-                    .onTermination().invoke(() -> {
-                        context.delete(ACTIVE_OPERATION);
-                        long duration = (System.nanoTime() - started) / 1_000_000;
+                                        StructuredLog.event(
+                                                LOG,
+                                                Logger.Level.DEBUG,
+                                                operation + ".failed",
+                                                description
+                                                        + " failed unexpectedly; see the"
+                                                        + " centralized exception diagnostic",
+                                                fields
+                                        );
+                                    }
+                            )
+                            .onCancellation()
+                            .invoke(
+                                    () -> {
+                                        if (LOG.isEnabled(Logger.Level.WARN)) {
+                                            Map<String, Object> fields = new HashMap<>(identifiers);
+                                            fields.put("operation", operation);
+                                            fields.put("outcome", "cancelled");
+                                            fields.put(
+                                                    "durationMs",
+                                                    (System.nanoTime() - started) / 1_000_000
+                                            );
+                                            StructuredLog.event(
+                                                    LOG,
+                                                    Logger.Level.WARN,
+                                                    operation + ".cancelled",
+                                                    description
+                                                            + " was cancelled before completion",
+                                                    fields
+                                            );
+                                        }
+                                    }
+                            )
+                            .onTermination()
+                            .invoke(
+                                    () -> {
+                                        context.delete(ACTIVE_OPERATION);
+                                        long duration = (System.nanoTime() - started) / 1_000_000;
 
-                        if (duration >= slowOperationMs) {
-                            Map<String, Object> fields = new HashMap<>(identifiers);
-                            fields.put("operation", operation);
-                            fields.put("durationMs", duration);
-                            StructuredLog.event(LOG, Logger.Level.WARN, operation + ".slow",
-                                    description + " exceeded the configured duration threshold", fields);
-                        }
-                    });
-        });
+                                        if (duration >= slowOperationMs) {
+                                            Map<String, Object> fields = new HashMap<>(identifiers);
+                                            fields.put("operation", operation);
+                                            fields.put("durationMs", duration);
+                                            StructuredLog.event(
+                                                    LOG,
+                                                    Logger.Level.WARN,
+                                                    operation + ".slow",
+                                                    description
+                                                            + " exceeded the configured duration"
+                                                            + " threshold",
+                                                    fields
+                                            );
+                                        }
+                                    }
+                            );
+                }
+        );
     }
 
     private Map<String, Object> identifiers(InvocationContext invocation) {
@@ -140,7 +206,9 @@ public class VocabularyOperationLog {
         Object[] arguments = invocation.getParameters();
 
         for (int i = 0; i < parameters.length; i++) {
-            if (ID_PARAMETERS.contains(parameters[i].getName()) && arguments[i] instanceof Long id) {
+            if (ID_PARAMETERS.contains(parameters[i].getName())
+                    && arguments[i] instanceof Long id
+            ) {
                 identifiers.put(parameters[i].getName(), id);
             }
 
@@ -191,18 +259,38 @@ public class VocabularyOperationLog {
             fields.put("lessonId", lesson.id());
         }
 
-        String message = successMessage.isEmpty() ? description + " completed successfully" : successMessage;
+        String message =
+                successMessage.isEmpty() ? description + " completed successfully" : successMessage;
 
-        for (String key : Set.of(
-                "vocabularyId", "lessonId", "levelId", "readingId", "meaningId", "exampleId",
-                "pitchAccentId", "kanjiId", "count", "total", "created", "updated", "succeeded", "failed"
-        )) {
+        for (String key :
+                Set.of(
+                        "vocabularyId",
+                        "lessonId",
+                        "levelId",
+                        "readingId",
+                        "meaningId",
+                        "exampleId",
+                        "pitchAccentId",
+                        "kanjiId",
+                        "count",
+                        "total",
+                        "created",
+                        "updated",
+                        "succeeded",
+                        "failed"
+                )
+        ) {
             Object value = fields.get(key);
 
-            message = message.replace("{" + key + "}",
-                    value instanceof Integer || value instanceof Long
-                            ? value.toString() : "unavailable"
-            );
+            message =
+                    message.replace(
+                            "{" + key + "}",
+                            key.endsWith("Id")
+                                    ? "[redacted]"
+                                    : value instanceof Integer || value instanceof Long
+                                    ? value.toString()
+                                    : "unavailable"
+                    );
         }
 
         StructuredLog.event(LOG, level, operation + ".completed", message, fields);
@@ -210,7 +298,8 @@ public class VocabularyOperationLog {
 
     private boolean isInputFailure(Throwable failure) {
         return failure instanceof WebApplicationException http
-                && http.getResponse().getStatus() >= 400 && http.getResponse().getStatus() < 500;
+                && http.getResponse().getStatus() >= 400
+                && http.getResponse().getStatus() < 500;
     }
 
     private void rejected(
@@ -219,10 +308,10 @@ public class VocabularyOperationLog {
             Map<String, Object> identifiers,
             Throwable failure
     ) {
-        String reason = failure instanceof ConflictException
-                ? "conflict"
-                : failure instanceof ResourceNotFoundException
-                ? "not_found" : "validation";
+        String reason =
+                failure instanceof ConflictException
+                        ? "conflict"
+                        : failure instanceof ResourceNotFoundException ? "not_found" : "validation";
 
         Map<String, Object> fields = new HashMap<>(identifiers);
 
@@ -236,13 +325,18 @@ public class VocabularyOperationLog {
 
         fields.put("error.type", failure.getClass().getName());
 
-        String explanation = failure instanceof ResourceNotFoundException
-                ? "the requested entity or referenced assignment was not found"
-                : failure instanceof ConflictException
-                ? "a duplicate value, existing relationship or shared-content restriction conflicts with the request"
-                : "the input or referenced assignments do not meet the operation requirements";
+        String explanation =
+                failure instanceof ResourceNotFoundException
+                        ? "the requested entity or referenced assignment was not found"
+                        : failure instanceof ConflictException
+                        ? "a duplicate value, existing relationship or shared-content"
+                        + " restriction conflicts with the request"
+                        : "the input or referenced assignments do not meet the operation"
+                        + " requirements";
 
-        if (failure instanceof BusinessException business && "JLPT_LEVEL_NOT_FOUND".equals(business.getCode())) {
+        if (failure instanceof BusinessException business
+                && "JLPT_LEVEL_NOT_FOUND".equals(business.getCode())
+        ) {
             explanation = "the referenced JLPT level was not found";
         }
 
@@ -250,7 +344,8 @@ public class VocabularyOperationLog {
                 LOG,
                 Logger.Level.WARN,
                 operation + ".rejected",
-                description + " rejected because " + explanation, fields
+                description + " rejected because " + explanation,
+                fields
         );
     }
 }

@@ -2,18 +2,21 @@ package com.japaneselearning.common.web;
 
 import com.japaneselearning.common.exception.handler.HttpErrors;
 import com.japaneselearning.common.logging.StructuredLog;
+
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
-import io.vertx.core.MultiMap;
 import io.quarkus.vertx.http.runtime.filters.Filters;
+import io.vertx.core.MultiMap;
 import io.vertx.ext.web.RoutingContext;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.Observes;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +41,8 @@ public class CorrelationIdFilter {
     public static final String ERROR_CODE_KEY = CONTEXT_KEY + ".errorCode";
     public static final String ERROR_TYPE_KEY = CONTEXT_KEY + ".errorType";
     public static final String FIELDS_KEY = CONTEXT_KEY + ".fields";
-    private static final Set<String> METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
+    private static final Set<String> METHODS =
+            Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
 
     @ConfigProperty(name = "application.logging.slow-operation-ms", defaultValue = "1000")
     long slowOperationMs;
@@ -63,9 +67,8 @@ public class CorrelationIdFilter {
         MDC.put("traceId", traceId);
         MDC.put("spanId", spanId);
 
-        String legacyTraceId = validatedId(
-                context.request().headers().getAll(RequestTraceFilter.TRACE_ID_HEADER)
-        );
+        String legacyTraceId =
+                validatedId(context.request().headers().getAll(RequestTraceFilter.TRACE_ID_HEADER));
 
         if (legacyTraceId != null) {
             MDC.put("legacyTraceId", legacyTraceId);
@@ -80,19 +83,7 @@ public class CorrelationIdFilter {
         fields.put("traceId", traceId);
         fields.put("spanId", spanId);
 
-        var parent = Span.fromContext(W3CTraceContextPropagator.getInstance().extract(
-                        Context.root(), context.request().headers(), new TextMapGetter<MultiMap>() {
-                            public Iterable<String> keys(MultiMap headers) {
-                                return headers.names();
-                            }
-
-                            public String get(MultiMap headers, String key) {
-                                var values = headers.getAll(key);
-                                return values.size() == 1 ? values.get(0) : null;
-                            }
-                        }
-                )
-        ).getSpanContext();
+        var parent = parentContext(context);
 
         if (parent.isValid() && parent.getTraceId().equals(traceId)) {
             fields.put("parentSpanId", parent.getSpanId());
@@ -101,13 +92,6 @@ public class CorrelationIdFilter {
         String caller = validatedId(context.request().headers().getAll(CALLER_SERVICE_HEADER));
         // Caller metadata is diagnostic only; it never establishes service identity.
         fields.put("caller.service.claimed", caller == null ? "unknown" : caller);
-
-        var peer = context.request().remoteAddress();
-
-        if (peer != null && peer.isInetSocket()) {
-            fields.put("network.peer.address", peer.hostAddress());
-            fields.put("network.peer.port", peer.port());
-        }
 
         fields.put("network.protocol.version", context.request().version().name());
         fields.put("url.scheme", context.request().scheme());
@@ -129,135 +113,216 @@ public class CorrelationIdFilter {
                     LOG,
                     Logger.Level.INFO,
                     "http.request.started",
-                    "Started "
-                            + fields.get("http.request.method")
-                            + " " + fields.get("http.route"),
+                    "Started " + fields.get("http.request.method") + " " + fields.get("http.route"),
                     fields
             );
         }
-        context.addHeadersEndHandler(ignored -> {
-            context.response().putHeader(HEADER, id);
+        context.addHeadersEndHandler(
+                ignored -> {
+                    context.response().putHeader(HEADER, id);
 
-            String responseTrace = context.get(RESPONSE_TRACE_KEY);
+                    String responseTrace = context.get(RESPONSE_TRACE_KEY);
 
-            context.response().putHeader(
-                    RequestTraceFilter.TRACE_ID_HEADER,
-                    responseTrace == null ? traceId : responseTrace
-            );
-            context.response().putHeader(DISTRIBUTED_TRACE_HEADER, traceId);
-        });
+                    context.response()
+                            .putHeader(
+                                    RequestTraceFilter.TRACE_ID_HEADER,
+                                    responseTrace == null ? traceId : responseTrace
+                            );
+                    context.response().putHeader(DISTRIBUTED_TRACE_HEADER, traceId);
+                }
+        );
 
-        context.addEndHandler(ignored -> {
-            try {
-                if (applicationRequest) {
-                    int status = context.response().getStatusCode();
-                    long duration = (System.nanoTime() - started) / 1_000_000;
+        context.addEndHandler(
+                ignored -> {
+                    try {
+                        if (applicationRequest) {
+                            int status = context.response().getStatusCode();
+                            long duration = (System.nanoTime() - started) / 1_000_000;
 
-                    fields.put("durationMs", duration);
-                    fields.put("http.response.status_code", status);
-                    fields.put("http.response.body.size", context.response().bytesWritten());
-                    fields.put("http.response.started", context.response().headWritten());
-                    fields.put("isSlow", duration >= slowOperationMs);
-                    fields.put("slowThresholdMs", slowOperationMs);
+                            fields.put("durationMs", duration);
 
-                    String route = context.get(ROUTE_KEY);
+                            if (context.response().headWritten() || !ignored.failed()) {
+                                fields.put("http.response.status_code", status);
+                            }
 
-                    if (route != null) {
-                        fields.put("http.route", route);
-                    }
+                            fields.put(
+                                    "http.response.body.size",
+                                    context.response().bytesWritten()
+                            );
+                            fields.put("http.response.started", context.response().headWritten());
+                            fields.put("isSlow", duration >= slowOperationMs);
+                            fields.put("slowThresholdMs", slowOperationMs);
 
-                    boolean failed = status >= 400 || ignored.failed();
+                            String route = context.get(ROUTE_KEY);
 
-                    fields.put("outcome", failed ? "failure" : "success");
+                            if (route != null) {
+                                fields.put("http.route", route);
+                            }
 
-                    if (failed) {
-                        String code = context.get(ERROR_CODE_KEY);
-                        String type = context.get(ERROR_TYPE_KEY);
-                        fields.put("error.code", code != null
-                                ? code
-                                : ignored.failed() && status < 400
-                                ? "REQUEST_INTERRUPTED"
-                                : HttpErrors.forStatus(status).code()
-                        );
-                        fields.put("error.type", type != null
-                                ? type
-                                : ignored.failed()
-                                ? "transport"
-                                : status == 401
-                                ? "authentication"
-                                : status == 403
-                                ? "authorization"
-                                : "http"
-                        );
-                    }
+                            boolean failed = status >= 400 || ignored.failed();
 
-                    StructuredLog.event(LOG, status >= 500
-                                    ? Logger.Level.ERROR
-                                    : failed || duration >= slowOperationMs
-                                    ? Logger.Level.WARN
-                                    : Logger.Level.INFO,
-                            failed ? "http.request.failed" : "http.request.completed",
-                            terminalMessage(fields, status, duration, ignored.failed()), fields);
+                            fields.put("outcome", failed ? "failure" : "success");
 
-                    if (duration >= slowOperationMs) {
-                        StructuredLog.event(
-                                LOG,
-                                Logger.Level.WARN,
-                                "http.request.slow",
-                                "Request exceeded the configured duration threshold: "
-                                        + fields.get("http.request.method")
-                                        + " " + fields.get("http.route")
-                                        + " in " + duration + " ms", fields
-                        );
+                            if (failed) {
+                                String code = context.get(ERROR_CODE_KEY);
+                                String type = context.get(ERROR_TYPE_KEY);
+                                fields.put(
+                                        "error.code",
+                                        code != null
+                                                ? code
+                                                : ignored.failed() && status < 400
+                                                ? "REQUEST_INTERRUPTED"
+                                                : HttpErrors.forStatus(status).code()
+                                );
+                                fields.put(
+                                        "error.type",
+                                        type != null
+                                                ? type
+                                                : ignored.failed()
+                                                ? "transport"
+                                                : status == 401
+                                                ? "authentication"
+                                                : status == 403
+                                                ? "authorization"
+                                                : "http"
+                                );
+                            }
+
+                            StructuredLog.event(
+                                    LOG,
+                                    failed || duration >= slowOperationMs
+                                            ? Logger.Level.WARN
+                                            : Logger.Level.INFO,
+                                    failed ? "http.request.failed" : "http.request.completed",
+                                    terminalMessage(fields, status, duration, ignored.failed()),
+                                    fields
+                            );
+
+                            if (duration >= slowOperationMs) {
+                                StructuredLog.event(
+                                        LOG,
+                                        Logger.Level.WARN,
+                                        "http.request.slow",
+                                        "Request exceeded the configured duration threshold: "
+                                                + fields.get("http.request.method")
+                                                + " "
+                                                + fields.get("http.route")
+                                                + " in "
+                                                + duration
+                                                + " ms",
+                                        fields
+                                );
+                            }
+                        }
+                    } finally {
+                        MDC.remove("correlationId");
+                        MDC.remove("traceId");
+                        MDC.remove("spanId");
+                        MDC.remove("legacyTraceId");
+                        MDC.remove("operation");
+                        fields.keySet().forEach(MDC::remove);
                     }
                 }
-            } finally {
-                MDC.remove("correlationId");
-                MDC.remove("traceId");
-                MDC.remove("spanId");
-                MDC.remove("legacyTraceId");
-                MDC.remove("operation");
-                fields.keySet().forEach(MDC::remove);
-            }
-        });
+        );
         context.next();
     }
 
-    static String terminalMessage(Map<String, Object> fields, int status, long duration, boolean interrupted) {
-        String action = interrupted ? "Interrupted" : status >= 500 ? "Failed" : status >= 400 ? "Rejected" : "Completed";
-        String reason = interrupted ? " before the response completed"
-                : status >= 500 ? " because of an unexpected internal error"
-                : status == 404 ? " because the referenced resource was not found"
-                : status == 409 ? " because the request conflicts with the current state"
-                : status == 400 ? " due to a request or business validation failure" : "";
-        return action + " " + fields.get("http.request.method") + " " + fields.get("http.route")
-                + " with status " + status + " in " + duration + " ms" + reason;
+    private static SpanContext parentContext(RoutingContext context) {
+        TextMapGetter<MultiMap> getter = new TextMapGetter<>() {
+            @Override
+            public Iterable<String> keys(MultiMap headers) {
+                return headers.names();
+            }
+
+            @Override
+            public String get(MultiMap headers, String key) {
+                var values = headers.getAll(key);
+                return values.size() == 1 ? values.get(0) : null;
+            }
+        };
+
+        var parent = W3CTraceContextPropagator.getInstance()
+                .extract(Context.root(), context.request().headers(), getter);
+
+        return Span.fromContext(parent).getSpanContext();
+    }
+
+    static String terminalMessage(
+            Map<String, Object> fields,
+            int status,
+            long duration,
+            boolean interrupted
+    ) {
+        String action =
+                interrupted
+                        ? "Interrupted"
+                        : status >= 500 ? "Failed" : status >= 400 ? "Rejected" : "Completed";
+        String reason =
+                interrupted
+                        ? " before the response completed"
+                        : status >= 500
+                        ? " because of an unexpected internal error"
+                        : status == 404
+                        ? " because the referenced resource was not found"
+                        : status == 409
+                        ? " because the request conflicts with the current"
+                        + " state"
+                        : status == 400
+                        ? " due to a request or business validation"
+                        + " failure"
+                        : "";
+        return action
+                + " "
+                + fields.get("http.request.method")
+                + " "
+                + fields.get("http.route")
+                + " with status "
+                + status
+                + " in "
+                + duration
+                + " ms"
+                + reason;
     }
 
     private static String safeRoute(String path) {
         // Before REST matching, never log arbitrary path segments or query strings.
-        for (String prefix : List.of("/api/v1/admin/vocabularies", "/api/v1/admin/kanji-quiz",
-                "/api/v1/kanji-quiz", "/api/v1/flashcards", "/api/v1/lessons", "/api/v1/jlpt-levels",
-                "/api/vocabularies")) {
+        for (String prefix :
+                List.of(
+                        "/api/v1/admin/vocabularies",
+                        "/api/v1/admin/kanji-quiz",
+                        "/api/v1/kanji-quiz",
+                        "/api/v1/flashcards",
+                        "/api/v1/lessons",
+                        "/api/v1/jlpt-levels",
+                        "/api/vocabularies"
+                )
+        ) {
             if (path.equals(prefix) || path.startsWith(prefix + "/")) {
                 return prefix + "/*";
             }
         }
+
         return "/unmatched";
     }
 
     static String getOrGenerateId(List<String> values) {
         String id = validatedId(values);
+
         return id != null ? id : UUID.randomUUID().toString().replace("-", "");
     }
 
     static String validatedId(List<String> values) {
         if (values.size() == 1) {
             String value = values.get(0);
-            if (value != null && value.length() <= 64 && VALID_ID.matcher(value).matches()) {
+
+            if (value != null
+                    && value.length() <= 64
+                    && VALID_ID.matcher(value).matches()
+            ) {
                 return value;
             }
         }
+
         return null;
     }
 }
