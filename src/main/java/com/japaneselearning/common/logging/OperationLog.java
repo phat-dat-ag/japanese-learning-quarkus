@@ -3,14 +3,16 @@ package com.japaneselearning.common.logging;
 import com.japaneselearning.common.exception.BusinessException;
 import com.japaneselearning.common.exception.ConflictException;
 import com.japaneselearning.common.exception.ResourceNotFoundException;
+
 import io.smallrye.mutiny.Uni;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
+
 import jakarta.annotation.Priority;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 import jakarta.ws.rs.WebApplicationException;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,14 +27,18 @@ public class OperationLog {
     private static final Object ACTIVE_OPERATION = new Object();
     private static final Object RESULT_EVENT = new Object();
 
-    private static final Set<String> IDS = Set.of(
-            "sessionId", "itemId", "vocabularyId", "lessonId", "levelId", "questionId"
-    );
+    private static final Set<String> IDS =
+            Set.of("sessionId", "itemId", "vocabularyId", "lessonId", "levelId", "questionId");
 
     @ConfigProperty(name = "application.logging.slow-operation-ms", defaultValue = "1000")
     long slowOperationMs = 1000;
 
-    private record ResultEvent(String name, String message, Map<String, ?> fields, Logger.Level level) {
+    private record ResultEvent(
+            String name,
+            String message,
+            Map<String, ?> fields,
+            Logger.Level level
+    ) {
     }
 
     // Subscription-local metadata is emitted only after the enclosing transaction completes.
@@ -44,17 +50,29 @@ public class OperationLog {
         return outcome(result, outcome, "", fields);
     }
 
-    public static <T> Uni<T> outcome(Uni<T> result, String outcome, String message, Map<String, ?> fields) {
+    public static <T> Uni<T> outcome(
+            Uni<T> result,
+            String outcome,
+            String message,
+            Map<String, ?> fields
+    ) {
         return outcome(result, outcome, message, fields, null);
     }
 
-    // Explicit level selection; replay/no-op semantics are owned by the caller, never inferred here.
+    // Explicit level selection; replay/no-op semantics are owned by the caller, never inferred
+    // here.
     public static <T> Uni<T> outcome(
-            Uni<T> result, String outcome, String message, Map<String, ?> fields, Logger.Level level
+            Uni<T> result,
+            String outcome,
+            String message,
+            Map<String, ?> fields,
+            Logger.Level level
     ) {
         ResultEvent event = new ResultEvent(outcome, message, Map.copyOf(fields), level);
 
-        return result.withContext((uni, context) -> uni.invoke(item -> context.put(RESULT_EVENT, event)));
+        return result.withContext(
+                (uni, context) -> uni.invoke(item -> context.put(RESULT_EVENT, event))
+        );
     }
 
     @AroundInvoke
@@ -121,57 +139,89 @@ public class OperationLog {
             return result;
         }
 
-        return uniResult.withContext((uni, context) -> {
-            if (context.contains(ACTIVE_OPERATION)) {
-                return uni;
-            }
+        return uniResult.withContext(
+                (uni, context) -> {
+                    if (context.contains(ACTIVE_OPERATION)) {
+                        return uni;
+                    }
 
-            context.put(ACTIVE_OPERATION, true);
+                    context.put(ACTIVE_OPERATION, true);
 
-            long started = System.nanoTime();
-            started(operation, description, identifiers);
+                    long started = System.nanoTime();
+                    started(operation, description, identifiers);
 
-            return uni.invoke(item -> completed(
-                            operation,
-                            description,
-                            successMessage,
-                            identifiers,
-                            started,
-                            completionLevel,
-                            context.getOrElse(
-                                    RESULT_EVENT,
-                                    () -> new ResultEvent("completed", "", Map.of(), null)
+                    return uni.invoke(
+                                    item ->
+                                            completed(
+                                                    operation,
+                                                    description,
+                                                    successMessage,
+                                                    identifiers,
+                                                    started,
+                                                    completionLevel,
+                                                    context.getOrElse(
+                                                            RESULT_EVENT,
+                                                            () ->
+                                                                    new ResultEvent(
+                                                                            "completed",
+                                                                            "",
+                                                                            Map.of(),
+                                                                            null
+                                                                    )
+                                                    )
+                                            )
                             )
-                    ))
-                    .onFailure().invoke(failure -> failed(
-                            operation,
-                            description,
-                            identifiers,
-                            failure,
-                            started
-                    ))
-                    .onCancellation().invoke(() -> StructuredLog.event(
-                            LOG,
-                            Logger.Level.DEBUG,
-                            operation + ".cancelled",
-                            description.isEmpty()
-                                    ? "Cancelled operation " + operation + " before completion"
-                                    : description + " was cancelled before completion",
-                            timed(identifiers, started)
-                    ))
-                    .onTermination().invoke(() -> {
-                        context.delete(ACTIVE_OPERATION);
-                        context.delete(RESULT_EVENT);
-                        slow(operation, description, identifiers, started);
-                    });
-        });
+                            .onFailure()
+                            .invoke(
+                                    failure ->
+                                            failed(
+                                                    operation,
+                                                    description,
+                                                    identifiers,
+                                                    failure,
+                                                    started
+                                            )
+                            )
+                            .onCancellation()
+                            .invoke(
+                                    () ->
+                                            StructuredLog.event(
+                                                    LOG,
+                                                    Logger.Level.WARN,
+                                                    operation + ".cancelled",
+                                                    description.isEmpty()
+                                                            ? "Cancelled operation "
+                                                            + operation
+                                                            + " before completion"
+                                                            : description
+                                                            + " was cancelled before"
+                                                            + " completion",
+                                                    cancelled(identifiers, started)
+                                            )
+                            )
+                            .onTermination()
+                            .invoke(
+                                    () -> {
+                                        context.delete(ACTIVE_OPERATION);
+                                        context.delete(RESULT_EVENT);
+                                        slow(operation, description, identifiers, started);
+                                    }
+                            );
+                }
+        );
     }
 
     private void started(String operation, String description, Map<String, Object> identifiers) {
         if (LOG.isDebugEnabled()) {
-            StructuredLog.event(LOG, Logger.Level.DEBUG, operation + ".started",
-                    description.isEmpty() ? "Started operation " + operation : "Started " + description,
-                    identifiers);
+            StructuredLog.event(
+                    LOG,
+                    Logger.Level.DEBUG,
+                    operation + ".started",
+                    description.isEmpty()
+                            ? "Started operation " + operation
+                            : "Started " + description,
+                    identifiers
+            );
         }
     }
 
@@ -184,11 +234,15 @@ public class OperationLog {
             Logger.Level level,
             ResultEvent event
     ) {
-        Logger.Level selectedLevel = event.name().equals("partial_failure") ? Logger.Level.WARN
-                : event.level() == null ? level : event.level();
+        Logger.Level selectedLevel =
+                event.name().equals("partial_failure")
+                        ? Logger.Level.WARN
+                        : event.level() == null ? level : event.level();
+
         if (!LOG.isEnabled(selectedLevel)) {
             return;
         }
+
         Map<String, Object> fields = new HashMap<>(event.fields());
         fields.putAll(timed(identifiers, started));
 
@@ -198,14 +252,25 @@ public class OperationLog {
         String message = event.message().isEmpty() ? successMessage : event.message();
 
         if (message.isEmpty()) {
-            message = description.isEmpty()
-                    ? "Operation " + operation + (partial ? " completed with failed items" : " completed successfully")
-                    : description + (partial ? " completed with failed items" : " completed successfully");
+            message =
+                    description.isEmpty()
+                            ? "Operation "
+                            + operation
+                            + (partial
+                            ? " completed with failed items"
+                            : " completed successfully"
+                    )
+                            : description
+                            + (partial
+                            ? " completed with failed items"
+                            : " completed successfully"
+                    );
         }
 
         StructuredLog.event(
                 LOG,
-                selectedLevel, operation + "." + event.name(),
+                selectedLevel,
+                operation + "." + event.name(),
                 numericMessage(message, fields),
                 fields
         );
@@ -227,26 +292,47 @@ public class OperationLog {
             fields.put("error.code", business.getCode());
         }
         // Unexpected stacks belong to the central mapper, not every intercepted layer.
-        boolean inputFailure = !description.isEmpty()
-                && failure instanceof WebApplicationException http
-                && http.getResponse().getStatus() >= 400
-                && http.getResponse().getStatus() < 500;
+        boolean inputFailure =
+                !description.isEmpty()
+                        && failure instanceof WebApplicationException http
+                        && http.getResponse().getStatus() >= 400
+                        && http.getResponse().getStatus() < 500;
 
-        String event = operation + (failure instanceof BusinessException || inputFailure ? ".rejected" : ".failed");
-        String message = "Operation " + operation + (failure instanceof BusinessException
-                ? " rejected due to a business validation failure"
-                : " failed because of an unexpected internal error");
+        String event =
+                operation
+                        + (failure instanceof BusinessException || inputFailure
+                        ? ".rejected"
+                        : ".failed"
+                );
+        String message =
+                "Operation "
+                        + operation
+                        + (failure instanceof BusinessException
+                        ? " rejected due to a business validation failure"
+                        : " failed because of an unexpected internal error"
+                );
 
         if (!description.isEmpty()) {
-            message = description + (failure instanceof ResourceNotFoundException
-                    ? " rejected because the requested resource was not found or is unavailable"
-                    : inputFailure
-                    ? " rejected because the input does not meet the request requirements"
-                    : failure instanceof ConflictException
-                    ? " rejected because the current state conflicts with the request or a concurrent modification occurred"
-                    : failure instanceof BusinessException
-                    ? " rejected because an input or business validation requirement was not satisfied"
-                    : " failed unexpectedly; see the centralized exception diagnostic");
+            message =
+                    description
+                            + (failure instanceof ResourceNotFoundException
+                            ? " rejected because the requested resource was not found or is"
+                            + " unavailable"
+                            : inputFailure
+                            ? " rejected because the input does not meet the"
+                            + " request requirements"
+                            : failure instanceof ConflictException
+                            ? " rejected because the current state"
+                            + " conflicts with the request or a"
+                            + " concurrent modification occurred"
+                            : failure instanceof BusinessException
+                            ? " rejected because an input or"
+                            + " business validation"
+                            + " requirement was not satisfied"
+                            : " failed unexpectedly; see the"
+                            + " centralized exception"
+                            + " diagnostic"
+                    );
         }
 
         StructuredLog.event(
@@ -276,7 +362,9 @@ public class OperationLog {
                     Logger.Level.WARN,
                     operation + ".slow",
                     description.isEmpty()
-                            ? "Operation " + operation + " exceeded the configured duration threshold"
+                            ? "Operation "
+                            + operation
+                            + " exceeded the configured duration threshold"
                             : description + " exceeded the configured duration threshold",
                     fields
             );
@@ -286,20 +374,43 @@ public class OperationLog {
     private String numericMessage(String template, Map<String, Object> fields) {
         String message = template;
 
-        for (String key : Set.of(
-                "sessionId", "itemId", "questionId", "count", "total", "created",
-                "updated", "succeeded", "failed", "page", "size"
-        )) {
+        for (String key :
+                Set.of(
+                        "sessionId",
+                        "itemId",
+                        "questionId",
+                        "count",
+                        "total",
+                        "created",
+                        "updated",
+                        "succeeded",
+                        "failed",
+                        "page",
+                        "size"
+                )
+        ) {
             Object value = fields.get(key);
 
-            String replacement = value instanceof Integer || value instanceof Long
-                    ? value.toString()
-                    : "unavailable";
+            String replacement =
+                    key.endsWith("Id")
+                            ? "[redacted]"
+                            : value instanceof Integer || value instanceof Long
+                            ? value.toString()
+                            : "unavailable";
 
             message = message.replace("{" + key + "}", replacement);
         }
 
         return message;
+    }
+
+    private Map<String, Object> cancelled(Map<String, Object> identifiers, long started) {
+        Map<String, Object> fields = timed(identifiers, started);
+
+        fields.put("outcome", "cancelled");
+        fields.put("error.type", "cancellation");
+
+        return fields;
     }
 
     private Map<String, Object> timed(Map<String, Object> identifiers, long started) {
