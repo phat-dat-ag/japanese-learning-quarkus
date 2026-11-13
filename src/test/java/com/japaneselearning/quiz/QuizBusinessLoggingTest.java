@@ -204,7 +204,10 @@ class QuizBusinessLoggingTest {
         assertTrue(records.isEmpty());
         flush.get().complete(null);
         assertEquals(QuizSessionStatus.COMPLETED, session.status);
-        assertEquals("Successfully completed quiz session with sessionId=42", only("quiz.session.finish.completed").getFormattedMessage());
+        assertEquals(
+                "Successfully completed quiz session with sessionId=[redacted]",
+                only("quiz.session.finish.completed").getFormattedMessage()
+        );
         records.clear();
         var repeated = observe(service, "finish", new Class<?>[]{String.class, Long.class},
                 new Object[]{"secret-subject", 42L}, service.finish("secret-subject", 42L));
@@ -227,7 +230,9 @@ class QuizBusinessLoggingTest {
                 service.next("secret", 42L)).await().indefinitely();
         var event = only("quiz.session.next.completed");
         assertEquals("0", event.getMdc("count"));
-        assertTrue(event.getFormattedMessage().startsWith("No next question is available for sessionId=42"));
+        assertTrue(event.getFormattedMessage().startsWith(
+                "No next question is available for sessionId=[redacted]"
+        ));
         assertEquals(org.jboss.logmanager.Level.INFO, event.getLevel());
     }
 
@@ -297,7 +302,11 @@ class QuizBusinessLoggingTest {
                 new Object[]{"secret-subject", 42L, request}, service.submit("secret-subject", 42L, request))
                 .await().indefinitely();
         var event = only("quiz.answer.completed");
-        assertEquals("Successfully recorded an answer for sessionId=42; answered=1 of 2 questions", event.getFormattedMessage());
+        assertEquals(
+                "Successfully recorded an answer for sessionId=[redacted];"
+                        + " answered=1 of 2 questions",
+                event.getFormattedMessage()
+        );
         assertEquals("1", event.getMdc("count"));
         assertEquals("2", event.getMdc("total"));
         assertEquals("9", event.getMdc("itemId"));

@@ -96,7 +96,7 @@ class HttpLifecycleMessageTest {
             assertEquals("failure", terminal.getMdc("outcome"));
             assertEquals("interrupted-request", terminal.getMdc("correlationId"));
             assertEquals("user-api", terminal.getMdc("caller.service.claimed"));
-            assertEquals("127.0.0.1", terminal.getMdc("network.peer.address"));
+            assertNull(terminal.getMdc("network.peer.address"));
             assertEquals("false", terminal.getMdc("http.response.started"));
             assertEquals(records.get(0).getMdc("traceId"), terminal.getMdc("traceId"));
             assertTrue(terminal.getFormattedMessage().startsWith("Interrupted POST /api/v1/flashcards/{id}"));
