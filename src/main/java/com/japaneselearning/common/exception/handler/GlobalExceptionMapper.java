@@ -1,9 +1,11 @@
 package com.japaneselearning.common.exception.handler;
 
+import com.japaneselearning.common.metrics.DatabaseFailureMetrics;
 import com.japaneselearning.common.response.ApiResponse;
 import com.japaneselearning.common.response.ErrorResponse;
 import com.japaneselearning.common.response.ResponseMeta;
 import com.japaneselearning.common.web.RequestTraceContext;
+
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -15,13 +17,19 @@ import java.util.Objects;
 public class GlobalExceptionMapper implements ExceptionMapper<Exception> {
 
     private final RequestTraceContext traceContext;
+    private final DatabaseFailureMetrics databaseMetrics;
 
-    public GlobalExceptionMapper(RequestTraceContext traceContext) {
+    public GlobalExceptionMapper(
+            RequestTraceContext traceContext,
+            DatabaseFailureMetrics databaseMetrics
+    ) {
         this.traceContext = traceContext;
+        this.databaseMetrics = databaseMetrics;
     }
 
     @Override
     public Response toResponse(Exception exception) {
+        databaseMetrics.failed(exception);
         traceContext.failure(exception);
 
         String traceId = traceContext.getTraceId();

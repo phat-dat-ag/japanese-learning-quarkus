@@ -6,8 +6,12 @@ import io.quarkus.test.junit.TestProfile;
 import org.jose4j.jwk.RsaJsonWebKey;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static io.restassured.RestAssured.given;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusTest
 @TestProfile(JwtSecurityTestProfile.class)
@@ -18,17 +22,27 @@ class ApplicationMetricsTest {
     @Test
     void exportsRuntimeAndBoundedHttpMetricsIncludingAuthErrors() throws Exception {
         String token = new JwtTestTokens(signingKey).token("User");
-        given().auth().oauth2(token).header("X-Correlation-ID", "metrics-correlation-sentinel")
-                .queryParam("secret", "credential-sentinel").get("/api/v1/flashcards/987654321")
-                .then().statusCode(200).header("X-Correlation-ID", "metrics-correlation-sentinel");
-        given().get("/api/v1/jlpt-levels").then().statusCode(401);
+        given().auth().oauth2(token)
+                .header("X-Correlation-ID", "metrics-correlation-sentinel")
+                .queryParam("secret", "credential-sentinel")
+                .get("/api/v1/flashcards/987654321")
+                .then()
+                .statusCode(200)
+                .header("X-Correlation-ID", "metrics-correlation-sentinel");
+        given().get("/api/v1/jlpt-levels")
+                .then().statusCode(401);
         given().auth().oauth2(new JwtTestTokens(signingKey).token("Guest"))
-                .get("/api/v1/jlpt-levels").then().statusCode(403);
-        given().get("/error-probe/unexpected").then().statusCode(500);
+                .get("/api/v1/jlpt-levels")
+                .then().statusCode(403);
+        given().get("/error-probe/unexpected")
+                .then().statusCode(500);
         for (int i = 0; i < 20; i++) {
-            given().get("/unmatched-credential-sentinel/" + i).then().statusCode(404);
+            given().get("/unmatched-credential-sentinel/" + i)
+                    .then().statusCode(404);
         }
-        String metrics = given().accept("text/plain").get("/q/metrics").then().statusCode(200)
+        String metrics = given().accept("text/plain")
+                .get("/q/metrics")
+                .then().statusCode(200)
                 .extract().asString();
         assertTrue(metrics.contains("http_server_requests_seconds_count"));
         assertTrue(metrics.contains("http_server_requests_seconds_bucket"));
@@ -38,9 +52,19 @@ class ApplicationMetricsTest {
         }
         assertTrue(metrics.contains("jvm_memory_used_bytes"));
         assertTrue(metrics.contains("process_cpu_usage"));
-        for (String sensitive : new String[]{token, "credential-sentinel", "metrics-correlation-sentinel",
-                "987654321", "trace_id", "span_id", "user_id", "uri=", "clientName="}) {
+        assertTrue(metrics.contains("app_security_events_total"));
+        assertTrue(metrics.contains("operation=\"authorization\""));
+        assertTrue(metrics.contains("operation=\"authentication\""));
+        assertTrue(metrics.contains("outcome=\"unauthenticated\""));
+        assertTrue(metrics.contains("outcome=\"denied\""));
+        assertTrue(metrics.contains("outcome=\"success\""));
+        for (String sensitive : new String[]{token, "credential-sentinel",
+                "metrics-correlation-sentinel", "987654321", "trace_id", "span_id",
+                "user_id", "uri=", "clientName="}) {
             assertFalse(metrics.contains(sensitive), "Unsafe metrics field");
         }
+        Files.writeString(Path.of("target/p04-exposition.prom"), metrics);
+        assertTrue(metrics.contains("app_dependency_requests_total"));
+        assertTrue(metrics.contains("app_dependency_duration_seconds_count"));
     }
 }
