@@ -149,7 +149,10 @@ class FlashcardBusinessLoggingTest {
         call(sessions, "create", new Class<?>[]{String.class, FlashcardSessionCreateRequest.class},
                 OWNER, new FlashcardSessionCreateRequest(7L, FlashcardSessionMode.NEW_AND_DUE, 20, false));
         var created = only("flashcard.session.creation.completed");
-        assertEquals("Successfully created learning session with id=10 containing 1 cards", created.getFormattedMessage());
+        assertEquals(
+                "Successfully created learning session with id=[redacted] containing 1 cards",
+                created.getFormattedMessage()
+        );
         assertEquals("1", created.getMdc("count"));
         assertEquals("20", only("flashcard.session.selection").getMdc("size"));
         assertNull(only("flashcard.session.selection").getMdc("total"));
