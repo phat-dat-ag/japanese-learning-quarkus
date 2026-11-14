@@ -3,13 +3,16 @@ FROM eclipse-temurin:17-jdk-jammy@sha256:51d32af96fb8a13ffbc96c719d7b05447a04ca6
 # Keep the wrapper on its checksum-pinned ZIP distribution.
 RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
+# Quarkus fixes exporter enablement during augmentation; Compose passes the runtime choice.
+ARG APP_OTEL_EXPORT_ENABLED=false
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 # Windows checkouts may give the wrapper CRLF line endings.
 RUN sed -i 's/\r$//' mvnw && chmod +x mvnw
 COPY src/main/ src/main/
 # Tests run separately; no test fixtures or credentials enter the build context.
-RUN ./mvnw -B -ntp package -Dmaven.test.skip=true
+RUN ./mvnw -B -ntp package -Dmaven.test.skip=true \
+    -Dquarkus.otel.exporter.otlp.enabled=${APP_OTEL_EXPORT_ENABLED}
 
 # Follow the Quarkus fast-jar layout and container-aware Java launcher.
 FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:1.24@sha256:5db930442757ef371837b40e9d90c4b6d4afd07c54ff3957afadb09ebb68c82c
