@@ -268,7 +268,7 @@ Console and file logging default to structured NDJSON with asynchronous discard-
 
 [Logging and distributed tracing](docs/logging.md) documents the architecture, schema, configuration, business events, redaction, W3C propagation, rotation, and request troubleshooting.
 
-JSON request context includes a validated caller-service claim, direct peer address/port, REST resource/method, parent span, and typed response/slow-request fields. Business lifecycle events identify the intercepted Java class/method. `service.instance.id` uses optional `APP_INSTANCE_ID` or container `HOSTNAME`; `log.schema.version` is integer `1`. See the logging guide for examples and future Fluent Bit/Loki collection guidance.
+JSON request context includes a validated caller-service claim, direct peer address/port, REST resource/method, parent span, and typed response/slow-request fields. Business lifecycle events identify the intercepted Java class/method. `service.instance.id` uses optional `APP_INSTANCE_ID` or container `HOSTNAME`; `log.schema.version` is integer `1`. See the logging guide for examples; the parent deployment uses Fluent Bit/OpenSearch and collector/Tempo, with no Loki requirement.
 
 ## Troubleshooting
 
@@ -293,3 +293,20 @@ The following cannot be derived from this checkout: clone/submodule URLs, the in
 The User JWKS endpoint is an explicit trust boundary. Keep the configured issuer
 and audience checks; do not accept Learning keys or choose a key endpoint from
 unverified token claims. This deployment leaves Learning ownership unconfigured.
+
+### Environment template coverage
+
+`.env.example` and ignored `.env` cover database/JWKS requirements, logging,
+tracing (including endpoint/root limit/version), HTTP/lifecycle, import limits and
+the four SRS policy properties. SmallRye reads the working-directory `.env` for
+native runs; use host endpoints there. Docker instead loads the parent's
+`.env.vocabulary-api`; Compose explicitly overrides database/JWKS URLs, log path,
+telemetry environment and tracing controls. Editing the child file does not change
+containers. The parent sync/audit commands preserve existing assignments and verify
+the implicit `@ConfigProperty` import/SRS bindings as well as property placeholders.
+`APP_INSTANCE_ID` remains optional and absent so Docker's `HOSTNAME` supplies a
+unique instance; image launcher settings stay in the Dockerfile. Exporter enablement
+is build-time augmentation and runtime configuration: rebuild when changing it.
+INFO is the default; production-like uses trace ratio 0.01, with export still opt-in.
+See the parent [environment guide](../README.md#environment-configuration) for the
+local DEV/production-like commands, separate data volumes and shared telemetry limits.
