@@ -132,7 +132,9 @@ paths:
       description: >-
         Requires the User or Admin role. Includes persisted child IDs for existing Admin update operations. IDs do not grant
         write access or change shared example and kanji restrictions. Existing learner fields
-        are preserved, including the integer pitchAccents array.
+        are preserved, including the integer pitchAccents array. All linked examples are returned
+        in random array order on each detail retrieval, with or without includeLearning.
+        Stored displayOrder values are preserved; repeated requests may produce the same order.
       parameters:
         - name: includeLearning
           in: query

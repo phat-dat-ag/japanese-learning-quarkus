@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -180,6 +181,49 @@ class FlashcardServiceTest {
         ), response);
         assertEquals(List.of(11L, 7L), repository.requestedReadingIds);
         assertEquals(List.of(21L, 22L), repository.requestedKanjiIds);
+    }
+
+    @Test
+    void preservesAllExamplesAndStoredOrderWhenShufflingResponse() {
+        repository.examples = IntStream.range(0, 5)
+                .mapToObj(index -> {
+                    ExampleSentence sentence = new ExampleSentence();
+                    sentence.japaneseText = "sentence-" + index;
+                    sentence.japaneseReading = "reading-" + index;
+                    sentence.meaningVi = "meaning-" + index;
+                    VocabularyExample example = new VocabularyExample();
+                    example.exampleSentenceId = (long) index;
+                    example.exampleSentence = sentence;
+                    example.displayOrder = index;
+                    return example;
+                })
+                .toList();
+
+        FlashcardDetailResponse response = service.getFlashcard(42L)
+                .await().atMost(Duration.ofSeconds(1));
+
+        assertEquals(5, response.examples().size());
+        assertEquals(
+                List.of(0L, 1L, 2L, 3L, 4L),
+                response.examples().stream()
+                        .map(FlashcardExampleResponse::exampleId)
+                        .sorted()
+                        .toList()
+        );
+
+        for (FlashcardExampleResponse example : response.examples()) {
+            assertEquals("sentence-" + example.exampleId(), example.japaneseText());
+            assertEquals("reading-" + example.exampleId(), example.japaneseReading());
+            assertEquals("meaning-" + example.exampleId(), example.meaningVi());
+            assertEquals(example.exampleId().intValue(), example.displayOrder());
+        }
+
+        assertEquals(
+                List.of(0L, 1L, 2L, 3L, 4L),
+                repository.examples.stream()
+                        .map(example -> example.exampleSentenceId)
+                        .toList()
+        );
     }
 
     @Test
