@@ -1,5 +1,11 @@
 # Japanese Learning Backend
 
+Flashcard detail responses return all linked examples in random array order on
+each retrieval, including when `includeLearning=true`. Stored `displayOrder`
+values and response fields remain unchanged. Random orders can repeat. This
+requires no new environment variables or database migration. See
+[flashcard learning](docs/flashcard-learning.md) for session implications.
+
 For the complete Japanese Learning Docker stack, follow the parent repository's
 [clone and first-time setup guide](../README.md#getting-started). It initializes
 root service dotenv inputs and provisions matching JWT/P07 files before startup.

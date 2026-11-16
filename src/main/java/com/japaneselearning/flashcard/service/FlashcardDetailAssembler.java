@@ -22,6 +22,8 @@ import com.japaneselearning.vocabulary.entity.VocabularyMeaning;
 import com.japaneselearning.vocabulary.entity.VocabularyPitchAccent;
 import com.japaneselearning.vocabulary.entity.VocabularyReading;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -155,15 +157,27 @@ final class FlashcardDetailAssembler {
                         kanjiReadingMap.getOrDefault(detail.kanji().id, List.of()),
                         detail.displayOrder()
                 )).toList(),
-                examples.stream().map(example -> new FlashcardExampleResponse(
-                        example.exampleSentenceId,
-                        example.exampleSentence.japaneseText,
-                        example.exampleSentence.japaneseReading,
-                        example.exampleSentence.meaningVi,
-                        example.exampleSentence.meaningEn,
-                        example.targetText,
-                        example.displayOrder
-                )).toList()
+                shuffledExamples()
         );
+    }
+
+    private List<FlashcardExampleResponse> shuffledExamples() {
+        List<FlashcardExampleResponse> responses = new ArrayList<>();
+
+        for (VocabularyExample example : examples) {
+            responses.add(new FlashcardExampleResponse(
+                    example.exampleSentenceId,
+                    example.exampleSentence.japaneseText,
+                    example.exampleSentence.japaneseReading,
+                    example.exampleSentence.meaningVi,
+                    example.exampleSentence.meaningEn,
+                    example.targetText,
+                    example.displayOrder
+            ));
+        }
+
+        Collections.shuffle(responses);
+
+        return List.copyOf(responses);
     }
 }

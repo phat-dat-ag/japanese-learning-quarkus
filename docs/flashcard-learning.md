@@ -8,6 +8,14 @@ Existing flashcard list/detail contracts remain unchanged unless `includeLearnin
 
 ### Scheduling versus practice
 
+Flashcard detail retrieval shuffles all linked examples in the response without
+changing stored display order. This applies with and without `includeLearning`.
+The viewing UI selects the first example and displays its reading and Vietnamese
+meaning on the back. Session study retains its two-example presentation, but
+receives the same randomized API data: a detail refresh (including window focus)
+may change its examples. Selected examples are not persisted in session items.
+No environment configuration or schema changes are needed.
+
 `NEW_AND_DUE` and `DUE` sessions are SRS sessions. Eligibility is checked both when
 creating a session and when accepting a review. `ALL` sessions are non-scheduling
 practice: ratings are recorded and items completed, but progress, repetitions,
