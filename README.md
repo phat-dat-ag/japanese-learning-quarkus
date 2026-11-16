@@ -1,5 +1,14 @@
 # Japanese Learning Backend
 
+For the complete Japanese Learning Docker stack, follow the parent repository's
+[clone and first-time setup guide](../README.md#getting-started). It initializes
+root service dotenv inputs and provisions matching JWT/P07 files before startup.
+This repository's `.env.example` is for native/service configuration; it is not
+loaded automatically by every framework and is not a substitute for the parent
+Compose setup. If cloned standalone, obtain the [root repository](https://github.com/phat-dat-ag/japanese-learning);
+the relative guide link requires the submodule checkout layout.
+
+
 Quarkus backend for the Japanese Learning application. This repository builds one application (`com.japaneselearning:backend`), containing vocabulary management, flashcard queries, and Kanji Context Quiz features. These are Java packages within one deployment, not independently runnable Maven modules.
 
 In the wider system, Angular provides the frontend and .NET owns authentication and user management. This application consumes the authentication service's public JWKS and verifies bearer tokens locally. Angular and .NET source code, API Gateway routing, and full-system orchestration are outside this repository.
@@ -250,7 +259,7 @@ The default package is a Quarkus fast-jar. Deploy the complete `target/quarkus-a
 
 The root Dockerfile builds from source with the pinned Maven Wrapper and Java 17, skips tests during packaging, then copies only the fast-jar application into the UBI 9 OpenJDK 17 runtime. It runs as UID 185 and listens on `0.0.0.0:8080`. `.dockerignore` excludes local credentials, key material, tests, and build output.
 
-After building, prepare an ignored `.env.docker` containing the variables documented above. Database and Auth hosts must be reachable **from the container**; `localhost` inside it does not refer to the host or another service. On an existing shared network, for example `japanese-learning`, run:
+After building, copy `.env.docker.example` to `.env.docker` only if the local file is absent. Supply the database password and database/Auth/JWKS URLs for the selected container network; preserve existing local values. Database and Auth hosts must be reachable **from the container**; `localhost` inside it does not refer to the host or another service. On an existing shared network, for example `japanese-learning`, run:
 
 ```sh
 docker run --rm --name japanese-learning-backend --network japanese-learning --env-file .env.docker --mount type=volume,source=backend_logs,target=/deployments/data/logs -p 8080:8080 japanese-learning-backend:local

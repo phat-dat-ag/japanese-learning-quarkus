@@ -47,6 +47,7 @@ nb-configuration.xml
 # Local secrets (examples contain placeholders only)
 .env.*
 !.env.example
+!.env.docker.example
 secrets/
 *.[pP][eE][mM]
 *.key
